@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   CATALOG,
   defaultSceneState,
+  isLightType,
   type ObjectParams,
   type ObjectType,
   type RoomSpec,
@@ -21,6 +22,7 @@ export const uid = (): string => {
 export function defaultY(type: ObjectType, params: ObjectParams, roomHeight: number): number {
   if (type === 'wall') return Math.min(params.mountY ?? 1.5, roomHeight - 0.8);
   if (type === 'pendant') return Math.min(params.mountY ?? 2.3, roomHeight - 0.15);
+  if (type === 'hood') return Math.min(params.mountY ?? 1.62, roomHeight - 0.4);
   return 0;
 }
 
@@ -46,6 +48,12 @@ interface EditorState {
 
   beginAction: () => void;
   addObject: (type: ObjectType, position: [number, number, number], label?: string) => string;
+  addGenerated: (
+    type: ObjectType,
+    label: string,
+    params: ObjectParams,
+    position: [number, number, number]
+  ) => string;
   addObjects: (objs: SceneObject[]) => void;
   updateObject: (id: string, patch: Partial<SceneObject>) => void;
   updateParams: (id: string, params: ObjectParams) => void;
@@ -102,7 +110,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       position: [position[0], y, position[2]],
       rotationY: 0,
       open: false,
-      on: type === 'pendant' || type === 'floor-lamp',
+      on: isLightType(type),
+    };
+    set((s) => ({ objects: [...s.objects, obj], selectedIds: [id], dirty: true }));
+    return id;
+  },
+
+  /** افزودن آبجکت تولیدشده با متن/AI با پارامترهای سفارشی */
+  addGenerated: (type, label, params, position) => {
+    get().beginAction();
+    const y = defaultY(type, params, get().roomSpec.heightM);
+    const id = uid();
+    const obj: SceneObject = {
+      id, type, label, params,
+      position: [position[0], y, position[2]],
+      rotationY: 0,
+      open: false,
+      on: isLightType(type),
     };
     set((s) => ({ objects: [...s.objects, obj], selectedIds: [id], dirty: true }));
     return id;
@@ -156,9 +180,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleLight: (id) =>
     set((s) => ({
       objects: s.objects.map((o) =>
-        o.id === id && (o.type === 'pendant' || o.type === 'floor-lamp')
-          ? { ...o, on: !o.on }
-          : o
+        o.id === id && isLightType(o.type) ? { ...o, on: !o.on } : o
       ),
       dirty: true,
     })),
@@ -216,7 +238,7 @@ export function findFreeSpot(
 ): [number, number] {
   const w = spec.widthM;
   const d = spec.depthM;
-  if (type === 'base' || type === 'tall' || type === 'wall' || type === 'shelf') {
+  if (type === 'base' || type === 'tall' || type === 'wall' || type === 'shelf' || type === 'fridge' || type === 'stove' || type === 'hood') {
     // ردیف پشت دیوار
     const backZ = -d / 2 + 0.35;
     for (let x = -w / 2 + 0.5; x <= w / 2 - 0.5; x += 0.05) {

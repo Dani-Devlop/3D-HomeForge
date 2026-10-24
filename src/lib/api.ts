@@ -1,4 +1,4 @@
-import type { RoomSpec, SceneState, SceneObject, ShareRole } from './scene-types';
+import type { RoomSpec, SceneState, SceneObject, ObjectPatch, ShareRole } from './scene-types';
 
 // ---------------- DTOs ----------------
 
@@ -9,9 +9,19 @@ export interface ProjectDTO {
   roomSpec: RoomSpec | Record<string, never>;
   sceneState: SceneState | Record<string, never>;
   thumbnail: string | null;
+  isPublic: boolean;
+  folderId: string | null;
+  folderName: string | null;
   createdAt: string;
   updatedAt: string;
   shareCount?: number;
+}
+
+export interface FolderDTO {
+  id: string;
+  name: string;
+  createdAt: string;
+  projectCount?: number;
 }
 
 export interface ShareLinkDTO {
@@ -43,7 +53,15 @@ export interface PresetDTO {
 export interface ReconstructResult {
   roomSpec: RoomSpec;
   roomType: string;
+  objects: SceneObject[]; // تجهیزات/کابینت‌های تشخیص داده‌شده از عکس
   description: string;
+}
+
+/** خروجی تولید مدل با متن (text-to-3D) */
+export interface GeneratedItem {
+  type: SceneObject['type'];
+  label: string;
+  params: SceneObject['params'];
 }
 
 // ---------------- fetch helpers ----------------
@@ -71,19 +89,58 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 // ---------------- API ----------------
 
 export const api = {
-  reconstruct: (image: string) =>
+  // ---- بازسازی سه‌بعدی از چند عکس / فریم‌های ویدیو ----
+  reconstruct: (images: string[]) =>
     request<ReconstructResult>('/api/reconstruct', {
       method: 'POST',
-      body: JSON.stringify({ image }),
+      body: JSON.stringify({ images }),
     }),
 
-  listProjects: () => request<{ projects: ProjectDTO[] }>('/api/projects'),
+  // ---- تولید مدل سه‌بعدی از توصیف متنی (text-to-3D) ----
+  generateObject: (text: string) =>
+    request<{ item: GeneratedItem }>('/api/ai/cabinet', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  // ---- ویرایش متنی آبجکت انتخاب‌شده ----
+  aiEditObject: (object: SceneObject, text: string) =>
+    request<{ patch: ObjectPatch }>('/api/ai/edit', {
+      method: 'POST',
+      body: JSON.stringify({ object, text }),
+    }),
+
+  // ---- پوشه‌ها ----
+  listFolders: () => request<{ folders: FolderDTO[] }>('/api/folders'),
+
+  createFolder: (name: string) =>
+    request<{ folder: FolderDTO }>('/api/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  renameFolder: (id: string, name: string) =>
+    request<{ folder: FolderDTO }>(`/api/folders/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteFolder: (id: string) =>
+    request<{ ok: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
+
+  listProjects: (folderId?: string | null) =>
+    request<{ projects: ProjectDTO[] }>(
+      folderId === undefined
+        ? '/api/projects'
+        : `/api/projects?folderId=${folderId === null ? 'none' : folderId}`
+    ),
 
   createProject: (p: {
     name: string;
     roomType?: string;
     roomSpec: RoomSpec;
     sceneState?: SceneState;
+    folderId?: string | null;
   }) =>
     request<{ project: ProjectDTO }>('/api/projects', {
       method: 'POST',
@@ -101,6 +158,8 @@ export const api = {
       roomSpec?: RoomSpec;
       sceneState?: SceneState;
       thumbnail?: string | null;
+      isPublic?: boolean;
+      folderId?: string | null;
     }
   ) =>
     request<{ project: ProjectDTO }>(`/api/projects/${id}`, {

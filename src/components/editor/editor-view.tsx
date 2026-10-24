@@ -22,7 +22,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { SceneObject, CatalogItem, RoomSpec } from '@/lib/scene-types';
+import type { ObjectPatch, SceneObject, CatalogItem, RoomSpec } from '@/lib/scene-types';
 import { exportGroupToGLB } from '@/lib/export-glb';
 import {
   findFreeSpot,
@@ -72,6 +72,8 @@ export default function EditorView({ projectId }: { projectId: string }) {
   const [dropActive, setDropActive] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [aiEditing, setAiEditing] = useState(false);
 
   // بارگذاری پروژه در استور
   useEffect(() => {
@@ -155,6 +157,75 @@ export default function EditorView({ projectId }: { projectId: string }) {
     const [x, z] = findFreeSpot(s.objects, item.type, s.roomSpec);
     s.addObject(item.type, [x, 0, z], item.label);
     toast({ title: `${item.label} اضافه شد`, description: 'با کشیدن گیزموت جابه‌جا کنید' });
+  };
+
+  // ---- تولید مدل با توصیف متنی (text-to-3D) ----
+  const generateFromText = async (text: string) => {
+    try {
+      setGenerating(true);
+      const { item } = await api.generateObject(text);
+      const s = store.getState();
+      const [x, z] = findFreeSpot(s.objects, item.type, s.roomSpec);
+      s.addGenerated(item.type, item.label, item.params, [x, 0, z]);
+      toast({
+        title: `«${item.label}» ساخته شد ✓`,
+        description: 'مدل پارامتریک به صحنه اضافه شد — با پنل کناری تنظیمش کنید',
+      });
+    } catch (e) {
+      toast({
+        title: 'تولید مدل ناموفق بود',
+        description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
+        variant: 'destructive',
+      });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // ---- ویرایش متنی آبجکت انتخاب‌شده ----
+  const applyAiPatch = (id: string, patch: ObjectPatch) => {
+    const s = store.getState();
+    s.beginAction();
+    const target = s.objects.find((o) => o.id === id);
+    if (!target) return;
+    const pos = target.position;
+    const nextPosition: [number, number, number] = patch.positionDelta
+      ? [
+        THREE.MathUtils.clamp(pos[0] + patch.positionDelta[0], -s.roomSpec.widthM, s.roomSpec.widthM),
+        THREE.MathUtils.clamp(pos[1] + patch.positionDelta[1], 0, s.roomSpec.heightM),
+        THREE.MathUtils.clamp(pos[2] + patch.positionDelta[2], -s.roomSpec.depthM, s.roomSpec.depthM),
+      ]
+      : pos;
+    s.updateObject(id, {
+      position: nextPosition,
+      ...(patch.rotationYDelta !== undefined
+        ? { rotationY: target.rotationY + patch.rotationYDelta }
+        : {}),
+      ...(patch.params ? { params: { ...target.params, ...patch.params } } : {}),
+      ...(patch.label ? { label: patch.label } : {}),
+      ...(patch.open !== undefined ? { open: patch.open } : {}),
+      ...(patch.on !== undefined ? { on: patch.on } : {}),
+    });
+  };
+
+  const aiEditSelected = async (text: string) => {
+    const s = store.getState();
+    const target = s.objects.find((o) => o.id === selectedIds[selectedIds.length - 1]);
+    if (!target) return;
+    try {
+      setAiEditing(true);
+      const { patch } = await api.aiEditObject(target, text);
+      applyAiPatch(target.id, patch);
+      toast({ title: 'تغییر اعمال شد ✓', description: 'با Ctrl+Z قابل بازگشت است' });
+    } catch (e) {
+      toast({
+        title: 'اعمال تغییر ناموفق بود',
+        description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
+        variant: 'destructive',
+      });
+    } finally {
+      setAiEditing(false);
+    }
   };
 
   // ---- Undo/Redo کیبورد ----
@@ -347,7 +418,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
                 <TabsTrigger value="presets">پریست‌ها</TabsTrigger>
               </TabsList>
               <TabsContent value="library" className="flex-1 min-h-0 mt-0">
-                <LibraryPanel onPick={addFromCatalog} />
+                <LibraryPanel onPick={addFromCatalog} onGenerate={generateFromText} generating={generating} />
               </TabsContent>
               <TabsContent value="presets" className="flex-1 min-h-0 mt-0">
                 <PresetsPanel
@@ -450,8 +521,10 @@ export default function EditorView({ projectId }: { projectId: string }) {
           {primary ? (
             <PropertiesPanel
               obj={primary}
+              aiEditing={aiEditing}
               onUpdate={(patch) => store.getState().updateObject(primary.id, patch)}
               onUpdateParams={(params) => store.getState().updateParams(primary.id, params)}
+              onAiEdit={aiEditSelected}
               onRotate={() => {
                 const s = store.getState();
                 s.beginAction();

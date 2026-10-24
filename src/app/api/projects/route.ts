@@ -5,13 +5,26 @@ import { serializeProject, readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
 // /api/projects — فهرست و ساخت پروژه
+// GET ?folderId=<id> فقط پروژه‌های آن پوشه — ?folderId=none فقط بدون پوشه
 // ============================================================
 
-const projectCount = { _count: { select: { shareLinks: true } } } as const;
+const projectCount = {
+  _count: { select: { shareLinks: true } },
+  folder: { select: { name: true } },
+} as const;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const folderId = new URL(req.url).searchParams.get('folderId');
+    const where =
+      folderId === 'none'
+        ? { folderId: null }
+        : folderId
+          ? { folderId }
+          : undefined;
+
     const projects = await db.project.findMany({
+      where,
       orderBy: { updatedAt: 'desc' },
       include: projectCount,
     });
@@ -29,6 +42,7 @@ const createSchema = z.object({
   roomType: z.string().min(1).optional(),
   roomSpec: looseObject.optional(),
   sceneState: looseObject.optional(),
+  folderId: z.string().min(1).nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -44,7 +58,18 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const { name, roomType, roomSpec, sceneState } = parsed.data;
+    const { name, roomType, roomSpec, sceneState, folderId } = parsed.data;
+
+    // پوشه ارسالی باید موجود باشد
+    if (folderId) {
+      const folder = await db.folder.findUnique({
+        where: { id: folderId },
+        select: { id: true },
+      });
+      if (!folder) {
+        return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 400 });
+      }
+    }
 
     const project = await db.project.create({
       data: {
@@ -52,6 +77,7 @@ export async function POST(req: NextRequest) {
         ...(roomType !== undefined ? { roomType } : {}),
         ...(roomSpec !== undefined ? { roomSpec: JSON.stringify(roomSpec) } : {}),
         ...(sceneState !== undefined ? { sceneState: JSON.stringify(sceneState) } : {}),
+        ...(folderId !== undefined ? { folderId } : {}),
       },
       include: projectCount,
     });

@@ -7,7 +7,10 @@ import { serializeProject, readJsonBody } from '@/app/api/_lib/serialize';
 // /api/projects/[id] — خواندن، ویرایش و حذف یک پروژه
 // ============================================================
 
-const projectCount = { _count: { select: { shareLinks: true } } } as const;
+const projectCount = {
+  _count: { select: { shareLinks: true } },
+  folder: { select: { name: true } },
+} as const;
 
 const looseObject = z.record(z.string(), z.unknown());
 
@@ -17,6 +20,8 @@ const patchSchema = z.object({
   roomSpec: looseObject.optional(),
   sceneState: looseObject.optional(),
   thumbnail: z.string().nullable().optional(),
+  isPublic: z.boolean().optional(),
+  folderId: z.string().min(1).nullable().optional(),
 });
 
 export async function GET(
@@ -53,11 +58,23 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const { name, roomType, roomSpec, sceneState, thumbnail } = parsed.data;
+    const { name, roomType, roomSpec, sceneState, thumbnail, isPublic, folderId } =
+      parsed.data;
 
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
       return NextResponse.json({ error: 'پروژه یافت نشد' }, { status: 404 });
+    }
+
+    // null یعنی جداکردن از پوشه؛ مقدار غیرتهی باید موجود باشد
+    if (folderId) {
+      const folder = await db.folder.findUnique({
+        where: { id: folderId },
+        select: { id: true },
+      });
+      if (!folder) {
+        return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 400 });
+      }
     }
 
     const project = await db.project.update({
@@ -68,6 +85,8 @@ export async function PATCH(
         ...(roomSpec !== undefined ? { roomSpec: JSON.stringify(roomSpec) } : {}),
         ...(sceneState !== undefined ? { sceneState: JSON.stringify(sceneState) } : {}),
         ...(thumbnail !== undefined ? { thumbnail } : {}),
+        ...(isPublic !== undefined ? { isPublic } : {}),
+        ...(folderId !== undefined ? { folderId } : {}),
       },
       include: projectCount,
     });

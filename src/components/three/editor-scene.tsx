@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'rea
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid } from '@react-three/drei';
 import type { ObjectType, RoomSpec, SceneObject } from '@/lib/scene-types';
+import { FridgeMesh, HoodMesh, StoveMesh } from './appliance';
 import { CabinetMesh, type MeshCtx, type RefsMap } from './cabinet';
 import { FloorLampMesh, PendantMesh, PlantMesh, RugMesh } from './decor';
 import { RoomMesh } from './room';
@@ -33,6 +34,12 @@ export function SceneEnvironment() {
 
 function ObjectEntry(ctx: MeshCtx) {
   switch (ctx.obj.type) {
+    case 'fridge':
+      return <FridgeMesh {...ctx} />;
+    case 'stove':
+      return <StoveMesh {...ctx} />;
+    case 'hood':
+      return <HoodMesh {...ctx} />;
     case 'pendant':
       return <PendantMesh {...ctx} />;
     case 'floor-lamp':

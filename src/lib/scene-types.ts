@@ -37,10 +37,27 @@ export type ObjectType =
   | 'tall' // کابینت بلند / یخچالی
   | 'island' // جزیره
   | 'shelf' // قفسه باز
+  | 'fridge' // یخچال
+  | 'stove' // اجاق گاز
+  | 'hood' // هود
   | 'pendant' // چراغ آویز
   | 'floor-lamp' // چراغ ایستاده
   | 'plant' // گیاه
   | 'rug'; // فرش
+
+/** انواع قابل تشخیص/بازسازی توسط AI و تولید با متن */
+export const RECONSTRUCTABLE_TYPES: readonly ObjectType[] = [
+  'base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove', 'hood',
+];
+
+/** انواع دارای درب باز/بسته‌شونده (Mesh States) */
+export const DOOR_TYPES: readonly ObjectType[] = ['base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove'];
+
+/** انواع دارای روشن/خاموش (چراغ) */
+export const LIGHT_TYPES: readonly ObjectType[] = ['pendant', 'floor-lamp', 'hood', 'stove'];
+
+export const isDoorType = (t: ObjectType) => DOOR_TYPES.includes(t);
+export const isLightType = (t: ObjectType) => LIGHT_TYPES.includes(t);
 
 export type HandleType = 'bar' | 'knob' | 'none';
 
@@ -81,7 +98,14 @@ export const defaultSceneState = (): SceneState => ({ objects: [] });
 
 // ---------------- کاتالوگ کتابخانه (پارامتریک) ----------------
 
-export type CatalogCategory = 'cabinet' | 'decor' | 'light';
+export type CatalogCategory = 'cabinet' | 'appliance' | 'light' | 'decor';
+
+export const CATALOG_CATEGORY_LABEL: Record<CatalogCategory, string> = {
+  cabinet: 'کابینت‌ها',
+  appliance: 'لوازم موجود',
+  light: 'چراغ‌ها',
+  decor: 'دکور',
+};
 
 export interface CatalogItem {
   type: ObjectType;
@@ -159,6 +183,39 @@ export const CATALOG: CatalogItem[] = [
     },
   },
   {
+    type: 'fridge',
+    label: 'یخچال',
+    category: 'appliance',
+    description: 'یخچال دو‌درب با دستگیره — درب آن باز می‌شود',
+    defaults: {
+      w: 0.75, h: 1.8, d: 0.7,
+      color: '#b9bec6', bodyColor: '#b9bec6', doorColor: '#cdd2d9',
+      doors: 1, handles: 'bar',
+    },
+  },
+  {
+    type: 'stove',
+    label: 'اجاق گاز',
+    category: 'appliance',
+    description: 'اجاق با فر و صفحه گاز — شعله‌ها قابل روشن/خاموش هستند',
+    defaults: {
+      w: 0.6, h: 0.9, d: 0.6,
+      color: '#3d4046', bodyColor: '#4a4e55', doorColor: '#34373c',
+      countertopColor: '#1e2024', doors: 1, handles: 'bar',
+    },
+  },
+  {
+    type: 'hood',
+    label: 'هود',
+    category: 'appliance',
+    description: 'هود آشپزخانه با چراغ — نصب روی دیوار بالای اجاق',
+    defaults: {
+      w: 0.6, h: 0.14, d: 0.5,
+      color: '#aab0b8', bodyColor: '#aab0b8',
+      mountY: 1.62, intensity: 0.9,
+    },
+  },
+  {
     type: 'pendant',
     label: 'چراغ آویز',
     category: 'light',
@@ -191,6 +248,42 @@ export const CATALOG: CatalogItem[] = [
     defaults: { color: '#9c4a3c', scale: 1 },
   },
 ];
+
+// ---------------- جانمایی روی دیوار (مشترک بین AI و UI) ----------------
+
+/** نقطه قرارگیری آبجکت با عمق مشخص روی دیوار — offsetX از مرکز دیوار (متر) */
+export function placeAtWall(
+  wall: WallName,
+  offsetX: number,
+  objDepth: number,
+  spec: Pick<RoomSpec, 'widthM' | 'depthM'>,
+  y = 0
+): { position: [number, number, number]; rotationY: number } {
+  const inset = objDepth / 2 + 0.02;
+  switch (wall) {
+    case 'back':
+      return { position: [offsetX, y, -spec.depthM / 2 + inset], rotationY: 0 };
+    case 'front':
+      return { position: [offsetX, y, spec.depthM / 2 - inset], rotationY: Math.PI };
+    case 'left':
+      return { position: [-spec.widthM / 2 + inset, y, offsetX], rotationY: Math.PI / 2 };
+    case 'right':
+      return { position: [spec.widthM / 2 - inset, y, offsetX], rotationY: -Math.PI / 2 };
+  }
+}
+
+// ---------------- پچ ویرایش متنی آبجکت (خروجی /api/ai/edit) ----------------
+
+export interface ObjectPatch {
+  /** جابه‌جایی نسبی بر حسب متر */
+  positionDelta?: [number, number, number];
+  /** چرخش نسبی بر حسب رادیان */
+  rotationYDelta?: number;
+  params?: ObjectParams;
+  label?: string;
+  open?: boolean;
+  on?: boolean;
+}
 
 // ---------------- پالت رنگ مهمان‌ها ----------------
 

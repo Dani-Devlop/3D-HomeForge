@@ -15,9 +15,20 @@ model Project {
   roomSpec   String      @default("{}") // JSON: ابعاد، رنگ‌ها، پنجره‌ها و درب‌های فضا
   sceneState String      @default("{}") // JSON: آبجکت‌های صحنه (کابینت/دکور/چراغ)
   thumbnail  String? // تصویر بندانگشتی صحنه (dataURL)
+  isPublic   Boolean     @default(false) // عمومی (نمونه‌کار) یا خصوصی (فقط با لینک)
+  folderId   String? // هر خانه/آشپزخانه در یک پوشه اختصاصی
+  folder     Folder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   shareLinks ShareLink[]
+}
+
+// پوشه: هر پروژه (هر خانه/آشپزخانه) در یک پوشه اختصاصی قرار می‌گیرد
+model Folder {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  projects  Project[]
 }
 
 // لینک اشتراکی امضاشده (بدون ایمیل) با نقش پیش‌فرض و تاریخ انقضا

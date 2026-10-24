@@ -35,6 +35,9 @@ export interface SerializedProject {
   roomSpec: unknown;
   sceneState: unknown;
   thumbnail: string | null;
+  isPublic: boolean;
+  folderId: string | null;
+  folderName: string | null;
   createdAt: string;
   updatedAt: string;
   shareCount?: number;
@@ -42,7 +45,10 @@ export interface SerializedProject {
 
 /** پروژه را به آبجکت ساده قابل JSON.stringify تبدیل می‌کند (roomSpec/sceneState پارس‌شده) */
 export function serializeProject(
-  p: Project & { _count?: { shareLinks: number } },
+  p: Project & {
+    _count?: { shareLinks: number };
+    folder?: { name: string } | null;
+  },
 ): SerializedProject {
   const out: SerializedProject = {
     id: p.id,
@@ -51,6 +57,9 @@ export function serializeProject(
     roomSpec: parseJsonSafe(p.roomSpec, {}),
     sceneState: parseJsonSafe(p.sceneState, {}),
     thumbnail: p.thumbnail,
+    isPublic: p.isPublic,
+    folderId: p.folderId,
+    folderName: p.folder?.name ?? null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
