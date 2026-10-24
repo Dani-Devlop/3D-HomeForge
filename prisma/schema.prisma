@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// پروژه کابینت‌سازی: شامل مشخصات فضای بازسازی‌شده و وضعیت صحنه سه‌بعدی
+model Project {
+  id         String      @id @default(cuid())
+  name       String
+  roomType   String      @default("kitchen")
+  roomSpec   String      @default("{}") // JSON: ابعاد، رنگ‌ها، پنجره‌ها و درب‌های فضا
+  sceneState String      @default("{}") // JSON: آبجکت‌های صحنه (کابینت/دکور/چراغ)
+  thumbnail  String? // تصویر بندانگشتی صحنه (dataURL)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  shareLinks ShareLink[]
+}
+
+// لینک اشتراکی امضاشده (بدون ایمیل) با نقش پیش‌فرض و تاریخ انقضا
+model ShareLink {
+  id        String    @id @default(cuid())
+  token     String    @unique // توکن امضاشده HMAC: payload.signature
+  role      String    @default("viewer") // viewer | modifier
+  active    Boolean   @default(true)
+  expiresAt DateTime
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  guests    Guest[]
+  createdAt DateTime  @default(now())
+}
+
+// مهمان (مشتری) که با لینک وارد شده و نام خود را ثبت کرده است
+model Guest {
+  id          String    @id @default(cuid())
+  name        String
+  color       String    @default("#888888")
+  role        String    @default("viewer") // viewer | modifier (قابل تغییر توسط کابینت‌ساز)
+  lastSeenAt  DateTime  @default(now())
+  shareLinkId String
+  shareLink   ShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+// پریست: ترکیبی از کابینت‌ها/دکورها که کابینت‌ساز ذخیره می‌کند تا در پروژه‌های بعدی استفاده شود
+model Preset {
+  id        String   @id @default(cuid())
+  name      String
+  data      String // JSON: آرایه‌ای از آبجکت‌ها با آفست نسبی
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,290 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Eye,
+  LampCeiling,
+  Link2Off,
+  Pencil,
+  RotateCcw,
+} from 'lucide-react';
+import { api, type GuestDTO } from '@/lib/api';
+import type { RoomSpec, SceneObject, ShareRole } from '@/lib/scene-types';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import ViewerScene from '@/components/three/viewer-scene';
+
+const ROLE_LABEL: Record<ShareRole, string> = {
+  viewer: 'نمایشگر',
+  modifier: 'ویرایشگر',
+};
+
+// ---------- پرده ورود مهمان ----------
+function GuestGate({
+  onJoin,
+  loading,
+}: {
+  onJoin: (name: string) => void;
+  loading: boolean;
+}) {
+  const [name, setName] = useState('');
+  const submit = () => {
+    const n = name.trim();
+    if (n.length >= 1) onJoin(n);
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-stone-100/95 backdrop-blur flex items-center justify-center p-6">
+      <Card className="w-full max-w-sm shadow-xl">
+        <CardContent className="p-6 space-y-4 text-center">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Eye className="h-7 w-7 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold">خوش آمدید!</h2>
+            <p className="text-sm text-muted-foreground">
+              برای بازدید از طرح سه‌بعدی، لطفاً نام خود را وارد کنید
+            </p>
+          </div>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="مثلاً: خانم احمدی"
+            maxLength={30}
+            autoFocus
+            className="h-11 text-center"
+            aria-label="نام شما"
+          />
+          <Button className="w-full h-11" onClick={submit} disabled={!name.trim() || loading}>
+            {loading ? 'در حال ورود...' : 'ورود به فضای سه‌بعدی'}
+          </Button>
+          <p className="text-[11px] text-muted-foreground">
+            بدون نیاز به ثبت‌نام یا ایمیل — فقط نام شما نمایش داده می‌شود
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- نمای اصلی مشتری ----------
+export default function ViewerView({ token }: { token: string }) {
+  const { toast } = useToast();
+
+  const resolveQ = useQuery({
+    queryKey: ['share-resolve', token],
+    queryFn: () => api.resolveShare(token),
+    retry: false,
+  });
+
+  const [guest, setGuest] = useState<GuestDTO | null>(null);
+  const [role, setRole] = useState<ShareRole | null>(null);
+  const [joining, setJoining] = useState(false);
+  const [objects, setObjects] = useState<SceneObject[]>([]);
+  const [cameraKey, setCameraKey] = useState(0);
+  const refsMap = useRef<Map<string, unknown>>(new Map());
+
+  // بعد از resolve: مقداردهی اولیه
+  useEffect(() => {
+    if (!resolveQ.data || guest) return;
+    const p = resolveQ.data.project;
+    const objs: SceneObject[] =
+      p.sceneState && Array.isArray((p.sceneState as { objects?: SceneObject[] }).objects)
+        ? (p.sceneState as { objects: SceneObject[] }).objects
+        : [];
+    setObjects(objs);
+    setRole(resolveQ.data.link.role);
+
+    // مهمان ذخیره‌شده قبلی
+    try {
+      const saved = sessionStorage.getItem(`c3d-guest:${token}`);
+      if (saved) {
+        const g = JSON.parse(saved) as GuestDTO;
+        setGuest(g);
+        setRole(g.role);
+      }
+    } catch {
+      // ignore
+    }
+  }, [resolveQ.data, guest, token]);
+
+  const join = async (name: string) => {
+    try {
+      setJoining(true);
+      const res = await api.registerGuest({ token, name });
+      setGuest(res.guest);
+      setRole(res.guest.role);
+      sessionStorage.setItem(`c3d-guest:${token}`, JSON.stringify(res.guest));
+      toast({ title: `خوش آمدید ${res.guest.name}!`, description: 'روی درب‌ها کلیک کنید تا باز شوند' });
+    } catch (e) {
+      toast({ title: 'ورود ناموفق', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  // پایش نقش — تغییر دسترسی بلافاصله اعمال می‌شود
+  useEffect(() => {
+    if (!guest) return;
+    const t = setInterval(async () => {
+      try {
+        const res = await api.getGuest(guest.id);
+        if (res.guest.role !== role) {
+          setRole(res.guest.role);
+          toast({
+            title: 'دسترسی شما به‌روزرسانی شد',
+            description: `اکنون ${ROLE_LABEL[res.guest.role]} هستید`,
+          });
+        }
+      } catch {
+        // مهمان ممکن است حذف شده باشد — بی‌صدا
+      }
+    }, 4000);
+    return () => clearInterval(t);
+  }, [guest, role, toast]);
+
+  const lights = useMemo(
+    () => objects.filter((o) => o.type === 'pendant' || o.type === 'floor-lamp'),
+    [objects]
+  );
+
+  const roomSpec = resolveQ.data?.project.roomSpec;
+
+  const patchObject = (id: string, patch: Partial<SceneObject>) =>
+    setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+
+  // ---------- حالت‌های خطا ----------
+  if (resolveQ.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <p className="text-sm text-muted-foreground animate-pulse">در حال باز کردن لینک...</p>
+      </div>
+    );
+  }
+
+  if (resolveQ.isError || !resolveQ.data || !roomSpec || !('widthM' in roomSpec)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
+        <Card className="max-w-sm w-full text-center">
+          <CardContent className="p-8 space-y-3">
+            <Link2Off className="h-10 w-10 mx-auto text-destructive/60" />
+            <p className="font-semibold">لینک نامعتبر است</p>
+            <p className="text-sm text-muted-foreground">
+              {(resolveQ.error as Error)?.message || 'این لینک منقضی شده یا غیرفعال شده است.'}
+            </p>
+            <p className="text-xs text-muted-foreground">برای دریافت لینک جدید با کابینت‌ساز تماس بگیرید.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const canMove = role === 'modifier';
+
+  return (
+    <div className="h-screen flex flex-col bg-stone-100 overflow-hidden">
+      {/* نوار بالا */}
+      <header className="shrink-0 bg-card border-b px-3 py-2 flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="font-bold text-sm truncate">{resolveQ.data.project.name}</p>
+          <Badge variant="secondary" className="text-[10px]">نمای سه‌بعدی</Badge>
+        </div>
+
+        {guest && (
+          <div className="flex items-center gap-2">
+            <span
+              className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+              style={{ backgroundColor: guest.color }}
+              aria-hidden
+            >
+              {guest.name.slice(0, 1)}
+            </span>
+            <span className="text-xs font-medium">{guest.name}</span>
+            <Badge variant="outline" className="text-[10px] gap-1">
+              {role === 'viewer' ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+              {role ? ROLE_LABEL[role] : ''}
+            </Badge>
+          </div>
+        )}
+
+        <div className="ms-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1.5 text-xs"
+            onClick={() => setCameraKey((k) => k + 1)}
+            aria-label="بازنشانی نما"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">بازنشانی نما</span>
+          </Button>
+        </div>
+      </header>
+
+      {/* صحنه */}
+      <main className="relative flex-1 min-h-0">
+        <ViewerScene
+          roomSpec={roomSpec}
+          objects={objects}
+          canMove={canMove}
+          refsMap={refsMap.current as never}
+          onSelect={() => {}}
+          onToggleOpen={(id) =>
+            setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, open: !o.open } : o)))
+          }
+          onToggleLight={(id) =>
+            setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, on: !o.on } : o)))
+          }
+          onBeginAction={() => {}}
+          onMoved={(id) => {
+            // موقعیت مستقیم از گیزموت — فقط dirty محلی
+            setObjects((prev) => [...prev]);
+            void id;
+          }}
+          cameraKey={cameraKey}
+        />
+
+        {/* کنترل چراغ‌ها */}
+        {lights.length > 0 && (
+          <div className="absolute top-3 start-3 flex flex-wrap gap-2 max-w-[75%]">
+            {lights.map((l) => (
+              <div
+                key={l.id}
+                className="flex items-center gap-2 rounded-full bg-card/95 shadow-md border px-3 py-1.5 backdrop-blur"
+              >
+                <LampCeiling className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-medium">
+                  {l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}
+                </span>
+                <Switch
+                  checked={!!l.on}
+                  onCheckedChange={() =>
+                    setObjects((prev) =>
+                      prev.map((o) => (o.id === l.id ? { ...o, on: !o.on } : o))
+                    )
+                  }
+                  aria-label={`روشن/خاموش ${l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}`}
+                  className="scale-90"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* راهنما */}
+        <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
+          {canMove
+            ? 'کلیک روی درب: باز/بسته • کلیک روی کابینت: انتخاب و جابه‌جایی • درگ: چرخش نما'
+            : 'کلیک روی درب‌ها: باز/بسته • درگ: چرخش نما • اسکرول: زوم'}
+        </div>
+      </main>
+
+      {!guest && <GuestGate onJoin={join} loading={joining} />}
+    </div>
+  );
+}
