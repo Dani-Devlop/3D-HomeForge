@@ -1,0 +1,222 @@
+    40→- ساخت src/lib/sample-room.ts: آشپزخانه نمونه با ۱۱ آبجکت برای شروع بدون عکس
+    41→
+    42→Stage Summary:
+    43→- دیتابیس SQLite همگام شد؛ پایه تایپ‌های مشترک بین API و فرانت‌اند آماده است
+    44→
+    45→---
+    46→Task ID: 2-b
+    47→Agent: orchestrator (main)
+    48→Task: فرانت‌اند کامل — روتینگ هش، موتور سه‌بعدی R3F، ویرایشگر، نمای مشتری، خانه
+    49→
+    50→Work Log:
+    51→- layout.tsx: RTL فارسی + فونت Vazirmatn (CDN) + عنوان پلتفرم؛ globals.css: تم کهربایی/چوبی (بدون آبی)، اسکرول‌بار سفارشی
+    52→- page.tsx: روتر هش (home | editor/:id | s/:token) با dynamic import و ssr:false + QueryClientProvider
+    53→- src/lib/api.ts: لایه تایپ‌دار fetch برای همه endpointها؛ image-utils.ts (resize کلاینت تا 1280px)؛ export-glb.ts (GLTFExporter دودویی)
+    54→- src/store/editor-store.ts: Zustand با تاریخچه undo/redo (snapshot)، انتخاب چندگانه، addObject/updateParams/toggleOpen/toggleLight + findFreeSpot برای جای خالی
+    55→- three/room.tsx: اتاق از RoomSpec — کف، باکس BackSide (دیوارها فقط از داخل دیده می‌شوند)، قرنیز، پنجره با قاب/شیشه emissive و درب‌دهانه، اعمال offsetX روی دیوار (fix)
+    56→- three/cabinet.tsx: کابینت پارامتریک — بدنه، داخل تیره، رویه، درب لولادار با THREE.MathUtils.damp (Mesh States)، کشوی سرسره‌ای، دستگیره bar/knob، Edges برای انتخاب؛ fix لولا (hingeX=w/2)، آفست yCenter و علامت چرخش
+    57→- three/decor.tsx: چراغ آویز/ایستاده با pointLight و emissive، گیاه، فرش
+    58→- three/editor-scene.tsx: Canvas + OrbitControls + TransformControls (snap 5cm) + DropReceiver (ری‌کست صفحه→کف برای Drag&Drop) + Grid toggle + onPointerMissed برای لغو انتخاب
+    59→- three/viewer-scene.tsx: نمای مشتری بدون گیزموت مگر Modifier
+    60→- editor/: editor-view (تاپ‌بار واگرد/ازنو/GLB/انتشار + ذخیره خودکار 1.4s با thumbnail بوم + کلیدهای Ctrl+Z/Y)، library-panel (draggable)، properties-panel (اسلایدر ابعاد، رنگ‌ها، درب/کشو/دستگیره، شدت نور)، presets-panel (ذخیره انتخاب چندتایی با آفست نسبی)، share-dialog (تب لینک‌ها/بازدیدکنندگان، ساخت لینک با نقش/انقضا، کپی، سوییچ فعال، تغییر نقش مهمان با polling 5s)
+    61→- home/home-view: هیرو با تصویر تولید AI، ویزارد آپلود با انیمیشن مراحل AI، پروژه نمونه، گرید کارت‌ها با thumbnail، حذف با AlertDialog، فوتر چسبان
+    62→- viewer/viewer-view: resolve توکن → GuestGate (نام بدون ثبت‌نام) → sessionStorage → polling نقش هر 4s → تعامل درب/چراغ + چیپ چراغ‌ها؛ fix DialogTitle خارج از Dialog
+    63→- تصویر hero با z-ai image CLI تولید شد (public/hero-kitchen.png)
+    64→
+    65→Stage Summary:
+    66→- هر ۳ نما (خانه/ویرایشگر/مشتری) با تست مرورگری Agent Browser تأیید شدند
+    67→- fixهای حین تست: offsetX بازشوها، aria-label سوییچ‌ها، z-fight پنل داخلی، هندسه کامل درب (hingeX/yCenter/علامت چرخش)، DialogTitle بدون کانتکست
+    68→- تایید شده: آپلود→AI→اتاق، افزودن کابینت+پنل ابعاد، باز شدن درب با انیمیشن، خاموش/روشن چراغ، ساخت لینک، ثبت مهمان با رنگ، تغییر نقش زنده (گیزموت ظاهر شد)، خروجی GLB، موبایل ریسپانسیو، فوتر چسبان
+    69→
+    70→---
+    71→Task ID: 3
+    72→Agent: orchestrator (main)
+    73→Task: یکپارچه‌سازی و تست مرورگری
+    74→
+    75→Work Log:
+    76→- bunx tsc --noEmit → بدون خطا در src؛ bunx eslint src --no-warn-ignored → بدون خطا
+    77→- dev.log بررسی شد — همه درخواست‌ها 200، بدون خطای runtime
+    78→- تست E2E با agent-browser در ۱۲ مرحله (جزئیات در بخش 2-b)
+    79→
+    80→Stage Summary:
+    81→- پلتفرم کامل و قابل استفاده است؛ دو پروژه نمونه در دیتابیس باقی مانده (آشپزخانه نمونه + پروژه بازسازی‌شده AI) برای دموی فوری
+    82→
+    83→---
+    84→Task ID: 4
+    85→Agent: orchestrator (main)
+    86→Task: پایه نسخه ۲ — اسکما (پوشه/عمومی)، تایپ‌های لوازم خانگی، api.ts، استور، ابزار ویدیو
+    87→
+    88→Work Log:
+    89→- prisma/schema.prisma: افزودن مدل Folder + فیلدهای Project.isPublic و Project.folderId (onDelete: SetNull) و اجرای bun run db:push
+    90→- src/lib/scene-types.ts: افزودن ObjectType های fridge/stove/hood، RECONSTRUCTABLE_TYPES/DOOR_TYPES/LIGHT_TYPES + isDoorType/isLightType، دسته CatalogCategory جدید 'appliance' + CATALOG_CATEGORY_LABEL، سه آیتم کاتالوگ یخچال/اجاق/هود، هلپر placeAtWall برای جانمایی روی دیوار، تایپ ObjectPatch برای ویرایش متنی
+    91→- src/lib/api.ts: ProjectDTO += isPublic/folderId/folderName، FolderDTO، GeneratedItem، ReconstructResult += objects، api.reconstruct теперь images[]، api.generateObject (text-to-3D)، api.aiEditObject، CRUD پوشه‌ها، patchProject += isPublic/folderId
+    92→- src/store/editor-store.ts: defaultY برای hood، toggleLight با isLightType (شامل stove/hood)، findFreeSpot برای لوازم، اکشن جدید addGenerated برای درج خروجی text-to-3D
+    93→- src/lib/image-utils.ts: افزودن videoToFrames (استخراج ۳ فریم از ویدیو سمت کلاینت)
+    94→- bunx tsc: خطاهای باقی‌مانده فقط در library-panel/home-view (در Task 6 بازنویسی می‌شوند) و examples/skills (پیش‌موجود، خارج از src)
+    95→
+    96→Stage Summary:
+    97→- پایه داده و تایپ‌های نسخه ۲ آماده است؛ قراردادها: POST /api/ai/cabinet {text}→{item:{type,label,params}}، POST /api/ai/edit {object,text}→{patch:ObjectPatch}، POST /api/reconstruct {images[]}→{roomType,roomSpec,objects[],description}، GET /api/projects?folderId=…|none، CRUD /api/folders
+    98→
+    99→---
+   100→Task ID: 5-b
+   101→Agent: general-purpose (3D)
+   102→Task: مدل‌های سه‌بعدی یخچال/اجاق/هود + اتصال به dispatcher
+   103→
+   104→Work Log:
+   105→- خواندن worklog.md و فایل‌های مرجع: scene-types.ts (defaults جدید لوازم)، cabinet.tsx (الگوی MeshCtx/RefsMap/HingedDoor/Edges/damp)، decor.tsx (الگوی نور) و هر دو dispatcher (editor-scene / viewer-scene)
+   106→- ساخت src/components/three/appliance.tsx با 'use client' و سه کامپوننت FridgeMesh/StoveMesh/HoodMesh؛ هلپرهای محلی hoverCursor/unhover (کپی از decor) و HingedDoor محلی (اقتباس از cabinet با THREE.MathUtils.damp، لولا side×hingeX، آفست درب -side×w/2) که children را در مختصات مرکز درب رندر می‌کند (برای پنجره/دستگیره)
+   107→- یخچال: بدنه استیل roughness 0.35/metalness 0.55 + Edges نارنجی هنگام انتخاب، درب فریزر ثابت بالا (~۲۶٪) با دستگیره افقی، درز تیره #2a2c30 بین درب‌ها، درب اصلی لولادار (لولا راست side=+1، OPEN_ANGLE=1.75) با دستگیره عمودی لبه بازشو metalness 0.7؛ همه بخش‌ها refsMap.set در ref callback گروه
+   108→- اجاق: بدنه، صفحه تیره براق (countertopColor، metalness 0.6)، ۴ شعله‌پخش‌کن شبکه ۲×۲ (استوانه r=0.07)، هنگام obj.on چهار حلقه torus (r=0.05, tube=0.008, emissive #ff5a1f, intensity 2.5) + pointLight (0.6/dist 1.2/#ff8c42) بالای صفحه، پنل پشتی (+0.06 بالای صفحه)، درب فر لولادار (~۶۰٪ ارتفاع، لولا چپ) با پنجره تیره #14161a (۶۰٪ سطح درب) و دستگیره افقی، نوار کنترل با ۳ ولوم
+   109→- هود: کلاهک w×h×d دقیقاً روی نقطه نصب (مرکز y+h/2 چون position.y=mountY)، دودکش w*0.45×0.5×d*0.45 بالای کلاهک، نوار نور emissive زیر کلاهک (w*0.7×0.015×0.06) که هنگام obj.on با #fff3d6/intensity 2 می‌درخشد + pointLight (params.intensity ?? 0.9، dist 2.2، #ffe9c8)
+   110→- اتصال dispatcherها: افزودن case 'fridge'/'stove'/'hood' به ObjectEntry در editor-scene.tsx و ObjectEntryV در viewer-scene.tsx + import از './appliance' (فقط dispatcher و importها تغییر کرد)
+   111→- تأیید: bunx tsc --noEmit → بدون خطا در components/three (خطاهای باقی‌مانده فقط library-panel/home-view — از Task 4، خارج از محور)؛ bunx eslint src/components/three --no-warn-ignored → بدون خطا
+   112→
+   113→Stage Summary:
+   114→- فایل‌ها: appliance.tsx (جدید)، editor-scene.tsx و viewer-scene.tsx (فقط dispatcher + import)
+   115→- مدل تعامل: یخچال → کلیک درب اصلی = toggleOpen (فریزر ثابت است)؛ اجاق → کلیک درب فر = toggleOpen، کلیک شعله‌پخش‌کن‌ها/پنل پشتی = toggleLight (حلقه‌های شعله + نور)؛ هود → کلیک کلاهک/نوار نور = toggleLight
+   116→- مشترک: کلیک بدنه/گروه → onSelect (shift = افزودنی)، هاور → cursor pointer روی بخش‌های تعاملی، Edges نارنجی #f59e0b هنگام انتخاب، انیمیشن درب‌ها با damp(8) مطابق الگوی Mesh States کابینت
+   117→
+   118→---
+   119→Task ID: 5-a
+   120→Agent: general-purpose (backend)
+   121→Task: APIهای نسخه ۲ — پوشه‌ها، بازسازی چندعکسی با تشخیص تجهیزات، text-to-3D، ویرایش متنی
+   122→
+   123→Work Log:
+   124→- خواندن worklog و قراردادها (scene-types.ts با placeAtWall/ObjectPatch، serialize.ts، share-guard.ts، reconstruct v1، routes پروژه‌ها، schema.prisma)
+   125→- ساخت src/app/api/_lib/normalize.ts: هلپرهای مشترک نرمال‌سازی خروجی LLM — clamp/toFinite/toWall/toColor/toHandle/isRecord/extractJsonObject (حذف فنس markdown) + shadeColor (میکس رنگ با سفید/سیاه) + KIND_DEFAULT_H/D + KIND_LABELS + normalizeFullParams (خروجی کامل text-to-3D با clamp همه بازه‌ها و mountY فقط برای wall/hood) + normalizePartialParams (پچ جزئی سخت‌گیرانه؛ فقط کلیدهای معتبر)
+   126→- بازنویسی /api/reconstruct (v2): بدنه { images: 1..5 } + سازگاری legacy { image }؛ اعتبارسنجی هر تصویر (data URL تصویری یا base64 خام، ≤۷MB، رد کل درخواست)؛ مرحله ۱: تحلیل VLM ترتیبی هر تصویر با createVision (مسیر مستقیم چون /chat/completions متن multimodal را 400 می‌کند؛ ۲ تلاش برای هر تصویر)؛ پرامپت v2 علاوه بر اتاق/پنجره/درب‌دهانه، تشخیص تجهیزات (base/wall/tall/island/shelf/fridge/stove/hood) با wall/offsetX/ابعاد/رنگ و تقسیم ردیف کابینت زمینی به سگمنت‌های ۰.۶ تا ۱.۲ متر؛ مرحله ۲: ادغام نتایج جزئی با یک فراخوانی TEXT-ONLY (اجتماع + dedupe پنجره/درب و آیتم‌ها) با fallback به اولین تحلیل موفق؛ مرحله ۳: نرمال‌سازی و تبدیل آیتم‌ها به SceneObject (id = crypto.randomUUID().slice(0,8)، برچسب فارسی «(بازسازی‌شده)»، رنگ درب ۲۰٪ روشن‌تر با shadeColor، doors بر اساس عرض، fridge درب ۱، hood با mountY 1.62، placeAtWall با clamp آفست داخل دیوار |offset|+w/2 ≤ wallLength/2−۰.۰۵، y=mountY برای wall/hood و ۰ برای زمینی‌ها)؛ اگر همه تحلیل‌ها شکست بخورند → 502 فارسی
+   127→- ساخت /api/ai/cabinet (text-to-3D): بدنه {text 1..500} با zod؛ پرامپت انگلیسی با انواع مجاز هشت‌گانه، بازه‌های پارامتر، واژه‌های عددی فارسی و ۴ مثال فارسی-به-JSON؛ فراخوانی TEXT-ONLY با thinking disabled، ۲ تلاش، پارس تدافعی، نرمال‌سازی کامل با normalizeFullParams و fallback نوع/برچسب؛ پاسخ { item: { type, label, params } }؛ خطا 400/502 فارسی
+   128→- ساخت /api/ai/edit: بدنه { object (zod: id/type/label?/params/position/rotationY/open?/on?), text 1..300 }؛ پرامپت انگلیسی پچ نسبی با مثال‌های قرارداد (بالا بردن/رنگ/چرخش/درب/عرض) + قواعد مطلق‌بودن ابعاد و رنگ‌ها و ترکیب دستورات؛ نرمال‌سازی positionDelta (هر مؤلفه ±3)، rotationYDelta (±6.283)، params با normalizePartialParams (mountY بر اساس نوع آبجکت)، label ≤40، open/on بولین؛ {} مجاز است (no-op)؛ خطا 400/502 فارسی
+   129→- ساخت /api/folders: GET (orderBy createdAt asc با _count.projects → projectCount) و POST {name 1..60} → 201
+   130→- ساخت /api/folders/[id]: PATCH نام (404 «پوشه یافت نشد») و DELETE با بررسی موجودیت → { ok:true } (جدایی پروژه‌ها با SetNull دیتابیس)
+   131→- به‌روزرسانی _lib/serialize.ts: SerializedProject += isPublic/folderId/folderName (folder?.name) — سازگار با استفاده‌های قبلی
+   132→- به‌روزرسانی /api/projects: GET شامل folder {name} و فیلتر ?folderId=<id> | ?folderId=none؛ POST با folderId اختیاری (غیرتهی → بررسی موجودیت → 400 «پوشه یافت نشد»)
+   133→- به‌روزرسانی /api/projects/[id]: GET/PATCH با projectCount شامل folder؛ PATCH += isPublic و folderId (null → جداسازی، غیرتهی → بررسی موجودیت)
+   134→- رفع مشکل زیرساختی: سرور dev قدیمی کلاینت Prisma تولیدشده قبل از مدل Folder را در حافظه داشت (500 با «Unknown field folder») — سرور با kill و اجرای مجدد detached (setsid) ری‌استارت شد؛ بدون تغییر اسکیما/دیتابیس
+   135→- تست curl کامل: چرخه پوشه (201 → لیست با projectCount → rename → حذف → 404 تکرار)، پروژه در پوشه (folderId/folderName ست شد)، ?folderId و ?folderId=none، PATCH isPublic، folderId ناموجود 400، SetNull بعد از حذف پوشه تأیید شد
+   136→- تست AI: cabinet «کابینت زمینی سفید ۸۰ سانتی با دو درب شیشه‌ای» → {type:'base', w:0.8, سفید/درب شیشه‌ای}؛ cabinet هود → type:'hood' با mountY 1.62؛ edit «۲۰ سانت بالاتر ببر» → positionDelta [0,0.2,0]؛ رنگ خاکستری/۹۰ درجه/باز کردن درب/عرض ۱۲۰ هم تست شد؛ reconstruct با 1×1 PNG (تک‌عکسی، legacy و دوعکسی با merge) → 200 با roomSpec و objects (خالی برای تصویر خالی)
+   137→- پاکسازی: هر دو پروژه تست و پوشه تست حذف شدند؛ دیتابیس فقط ۳ پروژه دموی اولیه را دارد
+   138→- bunx eslint src/app/api --no-warn-ignored → بدون خطا؛ bunx tsc --noEmit → بدون خطا در src/app/api (باقی‌مانده فقط خطاهای پیش‌موجود library-panel/home-view مربوط به Task 6)
+   139→
+   140→Stage Summary:
+   141→- Endpoints جدید: POST /api/ai/cabinet {text}→{item:{type,label,params}} — POST /api/ai/edit {object,text}→{patch:ObjectPatch} — GET/POST /api/folders — PATCH/DELETE /api/folders/[id]
+   142→- Endpoints ارتقا‌یافته: POST /api/reconstruct {images[1..5]|image}→{roomType,roomSpec,objects[],description} (تحلیل چندعکسی + ادغام + آبجکت‌های تجهیزات) — GET/POST /api/projects و GET/PATCH /api/projects/[id] با isPublic/folderId/folderName و فیلتر ?folderId=…|none
+   143→- فایل‌ها: ۴ روت جدید + _lib/normalize.ts + بازنویسی reconstruct + به‌روزرسانی serialize.ts و دو روت پروژه — همه داخل src/app/api/**
+   144→- تصمیم‌های کلیدی: VLM مستقیماً createVision (حذف تلاش بی‌ثمر /chat/completions برای تصویر)؛ ادغام چندعکسی با LLM متنی و fallback امن به اولین تحلیل؛ آفست آیتم‌ها به اندازه دیوار clamp می‌شود تا هرگز بیرون نزنند؛ normalizePartialParams کلیدهای نامعتبر را کامل حذف می‌کند (پچ امن)؛ خطاها همه فارسی با status 400/404/502/500
+   145→- نکته برای فرانت: خروجی reconstruct حالا objects[] دارد (SceneObject کامل با id/label/params/position/rotationY) آماده افزودن مستقیم به صحنه؛ api.ts موجود بدون تغییر سازگار است
+   146→---
+   147→
+   148→---
+   149→Task ID: 7
+   150→Agent: orchestrator (main)
+   151→Task: یکپارچه‌سازی نسخه ۲ و تست مرورگری E2E
+   152→
+   153→Work Log:
+   154→- bunx tsc --noEmit (بدون examples/skills) → تمیز؛ bunx eslint src → تمیز؛ dev.log → بدون خطا
+   155→- رفع lint: setState در effect دیالوگ پوشه → رندر مشروط + state از props؛ رفع خطای DOM: دکمه تودرتو در کارت آپلود → div با role="button" و کیبورد-اکسسIBLE
+   156→- تست E2E با agent-browser (۱۲ صحنه):
+   157→  ۱. خانه: ساخت پوشه «خانه آزمایشی» → چیپ با شمارنده (۱) و انتخاب خودکار
+   158→  ۲. پروژه خالی داخل پوشه → ریدایرکت به ویرایشگر
+   159→  ۳. text-to-3D: «کابینت زمینی سفید با دو درب شیشه‌ای، عرض ۸۰ سانت» → کابینت سفید 0.8m روی دیوار پشت
+   160→  ۴. ویرایش متنی: «۲۰ سانت بالاتر ببر و رنگ درب‌ها را مشکی کن» → y+0.2 و درب مشکی (بدنه سفید ماند)
+   161→  ۵. افزودن یخچال/اجاق/هود از کتابخانه؛ شعله‌های اجاق روشن پیش‌فرض؛ هود با Edges انتخاب
+   162→  ۶. پنل مشخصات لوازم: ارتفاع نصب هود، سوییچ چراغ، شدت نور
+   163→  ۷. خاموش کردن چراغ هود از پنل
+   164→  ۸. خروجی GLB → توست «دانلود شد»
+   165→  ۹. Ctrl+Z ×۳ → حذف آخرین افزودنی‌ها
+   166→  ۱۰. خانه: منوی کارت → «عمومی کردن (نمونه‌کار)» → بخش «نمونه‌کارهای عمومی» ظاهر شد؛ بج عمومی سبز
+   167→  ۱۱. موبایل ۳۹۰px → چیدمان ریسپانسیو
+   168→  ۱۲. اشتراک: افزودن یخچال → ذخیره خودکار → ساخت لینک → بازکردن در تب جدید → ثبت نام مهمان «مشتری آزمایشی» → اتاق با یخچال رندر شد → کلیک روی درب یخچال → باز شد (Mesh States)
+   169→  ۱۳. ویدیو: آپلود test.mp4 با ffmpeg → ۳ فریم استخراج و به آپلود اضافه شد
+   170→- خروجی نهایی: هر ۶ خروجی خواسته‌شده نسخه ۲ تأیید شد
+   171→
+   172→Stage Summary:
+   173→- پلتفرم نسخه ۲ کامل است: بازسازی چندعکسی/ویدیویی با تشخیص تجهیزات، تولید مدل با متن، ویرایش متنی آبجکت، پوشه‌بندی، انتشار عمومی/خصوصی + نمونه‌کار، و همه قابلیت‌های نسخه ۱ (Undo/Redo، انتشار، GLB، لینک مهمان) دست‌نخورده
+   174→
+   175→---
+   176→Task ID: 2-b
+   177→Agent: general-purpose (3D)
+   178→Task: مبلمان خانه (TV/مبل/تخت/میز/صندلی) + لوازم جدید (لباسشویی/ظرفشویی/مایکروویو) + فیکس شیشه شفاف + نور از سمت پنجره
+   179→
+   180→Work Log:
+   181→- خواندن worklog و فایل‌های مرجع: cabinet.tsx (MeshCtx/RefsMap/HingedDoor/useCursor/Edges)، appliance.tsx (الگوی FridgeMesh/HingedDoor محلی)، decor.tsx، room.tsx، هر دو dispatcher، library-panel، editor-store و scene-types
+   182→- scene-types.ts: افزودن ۸ آیتم کاتالوگ (tv/sofa/bed/table/chair در دسته furniture و washer/dishwasher/microwave در appliance) با defaults قراردادی — بدون دست‌زدن به union ها (از قبل توسط orchestrator گسترش یافته)
+   183→- ساخت src/components/three/furniture.tsx با ۵ کامپوننت MeshCtx-محور:
+   184→  • TvMesh: پنل نازک در ارتفاع mountY (مرکز محلی y=0)، براکت دیواری، صفحه با emissive ‎#9fd8ff‎ هنگام obj.on + pointLight ‎#bfe3ff‎، کلیک صفحه/قاب = toggleLight (tv در LIGHT_TYPES)، انتخاب در جای دیگر
+   185→  • SofaMesh: پایه‌های چوبی + بدنه + ۲-۳ کوسن نشیمن (بسته به عرض) + پشتی + ۲ دسته + ۲ کوسن تزئینی چرخیده با shadeColor
+   186→  • BedMesh: قاب روی ۴ پایه + تاج + تشک روشن ‎#e8e2d8‎ + لحاف (پوشش ۵۵٪ پایین با ریزش جانبی) + ۲ بالش سفید؛ ارتفاع قاب از پارامتر h
+   187→  • TableMesh: رویه + ۴ پایه inset 0.08؛ ChairMesh: نشیمن 0.42 + پشتی + ۴ پایه
+   188→  • همه: refsMap.set در ref callback، castShadow، Edges نارنجی هنگام انتخاب
+   189→- appliance.tsx: سه کامپوننت جدید:
+   190→  • WasherMesh: پنل کنترل + ولوم/دکمه/نمایشگر، دیگ داخلی ثابت پشت درب، درب گرد لولادار (لولا چپ، damp به ‎-1.1‎) شامل حلقه torus استیل + شیشه استوانه‌ای meshPhysicalMaterial ‎#3a4148‎ شفاف opacity 0.85 براق (هرگز سیاه خالص)؛ کلیک حلقه/شیشه = toggleOpen
+   191→  • DishwasherMesh: درب تمام‌صفحه با HingedDoor محلی (side=-1) + دستگیره افقی + نوار کنترل باریک بالا
+   192→  • MicrowaveMesh: بدنه روی mountY، درب چپ لولادار با قاب تیره + شیشه پنجره ‎#9fb4bd‎ شفاف opacity 0.4 (هرگز سیاه) + دستگیره عمودی متحرک با درب، ستون کنترل راست (نمایشگر سبز emissive + ۲ ولوم + ۳ دکمه، کلیک = انتخاب)
+   193→- cabinet.tsx (فیکس انتقادی شیشه): HingedDoor پراپ glass? گرفت — حالت شیشه‌ای: پن pane با meshPhysicalMaterial ‎#cdeaf2‎ transparent opacity 0.26 roughness 0.06 metalness 0.05 DoubleSide + قاب باریک ۴ تکه (ضخامت 0.03/عمق 0.028) با رنگ درب؛ دستگیره و انیمیشن دست‌نخورده؛ CabinetMesh گلاس={!!p.glass} به هر ۳ استفاده پاس داد
+   194→- room.tsx: محاسبه پنجره اصلی (بزرگ‌ترین مساحت، تساوی = اولین) و directionalLight از بیرون همان دیوار (back→‎[0,h*0.85,-d*0.75]‎ و مشابه برای front/left/right) با intensity 1.15 رنگ ‎#fff1da‎؛ بدون پنجره → ‎[2,h*0.9,2.5]‎ با 0.85 ‎#fffaf2‎ — هدف پیش‌فرض مرکز اتاق
+   195→- editor-store.ts: defaultY برای tv (min(mountY,roomH-0.6)) و microwave (min(mountY,roomH-0.3))؛ findFreeSpot با WALL_ROW_TYPES شامل tv/sofa/bed/washer/dishwasher/microwave + backZ نزدیک‌تر فقط برای tv (0.09) تا به دیوار بچسبد؛ table/chair در مارپیچ مرکزی با دکور
+   196→- library-panel.tsx: آیکون‌های ۸ نوع جدید (Tv/Sofa/BedDouble/Table/Armchair/WashingMachine/UtensilsCrossed/Microwave — Dishwasher آیکون نداشت → UtensilsCrossed) + چیپ دسته 'furniture' (برچسب از CATALOG_CATEGORY_LABEL)؛ خطای تایپ Record<ObjectType,…> همین‌جا رفع شد
+   197→- dispatcherها: case های ۸ نوع جدید در ObjectEntry (editor-scene) و ObjectEntryV (viewer-scene) — فلگ‌ها همان الگوی قبلی (canInteract همیشه true؛ toggleLight از طریق isLightType در store و toggleOpen مستقیم)
+   198→- تأیید: bunx tsc --noEmit → صفر خطا در فایل‌های من (خطای باقی‌مانده reconstruct/route.ts متعلق به کار در حال انجام Agent 2-a در src/app/api است — خارج از محدوده من)؛ bunx eslint روی src/components/three + editor-store + scene-types + library-panel → بدون خطا
+   199→
+   200→Stage Summary:
+   201→- فایل‌ها: furniture.tsx (جدید، ۵ کامپوننت) — appliance.tsx (+۳ کامپوننت) — cabinet.tsx (فیکس شیشه) — room.tsx (نور پنجره) — editor-scene/viewer-scene (dispatch) — library-panel (آیکون+دسته) — editor-store (defaultY/findFreeSpot) — scene-types (۸ آیتم کاتالوگ)
+   202→- تعامل‌ها: TV → کلیک صفحه/قاب = روشن/خاموش صفحه+نور؛ لباسشویی/ظرفشویی/مایکروویو → کلیک درب = باز/بسته با انیمیشن damp؛ بقیه → کلیک = انتخاب (shift = افزودنی)
+   203→- فیکس شیشه: درب شیشه‌ای کابینت حالا شفاف با تینت آبی-سبز روشن (opacity 0.26) و قاب چوبی باریک — هرگز سیاه/تیره نیست؛ شیشه‌های لباسشویی (تیره براق ‎#3a4148‎) و مایکروویو (‎#9fb4bd‎ روشن) هم شفاف‌اند
+   204→- نور پنجره: خورشید از دیوارِ پنجره اصلی می‌تابد (intensity 1.15 گرم) — جهت نور با محل پنجره هماهنگ است
+   205→- نکته برای ادامه: properties-panel (خارج از محدوده من) برای انواع جدید فقط کنترل‌های عمومی دارد؛ افزودن اسلایدر mountY برای tv/microwave و سوییچ چراغ tv به orchestration بعدی
+   206→
+   207→---
+   208→Task ID: 2-a
+   209→Agent: general-purpose (backend)
+   210→Task: بک‌اند v3 — احراز هویت مدیر، گاردها، CRM و جست‌وجو، reconstruct استریمی موازی همه‌چیزشناس، share/save مهمان، آمار ادمین
+   211→
+   212→Work Log:
+   213→- src/lib/auth.ts (جدید): رمز مدیر (sha256) و کلید نشست (۴۸ hex تصادفی) در جدول Setting با seed یک‌باره idempotent (ensureAdminSettings) — رمز پیش‌فرض admin1234؛ توکن نشست `${expMs}.${hmacSHA256(expMs, session_key)}`؛ verifySessionToken با timingSafeEqual + چک انقضا؛ getOwner/requireOwner (async) با کوکی c3d_admin (httpOnly/sameSite lax/path /maxAge 30d)؛ verifyPassword/setPassword (حداقل ۶ کاراکتر)؛ setOwnerCookie/clearOwnerCookie
+   214→- ۴ روت auth: POST /api/auth/login (401 «رمز مدیر اشتباه است»)، POST /api/auth/logout، GET /api/auth/session → {authed}، POST /api/auth/password {currentPassword,newPassword} (مالک + رمز فعلی صحیح)
+   215→- گارد ۴۰۱ «برای این عملیات باید به‌عنوان مدیر وارد شوید» روی همه متدهای projects، folders، presets، share (GET/POST/PATCH)، projects/[id]/guests GET، guests/[id] PATCH، reconstruct، ai/cabinet، ai/edit؛ GET /api/guests/[id] عمومی ماند ولی پاسخ محدود به {id,name,color,role} (حذف shareLinkId)؛ عمومی: auth/*، share/resolve، guests POST، share/save
+   216→- CRM: POST/PATCH پروژه با clientName(≤80)/clientPhone(≤30)/address(≤300) و visitAt/installAt/dueAt (رشته ISO یا '' → null با toDate امن در serialize.ts)؛ GET /api/projects?q= جست‌وجوی contains در name/clientName/clientPhone/address + الگوی تاریخ YYYY-MM-DD یا YYYY/MM/DD → OR روی بازدید/اجرا/اتمام همان روز؛ ترکیب AND با folderId
+   217→- serialize.ts: SerializedProject += شش فیلد CRM (تاریخ‌ها ISO|null) + هلپر toDate
+   218→- POST /api/share/save (جدید): {token,guestId,sceneState:{objects[]≤400}} → توکن معتبر + مهمان متعلق به همان لینک («مهمان شناسایی نشد») + نقش modifier («این لینک دسترسی ویرایش ندارد») → آپدیت project.sceneState + guest.lastSeenAt در یک تراکنش → {ok,updatedAt}
+   219→- GET /api/admin/stats (جدید، فقط مدیر): counts (projects/folders/guests/shareLinks/activeShareLinks/publicProjects)، roomTypes (groupBy)، recentGuests (۱۲ آخر با projectName)، upcoming (پروژه‌هایی که هر یک از سه تاریخشان در بازه دیروز تا ۴۵ روز بعد است، مرتب بر نزدیک‌ترین تاریخ، حداکثر ۲۰)
+   220→- بازنویسی /api/reconstruct v3: حداکثر ۸ عکس (+ سازگاری legacy {image} و floorPlan اختیاری با اعتبارسنجی مشابه)؛ دوتابعی — Accept: application/json → پاسخ JSON مثل v2، در غیر این صورت استریم NDJSON (content-type: application/x-ndjson, cache-control: no-cache, no-transform) با رویدادهای {type:'progress',stage:floorplan|analyze|merge,index?,total?,message} و پایانی {type:'result',...} یا {type:'error',error}؛ گارد مالک قبل از شروع استریم؛ تحلیل تصاویر PARALLEL با Promise.allSettled (نقشه هم در همان دسته) و یک رویداد progress بعد از اتمام هر عکس با پیام فارسی «تحلیل عکس ۲ از ۴...»؛ FLOORPLAN_PROMPT اختصاصی (اتاق‌ها/ابعاد از مقیاس/پنجره‌ها/جهت) که خطایش هرگز کل درخواست نمی‌شکند؛ MERGE_PROMPT با ground-truth بودن نقشه؛ RECONSTRUCT_PROMPT v3: انواع base/wall/tall/island/shelf/fridge/stove/hood/tv/sofa/bed/table/chair/washer/dishwasher/microwave + دستور خانه یکپارچه (بزرگ‌ترین ابعاد تا ۱۵ متر، همه اقلام)، تأکید پنجره/نور (دیوار صحیح نسبت به دوربین)، فیلد glassDoors با قاعده «شیشه هرگز تیره/سیاه»؛ items≤40، windows≤8؛ normalizeAnalysis: width/depth clamp(2,15)، height clamp(2.2,4.2)، offsetX ±7، glassDoors بولی؛ buildObject: tv (d=0.06، mountY 1.4، on:false)، sofa/bed/table/chair/washer/dishwasher/microwave (mountY 0.9) طبق قرارداد + glass فقط برای base/wall/tall/island/shelf/dishwasher با روشن‌سازی خودکار رنگ تیره (luminance<0.35 → shadeColor 0.65)
+   221→- normalize.ts: FURNITURE_KINDS/KIND_LABELS/KIND_DEFAULT_H/D += ۸ نوع جدید (tv/sofa/bed/table/chair/washer/dishwasher/microwave)؛ بازه‌های خاص نوع (tv h 0.3..1.2 و d 0.04..0.3، bed d تا 2.3، hood h 0.1..0.5) در normalizeFullParams و normalizePartialParams؛ mountY برای wall/hood/tv/microwave؛ عبور glass در normalizePartialParams و خروجی glass:true فقط وقتی صریح است در normalizeFullParams
+   222→- /api/ai/cabinet: پرامپت با انواع جدید + واژه‌های فارسی (تلویزیون/مبل/کاناپه/تخت/میز/صندلی/لباسشویی/ظرفشویی/مایکروویو) + قاعده glass (فقط درخواست صریح درب شیشه‌ای → doorColor روشن مثل #cfd8dc) + مثال مبل؛ /api/ai/edit: هینت glass در پرامپت (پارامترها از قبل از normalize.ts عبور می‌کنند)
+   223→- src/lib/api.ts: ProjectDTO/ProjectCrmFields + createProject/patchProject CRM؛ listProjects(folderId?, q?)؛ login/logout/session/changePassword؛ adminStats با AdminStatsDTO؛ saveAsGuest؛ reconstructStream (fetch با Accept: application/x-ndjson، خواندن getReader+TextDecoder، پارس خط‌به‌خط، progress→callback، result→resolve، error→throw، خطای HTTP قبل از استریم JSON است)؛ reconstruct قدیمی به‌صورت fallback JSON حفظ شد
+   224→- رفع زیرساختی: سرور dev قدیمی کلاینت Prisma بدون مدل Setting را در حافظه داشت (500 روی db.setting) — کلاینت روی دیسک موجود بود؛ سرور با kill و اجرای مجدد ری‌استارت شد (نکته: سرور از sandbox این ایجنت بین کال‌ها بقا ندارد — باید orchestartor/کاربر خودش bun run dev را اجرا کند)
+   225→- تست curl کامل (سرور موقت داخل یک کال): ورود/خروج/نشست، تعویض رمز و بازگردانی admin1234، گارد ۴۰۱ روی ۹ endpoint، ساخت پروژه CRM، جست‌وجوی متنی/تاریخی، پچ تاریخ‌ها (='' → null)، لینک viewer/modifier + دو مهمان، share/save با توکن نامعتبر/مهمان بیگانه/لینک viewer (هر سه ۴۰۳ با پیام فارسی درست) و موفق با modifier + ماندگاری sceneState، admin/stats کامل، GET مهمان محدود (بدون shareLinkId)، share/resolve عمومی ۲۰۰، reconstruct استریم با ۱×۱ PNG (رویداد progress + result نهایی)؛ همه داده‌های تست حذف شدند (پروژه → cascade لینک/مهمان)
+   226→- bunx tsc --noEmit → بدون خطا در src (فقط examples/skills پیش‌موجود)؛ bunx eslint src/app/api src/lib/api.ts src/lib/auth.ts --no-warn-ignored → بدون خطا
+   227→
+   228→Stage Summary:
+   229→- قرارداد جدید: همه APIهای مدیریت اکنون ۴۰۱ می‌دهند بدون کوکی c3d_admin — فرانت باید gate ورود با api.session() بگذارد؛ رمز پیش‌فرض مدیر admin1234 (تغییرش با api.changePassword در پنل ادمین)
+   230→- Endpoints جدید: POST /api/auth/login {password}→{ok}|401، POST /api/auth/logout→{ok}، GET /api/auth/session→{authed}، POST /api/auth/password {currentPassword,newPassword}→{ok}، GET /api/admin/stats→AdminStatsDTO، POST /api/share/save {token,guestId,sceneState}→{ok,updatedAt}|403
+   231→- GET /api/projects?q=... (متن یا تاریخ YYYY-MM-DD/YYYY/MM/DD)؛ ProjectDTO و createProject/patchProject شش فیلد CRM دارند (clientName/clientPhone/address رشته، visitAt/installAt/dueAt ISO یا '' برای پاک‌کردن)
+   232→- GET /api/guests/[id] پاسخش فقط {guest:{id,name,color,role}} است (shareLinkId حذف شد)
+   233→- POST /api/reconstruct: پیش‌فرض استریم NDJSON است (رویداد progress با stage floorplan/analyze/merge + result نهایی)؛ برای پاسخ JSON قدیمی هدر Accept: application/json بفرستید؛ حداکثر ۸ عکس؛ فیلد اختیاری floorPlan (dataURL/base64) به‌عنوان ground truth ابعاد؛ خروجی watermarked با glass برای درب‌های شیشه‌ای و انواع مبلمان/لوازم خانه (tv/sofa/bed/table/chair/washer/dishwasher/microwave) که همگی در scene-types از قبل موجودند
+   234→- api.ts: reconstructStream(images, floorPlan, onProgress) برای فرانت (پیشرفت زنده فارسی) — reconstruct() قدیمی سر جای خودش است
+   235→---
+   236→Task ID: 3
+   237→Agent: general-purpose (frontend)
+   238→Task: گیت ورود مدیر، پنل مدیریت، CRM و جست‌وجو، بازسازی استریمی با پلان اختیاری، MovePad و میانبرهای کیبورد، ذخیره خودکار مهمان ویرایشگر
+   239→
+   240→Work Log:
+   241→- src/lib/format.ts (جدید): formatFaDate/formatFaDateTime با Intl fa-IR («—» برای خالی)، relativeFa فارسی (چند لحظه/دقیقه/ساعت/روز پیش)، localInputToIso و isoToLocalInput برای ورودی datetime-local — تست دودی با bun موفق
+   242→- src/components/editor/move-pad.tsx (جدید): پد شناور جابه‌جایی (bottom-16، وسط، بالای نوار راهنما) — ردیف چرخش ±۴۵°، چهار جهت حسی (جلو=-z/عقب=+z/چپ=-x/راست=+x) + ستون ارتفاع (بالا/پایین)، ردیف تکثیر/حذف اختیاری، لیبل فارسی ریز و aria-label، دکمه‌های ۴۴px با HoldButton (نگه‌داشتن → فوری + setInterval ۱۳۰ms با cbRef و پاک‌سازی روی pointerup/leave/cancel)، خط راهنمای کیبورد
+   243→- home-view.tsx (بازنویسی کامل ~۹۴۰ خط → ساختار تب‌دار): گیت ورود مدیر — useQuery ['session'] با enabled gates؛ هنگام لود اسپینر، !authed → <OwnerLogin/> تمام‌صفحه با early return (داشبورد هرگز پشت آن رندر نمی‌شود)؛ Enter سابمیت، توست خطای ۴۰۱ با پیام سرور «رمز مدیر اشتباه است»، موفقیت → invalidate ['session']؛ دکمه «خروج» در هدر (api.logout + qc.clear + invalidate session)
+   244→- home-view تب‌ها: Tabs rtl «پروژه‌ها» (پیش‌فرض) | «مدیریت» (ShieldCheck) — محتوای قبلی (هیرو/پوشه‌ها/آپلود/کارت‌ها/نمونه‌کار عمومی) داخل TabsContent projects و <AdminPanel/> داخل تب مدیریت؛ فوتر بیرون تب‌ها
+   245→- AdminPanel (همان فایل): useQuery api.adminStats با staleTime 15s؛ ۵ کارت آمار (پروژه‌ها/پوشه‌ها/مهمان‌ها/لینک‌های فعال/نمونه‌کار عمومی با Folder/Boxes/Users/Send/Globe)؛ «زمان‌بندی پیش‌رو» با ردیف‌های نام+مشتری+تلفن (dir=ltr) و سه بج رنگی بازدید(کهربایی)/اجرا(سبز)/اتمام(خاکستری) با formatFaDate و حالت خالی؛ «مهمان‌های اخیر» با دات رنگ، نام، پروژه، بج نقش نمایشگر/ویرایشگر و relativeFa(lastSeenAt)؛ کارت «تغییر رمز مدیر» با سه Input پسورد + اعتبارسنجی (≥۶ کاراکتر، تطابق تکرار) و توست «رمز تغییر کرد»؛ چیپ‌های انواع فضا با لیبل فارسی (آشپزخانه/اتاق خواب/نشیمن/ناهارخوری/سرویس/اتاق کار/سایر) و شمارنده
+   246→- جست‌وجوی پروژه‌ها: Input با آیکون Search و placeholder «جستجو: نام مشتری، شماره، آدرس یا تاریخ...» + دکمه پاک‌کردن؛ debounce ۳۵۰ms → state q؛ listProjects(folderArg, q) سمت سرور (folderArg: all=undefined/none=null/folder=id — فیلتر پوشه و q با هم AND می‌شوند)؛ queryKey ['projects', folderKey, q]؛ نمایش شمارنده نتیجه و حالت خالی مخصوص جست‌وجو (راهنمای الگوی تاریخ YYYY-MM-DD)
+   247→- CRM روی کارت‌ها: بج‌های نام مشتری (User)، تلفن (Phone، dir=ltr، mono)، آدرس (MapPin، truncate) + ردیف سه مینی‌بج زمان‌بندی فقط وقتی ست شده‌اند (text-xs، wrap)؛ آیتم منوی کارت «اطلاعات مشتری و زمان‌بندی…» (Contact) → CrmDialog با ۶ فیلد prefilled → patchProject (رشته‌ها '' برای پاک‌کردن، تاریخ‌ها ISO یا null) → invalidate ['projects'] و توست موفقیت
+   248→- CrmDialog مشترک (همان فایل): فیلدهای clientName/clientPhone/address + سه datetime-local (زمان بازدید/اجرا و پیاده‌سازی/اتمام) با isoToLocalInput/localInputToIso؛ دکمه «پروژه جدید» نوار پوشه‌ها حالا همین دیالوگ را با فیلد نام باز می‌کند (با withName) و createProject با roomSpec پیش‌فرض و folderId جاری
+   249→- UploadCard: سقف عکس ۵→۸ (addImages/addVideo هر دو slice(0,8) و دکمه‌ها تا سقف ۸)؛ ناحیه دوم dashed برای «پلان خانه (اختیاری — برای دقت بیشتر)» + متن راهنما؛ تک‌عکس با fileToResizedDataUrl(f,1600)، بندانگشتی + X حذف، درگ‌اند‌داپ هم پشتیبانی می‌شود
+   250→- بازسازی استریمی واقعی: AI_STEPS فیک حذف شد؛ buildSteps(hasPlan) پویا (ارسال/پلان اگر هست/تحلیل/ادغام/ساخت مش) و api.reconstructStream(shots, floorPlan, onProgress) — stage floorplan→۱۰٪، analyze→۱۵+۶۵×(index/total)٪، merge→۸۵٪، موفقیت→۱۰۰٪؛ گام آخر «ساخت مش سه‌بعدی ویرایش‌پذیر...» فقط در onSuccess کامل می‌شود (هرگز منتظر نماندنش گیر نمی‌کند)؛ زیرنویس پیام فارسی سرور verbatim با aria-live؛ خطا → توست پیام فارسی سرور + ریست پیشرفت؛ onSuccess مثل قبل createProject و ریدایرکت به ویرایشگر
+   251→- editor-view.tsx: تشخیص ۴۰۱ پروژه → <OwnerLoginInline> (کارت ورود با api.login؛ موفقیت → invalidate ['project', id] و ['projects'])؛ کیبورد ناج — گارد isTypingTarget (INPUT/TEXTAREA/SELECT/contentEditable) و ترکیب Ctrl/Meta/Alt؛ ArrowUp/Down=-z/+z، Left/Right=-x/+x، PageUp/PageDown=y±، Q/E=چرخش ∓/+۴۵°؛ قدم ۰.۰۵ و Shift→۰.۲۵؛ e.preventDefault؛ beginAction فقط روی !e.repeat (اول burst) مطابق گیزموت؛ clamp موقعیت مثل applyAiPatch (x ±width، y [0,height]، z ±depth)؛ MovePad وقتی primary هست با onDelete/onDuplicate + holdNudge/holdRotate (beginAction یک‌بار در هر نگه‌داشتن با آستانه ۴۰۰ms)؛ متن راهنما به «کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ» تغییر کرد (pill در bottom-3، پد در bottom-16)
+   252→- properties-panel.tsx: سوییچ «درب شیشه‌ای» (params.glass) برای base/wall/tall/island/shelf/dishwasher فقط با doors>0 + توضیح «شیشه شفاف روشن — مناسب ویترین»؛ اسلایدر «ارتفاع نصب» tv (۰.۴..۲.۲) و «ارتفاع از کف» مایکروویو (۰.۵..۱.۴) با همان الگوی DimSlider؛ سوییچ «صفحه روشن باشد؟» برای tv (tv در LIGHT_TYPES است ولی پنل کنترلی نداشت)
+   253→- viewer-view.tsx: ذخیره خودکار مهمان ویرایشگر — شمارش dirty با dirtyTick که توسط patchObject/toggle/onMoved/پد لمس می‌شود؛ useEffect debounce ۱۲۰۰ms → api.saveAsGuest({token,guestId,sceneState:{objects}})؛ گارد dirtyTick===0 و role==='modifier' و skip اولین ران با ref؛ نشانگر هدر «در حال ذخیره.../ذخیره شد ✓/ذخیره ناموفق» (۳ ثانیه بعد idle، خطا بی‌صدا)؛ onMoved حالا position را از refsMap (THREE.Group) می‌خواند تا جابه‌جایی گیزموت مهمان واقعاً ذخیره شود؛ انتخاب محلی selectedId (ViewerScene onSelect) + <MovePad> بدون delete/duplicate برای modifier با clamp داخل roomSpec و چرخش ۴۵°؛ سوییچ چراغ‌های چیپ هم از patchObject (سبب ذخیره) استفاده می‌کند؛ polling نقش دست‌نخورده
+   254→- bunx tsc --noEmit → صفر خطا در src (فقط خطاهای پیش‌موجود examples/ و skills/)؛ bunx eslint روی src/components/home، src/components/editor، src/components/viewer، src/lib/format.ts → بدون خطا (فیکس: انتساب ref حین رندر HoldButton به useEffect منتقل شد، Card به importهای editor-view اضافه شد)
+   255→
+   256→Stage Summary:
+   257→- فایل‌ها: format.ts (جدید) — move-pad.tsx (جدید) — home-view.tsx (بازنویسی) — editor-view.tsx — properties-panel.tsx — viewer-view.tsx؛ هیچ فایل read-only تغییر نکرد و هیچ وابستگی جدیدی اضافه نشد
+   258→- ورود: کل اپ (خانه/ویرایشگر) با کوکی c3d_admin گیت دارد؛ رمز پیش‌فرض مدیر admin1234 (تغییر از تب «مدیریت» ← «تغییر رمز مدیر»، حداقل ۶ کاراکتر)؛ ۴۰۱ در هر دو نما کارت ورود فارسی می‌دهد؛ نمای مهمان (s/:token) عمومی می‌ماند
+   259→- مسیرهای حساس E2E: ورود/خروج → تب پروژه‌ها/مدیریت؛ جست‌وجوی متنی/تاریخی + فیلتر پوشه؛ دیالوگ CRM از «پروژه جدید» و منوی کارت؛ بازسازی استریمی (تا ۸ عکس + پلان اختیاری) با درصد زنده؛ حرکت با دکمه پد و کیبورد (Undo یک‌باره در هر burst)؛ مهمان ویرایشگر: حرکت با پد/گیزموت → ذخیره خودکار ۱.۲s → ماندگاری بعد از رفرش
+
+[showing lines 40-259 of 261; use offset=260 with limit to continue reading]

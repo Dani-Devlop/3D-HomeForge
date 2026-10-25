@@ -71,6 +71,19 @@ model Preset {
   createdAt DateTime @default(now())
 }
 
+// نمونه‌کار: کارهای نمایشی که مدیر برای صفحه عمومی (لندینگ مشتری) منتخب می‌کند
+model PortfolioItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  category    String   @default("kitchen") // kitchen | bedroom | living | office | other
+  image       String // مسیر فایل عمومی یا dataURL
+  visible     Boolean  @default(true) // نمایش در صفحه عمومی
+  sortOrder   Int      @default(0) // ترتیب نمایش (کوچک‌تر = جلوتر)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // تنظیمات سراسری (مثل هش رمز مدیر)
 model Setting {
   key       String   @id

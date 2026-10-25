@@ -15,7 +15,8 @@ export const OWNER_COOKIE = 'c3d_admin';
 
 const SESSION_DAYS = 30;
 const SESSION_MAX_AGE_SEC = SESSION_DAYS * 24 * 60 * 60;
-const DEFAULT_PASSWORD = 'admin1234';
+// رمز پیش‌فرض موقت طبق درخواست کاربر: admin (تا تغییر از پنل مدیریت)
+const DEFAULT_PASSWORD = 'admin';
 
 // ---------------- هلپرهای جدول Setting ----------------
 
@@ -64,9 +65,9 @@ export async function verifyPassword(pw: string): Promise<boolean> {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** تعویض رمز — حداقل ۶ کاراکتر؛ false یعنی رمز کوتاه است */
+/** تعویض رمز — حداقل ۴ کاراکتر؛ false یعنی رمز کوتاه است */
 export async function setPassword(pw: string): Promise<boolean> {
-  if (pw.length < 6) return false;
+  if (pw.length < 4) return false;
   await setSetting('admin_pass', sha256(pw));
   return true;
 }

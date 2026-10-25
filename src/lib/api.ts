@@ -119,6 +119,28 @@ export interface GeneratedItem {
   params: SceneObject['params'];
 }
 
+/** نمونه‌کار صفحه عمومی (لندینگ) */
+export interface PortfolioItemDTO {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  image: string;
+  visible: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortfolioItemInput {
+  title: string;
+  description?: string;
+  category?: string;
+  image: string;
+  visible?: boolean;
+  sortOrder?: number;
+}
+
 // ---------------- fetch helpers ----------------
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -236,6 +258,25 @@ export const api = {
 
   // ---- آمار پنل مدیریت ----
   adminStats: () => request<AdminStatsDTO>('/api/admin/stats'),
+
+  // ---- نمونه‌کارهای صفحه عمومی ----
+  listPortfolio: (all?: boolean) =>
+    request<{ items: PortfolioItemDTO[] }>(`/api/portfolio${all ? '?all=1' : ''}`),
+
+  createPortfolioItem: (p: PortfolioItemInput) =>
+    request<{ item: PortfolioItemDTO }>('/api/portfolio', {
+      method: 'POST',
+      body: JSON.stringify(p),
+    }),
+
+  updatePortfolioItem: (id: string, patch: Partial<PortfolioItemInput>) =>
+    request<{ item: PortfolioItemDTO }>(`/api/portfolio/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+
+  deletePortfolioItem: (id: string) =>
+    request<{ ok: boolean }>(`/api/portfolio/${id}`, { method: 'DELETE' }),
 
   // ---- بازسازی سه‌بعدی از چند عکس / فریم‌های ویدیو ----
   // حالت JSON (سازگار با نسخه ۲) — بدون پیشرفت زنده

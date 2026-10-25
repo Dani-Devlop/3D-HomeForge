@@ -258,3 +258,25 @@ Stage Summary:
 - ورود: کل اپ (خانه/ویرایشگر) با کوکی c3d_admin گیت دارد؛ رمز پیش‌فرض مدیر admin1234 (تغییر از تب «مدیریت» ← «تغییر رمز مدیر»، حداقل ۶ کاراکتر)؛ ۴۰۱ در هر دو نما کارت ورود فارسی می‌دهد؛ نمای مهمان (s/:token) عمومی می‌ماند
 - مسیرهای حساس E2E: ورود/خروج → تب پروژه‌ها/مدیریت؛ جست‌وجوی متنی/تاریخی + فیلتر پوشه؛ دیالوگ CRM از «پروژه جدید» و منوی کارت؛ بازسازی استریمی (تا ۸ عکس + پلان اختیاری) با درصد زنده؛ حرکت با دکمه پد و کیبورد (Undo یک‌باره در هر burst)؛ مهمان ویرایشگر: حرکت با پد/گیزموت → ذخیره خودکار ۱.۲s → ماندگاری بعد از رفرش
 - نکته برای تست: سرور dev در sandbox این ایجنت بقا ندارد — orchestartor باید bun run dev را اجرا و ورود با admin1234 را تست کند؛ دقت datetime-local بر حسب دقیقه است (رفت‌وبرگشت ISO ثانیه‌ها را می‌اندازد — عمدی)
+
+---
+Task ID: 8
+Agent: orchestrator (main)
+Task: صفحه اصلی عمومی (لندینگ مشتری) با نمونه‌کارهای قابل مدیریت + ورود مدیر در نوبار با رمز admin
+
+Work Log:
+- prisma/schema.prisma: مدل جدید PortfolioItem (title/description/category/image/visible/sortOrder) + bun run db:push
+- src/lib/auth.ts: DEFAULT_PASSWORD به «admin» تغییر کرد (طبق درخواست کاربر) + حداقل طول setPassword از ۶ به ۴؛ همین تغییر در /api/auth/password و pwError پنل مدیریت اعمال شد
+- ریست رمز دیتابیس با اسکریپت یک‌باره (sha256('admin') در Setting) تا ورود با «admin» فوراً کار کند
+- API جدید: GET /api/portfolio (عمومی، فقط visible، مرتب sortOrder/createdAt) + GET ?all=1 (گارد مدیر) + POST (گارد مدیر، zod: عنوان/تصویر الزامی، تصویر dataURL یا مسیر عمومی، sortOrder خودکار انتهای لیست) + PATCH/DELETE /api/portfolio/[id] (گارد مدیر، 404 فارسی)؛ serialize مشترک در _lib/portfolio.ts (خارج از route.ts طبق قاعده exportهای Next)
+- src/lib/api.ts: PortfolioItemDTO + listPortfolio/createPortfolioItem/updatePortfolioItem/deletePortfolioItem
+- تصاویر: ۴ رندر سه‌بعدی با z-ai image CLI تولید و در public/portfolio/ ذخیره شد (kitchen-1/bedroom-1/living-1/office-1.jpg) + seed یک‌باره ۴ نمونه‌کار در دیتابیس
+- src/components/home/site-landing.tsx (جدید): لندینگ عمومی کامل RTL — نوبار چسبان با لینک‌های اسکرول نرم (چطور کار می‌کند/امکانات/نمونه‌کارها) و دکمه «ورود» → LoginDialog (رمز مدیر) یا «پنل مدیریت» وقتی وارد است؛ هیرو با بج/تیتر/CTA/hero-kitchen.png؛ بخش ۴ مرحله‌ای «چطور کار می‌کند»؛ ۶ کارت امکانات؛ بخش نمونه‌کارها با fetch عمومی (کارت عکس+دسته+توضیح، اسکلتون لودینگ، حالت خالی)؛ نوار CTA؛ SiteFooter چسبان مشترک؛ انیمیشن FadeIn با framer-motion (whileInView once)
+- src/components/home/portfolio-manager.tsx (جدید): تب «نمونه‌کارها» داشبورد — گرید مدیریت با بج دسته/نمایش، ترتیب با فلش‌های بالا/پایین (سواپ sortOrder دو مورد)، سوییچ نمایش (Eye/EyeOff)، ویرایش، حذف با AlertDialog؛ ItemDialog مشترک افزودن/ویرایش با آپلود تصویر (fileToResizedDataUrl 1400px)، دسته (Select ۵تایی)، توضیح (Textarea)، سوییچ «نمایش در صفحه اصلی»؛ ذخیره بدون تصویر/عنوان غیرفعال
+- home-view.tsx: حذف گیت تمام‌صفحه OwnerLogin؛ حالت view با sessionStorage ('site' پیش‌فرض | 'dashboard')؛ لندینگ برای همه، داشبورد فقط با authed؛ هدر داشبورد: برند کلیک‌پذیر + «نمایش سایت» + «خروج»؛ تب‌ها ۳تایی شدند (پروژه‌ها/نمونه‌کارها/مدیریت)؛ هیرو تکراری تب پروژه‌ها حذف شد (لندینگ جایگزین محتواست)؛ فوتر → SiteFooter مشترک؛ برند «کابین‌۳بعد» → «استودیو۳بعد» با تگ‌لاین «از عکس تا فضای سه‌بعدی» (layout.tsx هم آپدیت شد)
+- رفع: importهای بلااستفاده (MousePointerClick حذف، Images اضافه شد)؛ restart سرور dev برای Prisma Client جدید (پاسخ قبلی «خطای سرور» بود)
+
+Stage Summary:
+- جریان جدید: بازدیدکننده عمومی لندینگ را با نمونه‌کارها می‌بیند بدون هیچ لاگینی؛ مدیر از نوبار با رمز موقت «admin» وارد داشبورد می‌شود (تب‌های پروژه‌ها/نمونه‌کارها/مدیریت) و محتوای نمونه‌کارها را آزادانه می‌سازد/ویرایش/مرتب/پنهان/حذف می‌کند
+- قرارداد: GET /api/portfolio عمومی (فقط visible)؛ همه تغییرات با کوکی c3d_admin؛ تصویر مسیر عمومی یا dataURL ≤ ~4.5MB؛ ترتیب: sortOrder asc سپس newest
+- تست E2E مرورگر: لندینگ دسکتاپ+موبایل (390px)، اسکرول انکری نرم، ورود با رمز غلط → توست «رمز مدیر اشتباه است»، ورود admin → داشبورد، CRUD کامل نمونه‌کار (اعتبارسنجی دیالوگ/ویرایش prefill/PATCH/سواپ ترتیب/حذف با تایید)، سوییچ نمایش و بازگشت به سایت/پنل، خروج → لندینگ عمومی — همه تأیید شد؛ tsc و eslint بدون خطا؛ dev.log بدون خطای runtime

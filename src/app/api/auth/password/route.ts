@@ -9,7 +9,7 @@ import { readJsonBody } from '@/app/api/_lib/serialize';
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1).max(200),
-  newPassword: z.string().min(6).max(200),
+  newPassword: z.string().min(4).max(200),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const parsed = passwordSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'رمز جدید باید حداقل ۶ کاراکتر باشد' },
+        { error: 'رمز جدید باید حداقل ۴ کاراکتر باشد' },
         { status: 400 },
       );
     }
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     const ok = await setPassword(parsed.data.newPassword);
     if (!ok) {
-      return NextResponse.json({ error: 'رمز جدید باید حداقل ۶ کاراکتر باشد' }, { status: 400 });
+      return NextResponse.json({ error: 'رمز جدید باید حداقل ۴ کاراکتر باشد' }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {

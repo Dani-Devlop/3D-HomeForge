@@ -16,13 +16,13 @@ import {
   Folder as FolderIcon,
   Globe,
   Image as ImageIcon,
+  Images,
   KeyRound,
   Loader2,
   Lock,
   LogOut,
   MapPin,
   MoreVertical,
-  MousePointerClick,
   Pencil,
   Phone,
   Ruler,
@@ -49,6 +49,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import SiteLanding, { SiteFooter } from './site-landing';
+import { PortfolioManager } from './portfolio-manager';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,65 +80,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShareDialog } from '@/components/editor/share-dialog';
-
-// ============================================================
-// ورود مدیر (گیت کل اپلیکیشن)
-// ============================================================
-function OwnerLogin() {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const [pw, setPw] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    if (!pw || busy) return;
-    setBusy(true);
-    try {
-      await api.login(pw);
-      await qc.invalidateQueries({ queryKey: ['session'] });
-    } catch (e) {
-      toast({
-        title: 'ورود ناموفق',
-        description: (e as Error).message || 'رمز مدیر اشتباه است',
-        variant: 'destructive',
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
-      <Card className="w-full max-w-sm shadow-xl">
-        <CardContent className="p-8 space-y-5 text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <Lock className="h-7 w-7 text-primary" />
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-lg font-bold">ورود مدیر</h1>
-            <p className="text-sm text-muted-foreground">
-              این پلتفرم مخصوص مدیر است — برای دیدن پروژه‌ها رمز را وارد کنید
-            </p>
-          </div>
-          <Input
-            type="password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="رمز مدیر"
-            autoFocus
-            className="h-11 text-center"
-            aria-label="رمز مدیر"
-          />
-          <Button className="w-full h-11 gap-2" onClick={submit} disabled={!pw || busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4 rotate-180" />}
-            {busy ? 'در حال ورود...' : 'ورود'}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 // ============================================================
 // CRM — دیالوگ مشترک مشتری و زمان‌بندی
@@ -293,8 +236,8 @@ function AdminPanel() {
   });
 
   const pwError =
-    nw.length > 0 && nw.length < 6
-      ? 'رمز جدید حداقل ۶ کاراکتر باشد'
+    nw.length > 0 && nw.length < 4
+      ? 'رمز جدید حداقل ۴ کاراکتر باشد'
       : rep.length > 0 && nw !== rep
         ? 'تکرار رمز با رمز جدید مطابقت ندارد'
         : '';
@@ -441,7 +384,7 @@ function AdminPanel() {
             <Button
               size="sm"
               className="gap-1.5"
-              disabled={!cur || nw.length < 6 || nw !== rep || changePw.isPending}
+              disabled={!cur || nw.length < 4 || nw !== rep || changePw.isPending}
               onClick={() => changePw.mutate()}
             >
               {changePw.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -1412,13 +1355,24 @@ function ProjectCard({
 }
 
 // ============================================================
-// نمای خانه — گیت ورود مدیر + تب پروژه‌ها/مدیریت
+// نمای خانه — لندینگ عمومی (پیش‌فرض) + داشبورد مدیر با تب‌ها
 // ============================================================
 export default function HomeView() {
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const sessionQ = useQuery({ queryKey: ['session'], queryFn: api.session, staleTime: 60_000 });
+
+  // نما: site (لندینگ عمومی) | dashboard (پنل مدیر) — در نشست مرورگر حفظ می‌شود
+  const [view, setView] = useState<'site' | 'dashboard'>(() => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('c3d_view') === 'dashboard') {
+      return 'dashboard';
+    }
+    return 'site';
+  });
+  useEffect(() => {
+    sessionStorage.setItem('c3d_view', view);
+  }, [view]);
 
   const [folderFilter, setFolderFilter] = useState<FolderFilter>({ kind: 'all' });
   const [searchInput, setSearchInput] = useState('');
@@ -1457,8 +1411,8 @@ export default function HomeView() {
       toast({ title: 'خروج ناموفق بود', description: e.message, variant: 'destructive' }),
   });
 
-  // --- حالت‌های گیت ورود (بدون رندر داشبورد پشت آن) ---
-  if (sessionQ.isLoading) {
+  // --- لندینگ عمومی: حالت پیش‌فرض صفحه اصلی؛ داشبورد فقط برای مدیر واردشده ---
+  if (sessionQ.isLoading && view === 'dashboard') {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1466,8 +1420,16 @@ export default function HomeView() {
     );
   }
 
-  if (!authed) {
-    return <OwnerLogin />;
+  if (!authed || view === 'site') {
+    return (
+      <SiteLanding
+        authed={authed}
+        onEnterDashboard={() => {
+          setView('dashboard');
+          window.scrollTo({ top: 0 });
+        }}
+      />
+    );
   }
 
   const projects = projectsQ.data?.projects ?? [];
@@ -1481,38 +1443,57 @@ export default function HomeView() {
       {/* هدر */}
       <header className="border-b bg-card/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-2"
+            onClick={() => setView('site')}
+            aria-label="بازگشت به صفحه اصلی سایت"
+          >
             <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
               <Box className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-bold leading-tight">کابین‌۳بعد</h1>
-              <p className="text-[10px] text-muted-foreground">طراحی و اشتراک‌گذاری سه‌بعدی کابینت</p>
+              <h1 className="font-black leading-tight">استودیو۳بعد</h1>
+              <p className="text-[10px] text-muted-foreground">از عکس تا فضای سه‌بعدی</p>
             </div>
-          </div>
+          </button>
           <Badge variant="secondary" className="mr-auto text-[10px] gap-1 hidden sm:flex">
-            <Sparkles className="h-3 w-3" /> پنل مدیر
+            <ShieldCheck className="h-3 w-3" /> پنل مدیریت
           </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => logout.mutate()}
-            disabled={logout.isPending}
-            aria-label="خروج از حساب مدیر"
-          >
-            {logout.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-            خروج
-          </Button>
+          <div className="ml-auto sm:ml-3 flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setView('site')}
+              aria-label="نمایش صفحه اصلی سایت"
+            >
+              <Globe className="h-4 w-4" /> نمایش سایت
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              aria-label="خروج از حساب مدیر"
+            >
+              {logout.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+              خروج
+            </Button>
+          </div>
         </div>
       </header>
 
       <Tabs value={tab} onValueChange={setTab} dir="rtl" className="flex-1 flex flex-col">
         {/* تب‌ها */}
         <div className="max-w-6xl mx-auto px-4 w-full pt-4">
-          <TabsList className="grid grid-cols-2 w-full max-w-xs">
+          <TabsList className="grid grid-cols-3 w-full max-w-md">
             <TabsTrigger value="projects" className="gap-1.5">
               <Boxes className="h-4 w-4" /> پروژه‌ها
+            </TabsTrigger>
+            <TabsTrigger value="portfolio" className="gap-1.5">
+              <Images className="h-4 w-4" /> نمونه‌کارها
             </TabsTrigger>
             <TabsTrigger value="admin" className="gap-1.5">
               <ShieldCheck className="h-4 w-4" /> مدیریت
@@ -1523,44 +1504,6 @@ export default function HomeView() {
         {/* ---------- تب پروژه‌ها ---------- */}
         <TabsContent value="projects" className="flex-1 mt-0">
           <main className="flex-1">
-            {/* هیرو */}
-            <section className="max-w-6xl mx-auto px-4 pt-6 pb-4 grid md:grid-cols-2 gap-6 items-center">
-              <div className="space-y-4">
-                <h2 className="text-2xl md:text-3xl font-black leading-snug">
-                  بازسازی دقیق فضا از{' '}
-                  <span className="text-primary">عکس و ویدیو</span>
-                  {' '}، ویرایش با متن و انتشار برای مشتری
-                </h2>
-                <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-                  چند عکس یا یک ویدیو از آشپزخانه آپلود کنید؛ AI دیوارها، بازشوها و تجهیزات موجود را تشخیص
-                  می‌دهد. کابینت پارامتریک با یک جمله بسازید، آبجکت‌ها را با متن تغییر دهید و با لینک ساده
-                  به مشتری نشان دهید — بدون ثبت‌نام.
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { icon: Camera, text: 'عکس/ویدیو → مش سه‌بعدی' },
-                    { icon: Sparkles, text: 'ساخت کابینت با متن' },
-                    { icon: MousePointerClick, text: 'Drag & Drop کابینت' },
-                    { icon: Users, text: 'لینک مهمان با نقش' },
-                    { icon: FolderIcon, text: 'پوشه‌بندی پروژه‌ها' },
-                    { icon: Box, text: 'خروجی استاندارد GLB' },
-                  ].map(({ icon: Icon, text }) => (
-                    <div key={text} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-                      <Icon className="h-4 w-4 text-primary shrink-0" />
-                      <span>{text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="rounded-2xl overflow-hidden border shadow-lg animate-float">
-                <img
-                  src="/hero-kitchen.png"
-                  alt="نمای سه‌بعدی آشپزخانه طراحی‌شده در پلتفرم"
-                  className="w-full h-auto object-cover"
-                />
-              </div>
-            </section>
-
             {/* جست‌وجو + پوشه‌ها */}
             <section className="max-w-6xl mx-auto px-4 pb-2 space-y-2">
               <div className="relative">
@@ -1688,6 +1631,13 @@ export default function HomeView() {
           </main>
         </TabsContent>
 
+        {/* ---------- تب نمونه‌کارها ---------- */}
+        <TabsContent value="portfolio" className="flex-1 mt-0">
+          <main className="max-w-6xl mx-auto px-4 py-6">
+            <PortfolioManager />
+          </main>
+        </TabsContent>
+
         {/* ---------- تب مدیریت ---------- */}
         <TabsContent value="admin" className="flex-1 mt-0">
           <main className="max-w-6xl mx-auto px-4 py-6">
@@ -1696,13 +1646,8 @@ export default function HomeView() {
         </TabsContent>
       </Tabs>
 
-      {/* فوتر چسبان */}
-      <footer className="mt-auto border-t bg-card">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <p>کابین‌۳بعد — چرخه کامل عکس → سه‌بعدی → اشتراک‌گذاری، برای کابینت‌سازها</p>
-          <p dir="ltr" className="font-mono">glTF / GLB • React Three Fiber</p>
-        </div>
-      </footer>
+      {/* فوتر چسبان مشترک با سایت */}
+      <SiteFooter />
     </div>
   );
 }
