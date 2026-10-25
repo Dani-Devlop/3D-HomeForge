@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Check,
   Eye,
   LampCeiling,
   Link2Off,
+  Loader2,
   Pencil,
   RotateCcw,
 } from 'lucide-react';
@@ -18,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import ViewerScene from '@/components/three/viewer-scene';
+import { MovePad } from '@/components/editor/move-pad';
 
 const ROLE_LABEL: Record<ShareRole, string> = {
   viewer: 'نمایشگر',
@@ -73,6 +77,8 @@ function GuestGate({
 }
 
 // ---------- نمای اصلی مشتری ----------
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
 export default function ViewerView({ token }: { token: string }) {
   const { toast } = useToast();
 
@@ -87,7 +93,12 @@ export default function ViewerView({ token }: { token: string }) {
   const [joining, setJoining] = useState(false);
   const [objects, setObjects] = useState<SceneObject[]>([]);
   const [cameraKey, setCameraKey] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [dirtyTick, setDirtyTick] = useState(0);
   const refsMap = useRef<Map<string, unknown>>(new Map());
+
+  const touch = () => setDirtyTick((t) => t + 1);
 
   // بعد از resolve: مقداردهی اولیه
   useEffect(() => {
@@ -155,8 +166,37 @@ export default function ViewerView({ token }: { token: string }) {
 
   const roomSpec = resolveQ.data?.project.roomSpec;
 
-  const patchObject = (id: string, patch: Partial<SceneObject>) =>
+  const patchObject = (id: string, patch: Partial<SceneObject>) => {
     setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+    touch();
+  };
+
+  // ---- ذخیره خودکار مهمان ویرایشگر (۱.۲ ثانیه بعد از آخرین تغییر) ----
+  const firstDirtyRef = useRef(true);
+  useEffect(() => {
+    if (firstDirtyRef.current) {
+      firstDirtyRef.current = false;
+      return;
+    }
+    if (dirtyTick === 0 || !guest || role !== 'modifier' || !resolveQ.data) return;
+    const t = setTimeout(async () => {
+      setSaveState('saving');
+      try {
+        await api.saveAsGuest({ token, guestId: guest.id, sceneState: { objects } });
+        setSaveState('saved');
+      } catch {
+        setSaveState('error'); // بی‌صدا — فقط نشانگر کوتاه
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [dirtyTick, guest, role, token, objects, resolveQ.data]);
+
+  // بازگشت نشانگر ذخیره به حالت عادی
+  useEffect(() => {
+    if (saveState !== 'saved' && saveState !== 'error') return;
+    const t = setTimeout(() => setSaveState('idle'), 3000);
+    return () => clearTimeout(t);
+  }, [saveState]);
 
   // ---------- حالت‌های خطا ----------
   if (resolveQ.isLoading) {
@@ -185,6 +225,20 @@ export default function ViewerView({ token }: { token: string }) {
   }
 
   const canMove = role === 'modifier';
+  const selected = selectedId ? objects.find((o) => o.id === selectedId) : undefined;
+  const spec = roomSpec && 'widthM' in roomSpec ? roomSpec : null;
+
+  const clampPos = (
+    pos: [number, number, number],
+    d: [number, number, number]
+  ): [number, number, number] =>
+    spec
+      ? [
+        THREE.MathUtils.clamp(pos[0] + d[0], -spec.widthM, spec.widthM),
+        THREE.MathUtils.clamp(pos[1] + d[1], 0, spec.heightM),
+        THREE.MathUtils.clamp(pos[2] + d[2], -spec.depthM, spec.depthM),
+      ]
+      : pos;
 
   return (
     <div className="h-screen flex flex-col bg-stone-100 overflow-hidden">
@@ -213,6 +267,23 @@ export default function ViewerView({ token }: { token: string }) {
         )}
 
         <div className="ms-auto flex items-center gap-2">
+          {guest && role === 'modifier' && (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1" aria-live="polite">
+              {saveState === 'saving' ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" /> در حال ذخیره...
+                </>
+              ) : saveState === 'saved' ? (
+                <>
+                  <Check className="h-3 w-3 text-emerald-600" /> ذخیره شد ✓
+                </>
+              ) : saveState === 'error' ? (
+                <span className="text-destructive">ذخیره ناموفق</span>
+              ) : dirtyTick > 0 ? (
+                'تغییرات ذخیره‌نشده'
+              ) : null}
+            </span>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -233,18 +304,28 @@ export default function ViewerView({ token }: { token: string }) {
           objects={objects}
           canMove={canMove}
           refsMap={refsMap.current as never}
-          onSelect={() => {}}
+          onSelect={(id) => setSelectedId(id)}
           onToggleOpen={(id) =>
-            setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, open: !o.open } : o)))
+            patchObject(id, { open: !objects.find((o) => o.id === id)?.open })
           }
           onToggleLight={(id) =>
-            setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, on: !o.on } : o)))
+            patchObject(id, { on: !objects.find((o) => o.id === id)?.on })
           }
           onBeginAction={() => {}}
           onMoved={(id) => {
-            // موقعیت مستقیم از گیزموت — فقط dirty محلی
-            setObjects((prev) => [...prev]);
-            void id;
+            // موقعیت از گیزموت (گروه سه‌بعدی) → state تا ذخیره شود
+            const g = refsMap.current.get(id) as THREE.Group | undefined;
+            if (g) {
+              patchObject(id, {
+                position: [
+                  +g.position.x.toFixed(3),
+                  +g.position.y.toFixed(3),
+                  +g.position.z.toFixed(3),
+                ],
+              });
+            } else {
+              setObjects((prev) => [...prev]);
+            }
           }}
           cameraKey={cameraKey}
         />
@@ -264,9 +345,7 @@ export default function ViewerView({ token }: { token: string }) {
                 <Switch
                   checked={!!l.on}
                   onCheckedChange={() =>
-                    setObjects((prev) =>
-                      prev.map((o) => (o.id === l.id ? { ...o, on: !o.on } : o))
-                    )
+                    patchObject(l.id, { on: !objects.find((o) => o.id === l.id)?.on })
                   }
                   aria-label={`روشن/خاموش ${l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}`}
                   className="scale-90"
@@ -276,10 +355,20 @@ export default function ViewerView({ token }: { token: string }) {
           </div>
         )}
 
+        {/* پد حرکت برای مهمان ویرایشگر */}
+        {canMove && selected && (
+          <MovePad
+            onNudge={(d) => patchObject(selected.id, { position: clampPos(selected.position, d) })}
+            onRotate={(r) =>
+              patchObject(selected.id, { rotationY: selected.rotationY + r })
+            }
+          />
+        )}
+
         {/* راهنما */}
         <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
           {canMove
-            ? 'کلیک روی درب: باز/بسته • کلیک روی کابینت: انتخاب و جابه‌جایی • درگ: چرخش نما'
+            ? 'کلیک روی کابینت: انتخاب • دکمه‌های حرکت یا درگ گیزموت: جابه‌جایی • ذخیره خودکار'
             : 'کلیک روی درب‌ها: باز/بسته • درگ: چرخش نما • اسکرول: زوم'}
         </div>
       </main>

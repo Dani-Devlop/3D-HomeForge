@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { requireOwner } from '@/lib/auth';
 import { isValidRole } from '@/lib/scene-types';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
 // /api/guests/[id] — حضور مهمان (heartbeat) و تغییر نقش
+// GET عمومی است ولی پاسخ فقط {id,name,color,role} دارد (بدون shareLinkId)
+// PATCH فقط برای مدیر
 // ============================================================
 
 const patchSchema = z.object({ role: z.unknown() });
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -21,13 +24,13 @@ export async function GET(
       return NextResponse.json({ error: 'مهمان یافت نشد' }, { status: 404 });
     }
     await db.guest.update({ where: { id }, data: { lastSeenAt: new Date() } });
+    // پاسخ محدود — بدون shareLinkId
     return NextResponse.json({
       guest: {
         id: guest.id,
         name: guest.name,
         color: guest.color,
         role: guest.role,
-        shareLinkId: guest.shareLinkId,
       },
     });
   } catch (err) {
@@ -40,6 +43,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const body = await readJsonBody(req);
@@ -72,7 +78,6 @@ export async function PATCH(
         name: guest.name,
         color: guest.color,
         role: guest.role,
-        shareLinkId: guest.shareLinkId,
       },
     });
   } catch (err) {

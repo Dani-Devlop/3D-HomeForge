@@ -23,6 +23,8 @@ const isCabinet = (t: SceneObject['type']) =>
 const isLight = (t: SceneObject['type']) => t === 'pendant' || t === 'floor-lamp';
 const isAppliance = (t: SceneObject['type']) =>
   ['fridge', 'stove', 'hood'].includes(t);
+// انواع با درب شیشه‌ای (شیشه شفاف — هرگز تیره نیست)
+const GLASS_TYPES: readonly SceneObject['type'][] = ['base', 'wall', 'tall', 'island', 'shelf', 'dishwasher'];
 
 function ColorField({
   label,
@@ -238,6 +240,21 @@ export function PropertiesPanel({
           </div>
         )}
 
+        {/* ---- درب شیشه‌ای (کابینت‌ها + ظرفشویی، فقط وقتی درب دارد) ---- */}
+        {GLASS_TYPES.includes(obj.type) && (p.doors ?? 0) > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">درب شیشه‌ای</Label>
+              <Switch
+                checked={!!p.glass}
+                onCheckedChange={(v) => onUpdateParams({ glass: v })}
+                aria-label="درب شیشه‌ای"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">شیشه شفاف روشن — مناسب ویترین</p>
+          </div>
+        )}
+
         {/* ---- لوازم موجود: یخچال / اجاق / هود ---- */}
         {isAppliance(obj.type) && (
           <div className="space-y-4">
@@ -317,6 +334,40 @@ export function PropertiesPanel({
               onChange={(v) => onUpdateParams({ intensity: v })}
             />
             <ColorField label="رنگ چراغ" value={p.color ?? '#f59e0b'} onChange={(v) => onUpdateParams({ color: v })} />
+          </div>
+        )}
+
+        {/* ---- تلویزیون: ارتفاع نصب + روشن/خاموش صفحه ---- */}
+        {obj.type === 'tv' && (
+          <div className="space-y-4">
+            <p className="text-xs font-medium text-primary">نصب روی دیوار</p>
+            <DimSlider
+              label="ارتفاع نصب"
+              value={p.mountY ?? 1.4}
+              min={0.4}
+              max={2.2}
+              step={0.05}
+              onChange={(v) => onUpdateParams({ mountY: v })}
+            />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">صفحه روشن باشد؟</Label>
+              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="روشنایی صفحه تلویزیون" />
+            </div>
+          </div>
+        )}
+
+        {/* ---- مایکروویو: ارتفاع از کف ---- */}
+        {obj.type === 'microwave' && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-primary">جانمایی</p>
+            <DimSlider
+              label="ارتفاع از کف"
+              value={p.mountY ?? 0.9}
+              min={0.5}
+              max={1.4}
+              step={0.05}
+              onChange={(v) => onUpdateParams({ mountY: v })}
+            />
           </div>
         )}
 

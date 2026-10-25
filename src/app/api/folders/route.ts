@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Folder } from '@prisma/client';
 import { db } from '@/lib/db';
+import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
@@ -24,7 +25,10 @@ function serializeFolder(f: Folder & { _count?: { projects: number } }): FolderD
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const folders = await db.folder.findMany({
       orderBy: { createdAt: 'asc' },
@@ -42,6 +46,9 @@ const createSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {

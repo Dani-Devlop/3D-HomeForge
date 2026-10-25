@@ -3,6 +3,7 @@ import { z } from 'zod';
 import ZAI from 'z-ai-web-dev-sdk';
 import type { ChatMessage } from 'z-ai-web-dev-sdk';
 import type { ObjectPatch } from '@/lib/scene-types';
+import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 import { clamp, extractJsonObject, isRecord, normalizePartialParams, toFinite } from '@/app/api/_lib/normalize';
 
@@ -21,6 +22,7 @@ Patch shape (all keys optional, include only what the instruction implies):
     "w": 0.3..3, "h": 0.3..2.4, "d": 0.25..1.2,
     "bodyColor"/"doorColor"/"countertopColor"/"color": "#rrggbb",
     "doors": 0..2, "drawers": 0..3, "handles": "bar"|"knob"|"none",
+    "glass": true,                 // ONLY when the user explicitly asks for glass doors (شیشه) — glass is always LIGHT colored
     "mountY": 0.8..2.3 (wall) | 1.3..2.0 (hood),
     "intensity": 0..5 (lights)
   },
@@ -99,6 +101,10 @@ function normalizePatch(data: unknown, objType: string): ObjectPatch {
 }
 
 export async function POST(req: NextRequest) {
+  // گارد مالک — فراخوانی AI گران است و فقط برای مدیر مجاز است
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   const body = await readJsonBody(req);
   if (!body.ok) {
     return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });

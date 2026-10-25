@@ -40,21 +40,30 @@ export type ObjectType =
   | 'fridge' // یخچال
   | 'stove' // اجاق گاز
   | 'hood' // هود
+  | 'tv' // تلویزیون
+  | 'sofa' // مبل
+  | 'bed' // تخت
+  | 'table' // میز
+  | 'chair' // صندلی
+  | 'washer' // ماشین لباسشویی
+  | 'dishwasher' // ماشین ظرفشویی
+  | 'microwave' // مایکروویو
   | 'pendant' // چراغ آویز
   | 'floor-lamp' // چراغ ایستاده
   | 'plant' // گیاه
   | 'rug'; // فرش
 
-/** انواع قابل تشخیص/بازسازی توسط AI و تولید با متن */
+/** انواع قابل تشخیص/بازسازی توسط AI و تولید با متن (همه‌چیز برای طراحی کل خانه) */
 export const RECONSTRUCTABLE_TYPES: readonly ObjectType[] = [
   'base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove', 'hood',
+  'tv', 'sofa', 'bed', 'table', 'chair', 'washer', 'dishwasher', 'microwave',
 ];
 
 /** انواع دارای درب باز/بسته‌شونده (Mesh States) */
-export const DOOR_TYPES: readonly ObjectType[] = ['base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove'];
+export const DOOR_TYPES: readonly ObjectType[] = ['base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove', 'washer', 'dishwasher', 'microwave'];
 
-/** انواع دارای روشن/خاموش (چراغ) */
-export const LIGHT_TYPES: readonly ObjectType[] = ['pendant', 'floor-lamp', 'hood', 'stove'];
+/** انواع دارای روشن/خاموش (چراغ یا صفحه روشن) */
+export const LIGHT_TYPES: readonly ObjectType[] = ['pendant', 'floor-lamp', 'hood', 'stove', 'tv'];
 
 export const isDoorType = (t: ObjectType) => DOOR_TYPES.includes(t);
 export const isLightType = (t: ObjectType) => LIGHT_TYPES.includes(t);
@@ -72,7 +81,8 @@ export interface ObjectParams {
   doors?: number; // 0..2
   drawers?: number; // 0..3
   handles?: HandleType;
-  mountY?: number; // ارتفاع نصب کابینت دیواری
+  mountY?: number; // ارتفاع نصب (کابینت دیواری/هود/تلویزیون/مایکروویو روی کانتر)
+  glass?: boolean; // درب‌های شیشه‌ای (شفاف — هرگز سیاه نیست)
   // دکور/چراغ
   color?: string;
   scale?: number;
@@ -98,11 +108,12 @@ export const defaultSceneState = (): SceneState => ({ objects: [] });
 
 // ---------------- کاتالوگ کتابخانه (پارامتریک) ----------------
 
-export type CatalogCategory = 'cabinet' | 'appliance' | 'light' | 'decor';
+export type CatalogCategory = 'cabinet' | 'appliance' | 'furniture' | 'light' | 'decor';
 
 export const CATALOG_CATEGORY_LABEL: Record<CatalogCategory, string> = {
   cabinet: 'کابینت‌ها',
   appliance: 'لوازم موجود',
+  furniture: 'مبلمان خانه',
   light: 'چراغ‌ها',
   decor: 'دکور',
 };
@@ -246,6 +257,62 @@ export const CATALOG: CatalogItem[] = [
     category: 'decor',
     description: 'فرش کف با رنگ دلخواه',
     defaults: { color: '#9c4a3c', scale: 1 },
+  },
+  {
+    type: 'tv',
+    label: 'تلویزیون',
+    category: 'furniture',
+    description: 'تلویزیون نصب روی دیوار — صفحه قابل روشن/خاموش',
+    defaults: { w: 1.2, h: 0.7, d: 0.06, color: '#101318', bodyColor: '#1b1f26', mountY: 1.4 },
+  },
+  {
+    type: 'sofa',
+    label: 'مبل راحتی',
+    category: 'furniture',
+    description: 'مبل سه‌نفره با کوسن',
+    defaults: { w: 2.0, h: 0.8, d: 0.9, color: '#5d6b7a', bodyColor: '#4e5a68' },
+  },
+  {
+    type: 'bed',
+    label: 'تخت دو‌نفره',
+    category: 'furniture',
+    description: 'تخت با تشک و لحاف و بالش',
+    defaults: { w: 1.6, h: 0.55, d: 2.0, color: '#8d6e63', bodyColor: '#6d4c41' },
+  },
+  {
+    type: 'table',
+    label: 'میز غذاخوری',
+    category: 'furniture',
+    description: 'میز با چهار پایه',
+    defaults: { w: 1.5, h: 0.75, d: 0.9, color: '#7a5c3f', bodyColor: '#6b4e34' },
+  },
+  {
+    type: 'chair',
+    label: 'صندلی',
+    category: 'furniture',
+    description: 'صندلی با پشتی',
+    defaults: { w: 0.45, h: 0.9, d: 0.5, color: '#6b4e34' },
+  },
+  {
+    type: 'washer',
+    label: 'ماشین لباسشویی',
+    category: 'appliance',
+    description: 'ماشین لباسشویی با درب گرد — درب باز می‌شود',
+    defaults: { w: 0.6, h: 0.85, d: 0.6, color: '#e8eaee', bodyColor: '#dfe2e8' },
+  },
+  {
+    type: 'dishwasher',
+    label: 'ماشین ظرفشویی',
+    category: 'appliance',
+    description: 'ماشین ظرفشویی با دستگیره — درب باز می‌شود',
+    defaults: { w: 0.6, h: 0.85, d: 0.6, color: '#c9cdd4', bodyColor: '#c2c7cf', doors: 1, handles: 'bar' },
+  },
+  {
+    type: 'microwave',
+    label: 'مایکروویو',
+    category: 'appliance',
+    description: 'مایکروویو رومیزی با پنجره شیشه‌ای روشن',
+    defaults: { w: 0.5, h: 0.3, d: 0.38, color: '#2c2f35', bodyColor: '#33373e', mountY: 0.9 },
   },
 ];
 

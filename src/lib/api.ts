@@ -12,9 +12,26 @@ export interface ProjectDTO {
   isPublic: boolean;
   folderId: string | null;
   folderName: string | null;
+  // CRM — مشخصات مشتری و زمان‌بندی (ISO یا null)
+  clientName?: string | null;
+  clientPhone?: string | null;
+  address?: string | null;
+  visitAt?: string | null;
+  installAt?: string | null;
+  dueAt?: string | null;
   createdAt: string;
   updatedAt: string;
   shareCount?: number;
+}
+
+/** فیلدهای CRM قابل ارسال در ساخت/ویرایش پروژه (تاریخ‌ها ISO یا '' برای پاک‌کردن) */
+export interface ProjectCrmFields {
+  clientName?: string | null;
+  clientPhone?: string | null;
+  address?: string | null;
+  visitAt?: string | null;
+  installAt?: string | null;
+  dueAt?: string | null;
 }
 
 export interface FolderDTO {
@@ -57,6 +74,44 @@ export interface ReconstructResult {
   description: string;
 }
 
+/** رویداد پیشرفت بازسازی استریمی (NDJSON) */
+export interface ReconstructProgress {
+  stage: string; // 'floorplan' | 'analyze' | 'merge'
+  index?: number;
+  total?: number;
+  message: string;
+}
+
+/** آمار پنل مدیریت */
+export interface AdminStatsDTO {
+  stats: {
+    projects: number;
+    folders: number;
+    guests: number;
+    shareLinks: number;
+    activeShareLinks: number;
+    publicProjects: number;
+  };
+  roomTypes: Record<string, number>;
+  recentGuests: {
+    id: string;
+    name: string;
+    role: ShareRole;
+    color: string;
+    projectName: string | null;
+    lastSeenAt: string;
+  }[];
+  upcoming: {
+    id: string;
+    name: string;
+    clientName: string | null;
+    clientPhone: string | null;
+    visitAt: string | null;
+    installAt: string | null;
+    dueAt: string | null;
+  }[];
+}
+
 /** خروجی تولید مدل با متن (text-to-3D) */
 export interface GeneratedItem {
   type: SceneObject['type'];
@@ -86,15 +141,117 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** خواندن پاسخ NDJSON بازسازی با رویدادهای پیشرفت زنده */
+async function streamReconstruct(
+  images: string[],
+  floorPlan: string | null | undefined,
+  onProgress?: (p: ReconstructProgress) => void,
+): Promise<ReconstructResult> {
+  let res: Response;
+  try {
+    res = await fetch('/api/reconstruct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+      body: JSON.stringify({ images, ...(floorPlan ? { floorPlan } : {}) }),
+    });
+  } catch {
+    throw new Error('خطا در ارتباط با سرور');
+  }
+
+  // خطای HTTP قبل از شروع استریم — پاسخ JSON است
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = (body as { error?: string }).error || 'خطای ناشناخته';
+    throw Object.assign(new Error(msg), { status: res.status, body });
+  }
+  if (!res.body) {
+    throw new Error('مرورگر از پاسخ جریانی پشتیبانی نمی‌کند');
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if (!line) continue;
+
+      let evt: Record<string, unknown>;
+      try {
+        evt = JSON.parse(line);
+      } catch {
+        continue; // خط ناقص/نامعتبر — نادیده
+      }
+
+      if (evt.type === 'progress') {
+        onProgress?.({
+          stage: typeof evt.stage === 'string' ? evt.stage : '',
+          index: typeof evt.index === 'number' ? evt.index : undefined,
+          total: typeof evt.total === 'number' ? evt.total : undefined,
+          message: typeof evt.message === 'string' ? evt.message : '',
+        });
+      } else if (evt.type === 'result') {
+        try {
+          await reader.cancel();
+        } catch {
+          // استریم تمام شده است
+        }
+        return evt as unknown as ReconstructResult;
+      } else if (evt.type === 'error') {
+        throw new Error(
+          typeof evt.error === 'string' ? evt.error : 'بازسازی با هوش مصنوعی ناموفق بود',
+        );
+      }
+    }
+  }
+  throw new Error('پاسخ ناقص از سرور دریافت شد');
+}
+
 // ---------------- API ----------------
 
 export const api = {
+  // ---- احراز هویت مدیر ----
+  login: (password: string) =>
+    request<{ ok: boolean }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST' }),
+
+  session: () => request<{ authed: boolean }>('/api/auth/session'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  // ---- آمار پنل مدیریت ----
+  adminStats: () => request<AdminStatsDTO>('/api/admin/stats'),
+
   // ---- بازسازی سه‌بعدی از چند عکس / فریم‌های ویدیو ----
+  // حالت JSON (سازگار با نسخه ۲) — بدون پیشرفت زنده
   reconstruct: (images: string[]) =>
     request<ReconstructResult>('/api/reconstruct', {
       method: 'POST',
+      headers: { Accept: 'application/json' },
       body: JSON.stringify({ images }),
     }),
+
+  // حالت استریم NDJSON با رویدادهای پیشرفت (پیش‌فرض فرانت)
+  reconstructStream: (
+    images: string[],
+    floorPlan: string | null | undefined,
+    onProgress?: (p: ReconstructProgress) => void,
+  ) => streamReconstruct(images, floorPlan, onProgress),
 
   // ---- تولید مدل سه‌بعدی از توصیف متنی (text-to-3D) ----
   generateObject: (text: string) =>
@@ -128,12 +285,15 @@ export const api = {
   deleteFolder: (id: string) =>
     request<{ ok: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
 
-  listProjects: (folderId?: string | null) =>
-    request<{ projects: ProjectDTO[] }>(
-      folderId === undefined
-        ? '/api/projects'
-        : `/api/projects?folderId=${folderId === null ? 'none' : folderId}`
-    ),
+  listProjects: (folderId?: string | null, q?: string) => {
+    const params = new URLSearchParams();
+    if (folderId !== undefined) {
+      params.set('folderId', folderId === null ? 'none' : folderId);
+    }
+    if (q && q.trim()) params.set('q', q.trim());
+    const qs = params.toString();
+    return request<{ projects: ProjectDTO[] }>(`/api/projects${qs ? `?${qs}` : ''}`);
+  },
 
   createProject: (p: {
     name: string;
@@ -141,7 +301,7 @@ export const api = {
     roomSpec: RoomSpec;
     sceneState?: SceneState;
     folderId?: string | null;
-  }) =>
+  } & ProjectCrmFields) =>
     request<{ project: ProjectDTO }>('/api/projects', {
       method: 'POST',
       body: JSON.stringify(p),
@@ -160,7 +320,7 @@ export const api = {
       thumbnail?: string | null;
       isPublic?: boolean;
       folderId?: string | null;
-    }
+    } & ProjectCrmFields
   ) =>
     request<{ project: ProjectDTO }>(`/api/projects/${id}`, {
       method: 'PATCH',
@@ -172,6 +332,13 @@ export const api = {
 
   projectGuests: (id: string) =>
     request<{ guests: GuestDTO[] }>(`/api/projects/${id}/guests`),
+
+  // ---- ذخیره خودکار مهمان ویرایشگر ----
+  saveAsGuest: (p: { token: string; guestId: string; sceneState: SceneState }) =>
+    request<{ ok: boolean; updatedAt: string }>('/api/share/save', {
+      method: 'POST',
+      body: JSON.stringify(p),
+    }),
 
   createShareLink: (p: {
     projectId: string;

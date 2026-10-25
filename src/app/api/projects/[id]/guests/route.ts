@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireOwner } from '@/lib/auth';
 
 // ============================================================
-// /api/projects/[id]/guests — همه مهمان‌های همه لینک‌های اشتراکی پروژه
+// /api/projects/[id]/guests — همه مهمان‌های همه لینک‌های اشتراکی پروژه (فقط مدیر)
 // ============================================================
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const project = await db.project.findUnique({ where: { id }, select: { id: true } });

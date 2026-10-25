@@ -23,6 +23,8 @@ export function defaultY(type: ObjectType, params: ObjectParams, roomHeight: num
   if (type === 'wall') return Math.min(params.mountY ?? 1.5, roomHeight - 0.8);
   if (type === 'pendant') return Math.min(params.mountY ?? 2.3, roomHeight - 0.15);
   if (type === 'hood') return Math.min(params.mountY ?? 1.62, roomHeight - 0.4);
+  if (type === 'tv') return Math.min(params.mountY ?? 1.4, roomHeight - 0.6);
+  if (type === 'microwave') return Math.min(params.mountY ?? 0.9, roomHeight - 0.3);
   return 0;
 }
 
@@ -238,9 +240,14 @@ export function findFreeSpot(
 ): [number, number] {
   const w = spec.widthM;
   const d = spec.depthM;
-  if (type === 'base' || type === 'tall' || type === 'wall' || type === 'shelf' || type === 'fridge' || type === 'stove' || type === 'hood') {
-    // ردیف پشت دیوار
-    const backZ = -d / 2 + 0.35;
+  // انواع دیواری/زمینی پشت‌به‌دیوار: ردیف پشت دیوار
+  const WALL_ROW_TYPES: readonly ObjectType[] = [
+    'base', 'tall', 'wall', 'shelf', 'fridge', 'stove', 'hood',
+    'tv', 'sofa', 'bed', 'washer', 'dishwasher', 'microwave',
+  ];
+  if (WALL_ROW_TYPES.includes(type)) {
+    // تلویزیون نازک است و باید به دیوار بچسبد؛ بقیه با فاصله استاندارد
+    const backZ = -d / 2 + (type === 'tv' ? 0.09 : 0.35);
     for (let x = -w / 2 + 0.5; x <= w / 2 - 0.5; x += 0.05) {
       const occupied = objects.some(
         (o) => o.type !== 'pendant' && Math.abs(o.position[0] - x) < 0.45 && Math.abs(o.position[2] - backZ) < 0.5
@@ -250,7 +257,7 @@ export function findFreeSpot(
     return [0, backZ];
   }
   if (type === 'island') return [0, 0];
-  // دکور: جای خالی در وسط
+  // دکور/میز/صندلی: جای خالی در وسط (مارپیچ مرکزی)
   for (let r = 0; r < 2; r += 0.4) {
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
       const x = Math.cos(a) * r;

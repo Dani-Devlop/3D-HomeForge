@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { serializeProject, readJsonBody } from '@/app/api/_lib/serialize';
+import { requireOwner } from '@/lib/auth';
+import { serializeProject, readJsonBody, toDate } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/projects/[id] — خواندن، ویرایش و حذف یک پروژه
+// /api/projects/[id] — خواندن، ویرایش و حذف یک پروژه (فقط مدیر)
+// PATCH شامل فیلدهای CRM: clientName/clientPhone/address/visitAt/installAt/dueAt
 // ============================================================
 
 const projectCount = {
@@ -22,12 +24,25 @@ const patchSchema = z.object({
   thumbnail: z.string().nullable().optional(),
   isPublic: z.boolean().optional(),
   folderId: z.string().min(1).nullable().optional(),
+  // CRM
+  clientName: z.string().max(80).optional(),
+  clientPhone: z.string().max(30).optional(),
+  address: z.string().max(300).optional(),
+  visitAt: z.string().nullable().optional(),
+  installAt: z.string().nullable().optional(),
+  dueAt: z.string().nullable().optional(),
 });
 
+/** رشته خالی → null (پاک‌کردن فیلد) */
+const toNullIfEmpty = (s: string): string | null => (s === '' ? null : s);
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const project = await db.project.findUnique({ where: { id }, include: projectCount });
@@ -45,6 +60,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const body = await readJsonBody(req);
@@ -58,8 +76,10 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    const { name, roomType, roomSpec, sceneState, thumbnail, isPublic, folderId } =
-      parsed.data;
+    const {
+      name, roomType, roomSpec, sceneState, thumbnail, isPublic, folderId,
+      clientName, clientPhone, address, visitAt, installAt, dueAt,
+    } = parsed.data;
 
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
@@ -87,6 +107,13 @@ export async function PATCH(
         ...(thumbnail !== undefined ? { thumbnail } : {}),
         ...(isPublic !== undefined ? { isPublic } : {}),
         ...(folderId !== undefined ? { folderId } : {}),
+        ...(clientName !== undefined ? { clientName: toNullIfEmpty(clientName) } : {}),
+        ...(clientPhone !== undefined ? { clientPhone: toNullIfEmpty(clientPhone) } : {}),
+        ...(address !== undefined ? { address: toNullIfEmpty(address) } : {}),
+        // رشته خالی/نامعتبر → null (پاک‌کردن تاریخ)
+        ...(visitAt !== undefined ? { visitAt: toDate(visitAt) } : {}),
+        ...(installAt !== undefined ? { installAt: toDate(installAt) } : {}),
+        ...(dueAt !== undefined ? { dueAt: toDate(dueAt) } : {}),
       },
       include: projectCount,
     });
@@ -98,9 +125,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });

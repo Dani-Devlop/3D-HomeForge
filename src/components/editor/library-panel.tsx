@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import {
   AirVent,
+  Armchair,
+  BedDouble,
   Box,
   DoorClosed,
   Flame,
@@ -11,11 +13,17 @@ import {
   LampCeiling,
   LayoutPanelTop,
   Loader2,
+  Microwave,
   RectangleHorizontal,
   Refrigerator,
   Rows3,
+  Sofa,
   Sparkles,
+  Table,
   Table2,
+  Tv,
+  UtensilsCrossed,
+  WashingMachine,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -39,13 +47,21 @@ const ICONS: Record<ObjectType, LucideIcon> = {
   fridge: Refrigerator,
   stove: Flame,
   hood: AirVent,
+  tv: Tv,
+  sofa: Sofa,
+  bed: BedDouble,
+  table: Table,
+  chair: Armchair,
+  washer: WashingMachine,
+  dishwasher: UtensilsCrossed,
+  microwave: Microwave,
   pendant: LampCeiling,
   'floor-lamp': Lamp,
   plant: Flower2,
   rug: RectangleHorizontal,
 };
 
-const GROUPS: CatalogCategory[] = ['cabinet', 'appliance', 'light', 'decor'];
+const GROUPS: CatalogCategory[] = ['cabinet', 'appliance', 'furniture', 'light', 'decor'];
 
 export function LibraryPanel({
   onPick,

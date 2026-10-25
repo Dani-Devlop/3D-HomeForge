@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { signShareToken } from '@/lib/share-token';
+import { requireOwner } from '@/lib/auth';
 import { isValidRole } from '@/lib/scene-types';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
@@ -44,6 +45,9 @@ const createSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
@@ -84,6 +88,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const projectId = req.nextUrl.searchParams.get('projectId');
     if (!projectId) {
@@ -108,6 +115,9 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {

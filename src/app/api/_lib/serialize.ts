@@ -28,6 +28,13 @@ export function parseJsonSafe(value: string | unknown, fallback: unknown): unkno
   }
 }
 
+/** تبدیل امن رشته تاریخ به Date؛ خالی/نامعتبر → null (برای فیلدهای CRM پروژه) */
+export function toDate(s?: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export interface SerializedProject {
   id: string;
   name: string;
@@ -38,6 +45,13 @@ export interface SerializedProject {
   isPublic: boolean;
   folderId: string | null;
   folderName: string | null;
+  // CRM — مشخصات مشتری و زمان‌بندی (ISO یا null)
+  clientName: string | null;
+  clientPhone: string | null;
+  address: string | null;
+  visitAt: string | null;
+  installAt: string | null;
+  dueAt: string | null;
   createdAt: string;
   updatedAt: string;
   shareCount?: number;
@@ -60,6 +74,12 @@ export function serializeProject(
     isPublic: p.isPublic,
     folderId: p.folderId,
     folderName: p.folder?.name ?? null,
+    clientName: p.clientName,
+    clientPhone: p.clientPhone,
+    address: p.address,
+    visitAt: p.visitAt ? p.visitAt.toISOString() : null,
+    installAt: p.installAt ? p.installAt.toISOString() : null,
+    dueAt: p.dueAt ? p.dueAt.toISOString() : null,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

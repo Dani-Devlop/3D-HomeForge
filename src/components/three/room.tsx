@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { useMemo } from 'react';
-import type { DoorwaySpec, RoomSpec, WindowSpec } from '@/lib/scene-types';
+import type { DoorwaySpec, RoomSpec, WallName, WindowSpec } from '@/lib/scene-types';
 
 interface RoomDims {
   w: number;
@@ -66,6 +66,22 @@ function Frame({
   );
 }
 
+/** نور خورشید از سمت پنجره اصلی — جهت تابش نور طبیعی به داخل اتاق */
+function windowSun(wall: WallName | null, room: RoomDims): [number, number, number] {
+  switch (wall) {
+    case 'front':
+      return [0, room.h * 0.85, room.d * 0.75];
+    case 'left':
+      return [-room.w * 0.75, room.h * 0.85, 0];
+    case 'right':
+      return [room.w * 0.75, room.h * 0.85, 0];
+    case 'back':
+      return [0, room.h * 0.85, -room.d * 0.75];
+    default:
+      return [2, room.h * 0.9, 2.5]; // بدون پنجره — نور خنثی
+  }
+}
+
 function WindowCutout({ spec, room }: { spec: WindowSpec; room: RoomDims }) {
   const { position, rotationY } = wallPlacement(spec.wall, room, spec.offsetX);
   const cy = spec.sillY + spec.height / 2;
@@ -115,15 +131,34 @@ function DoorwayCutout({ spec, room }: { spec: DoorwaySpec; room: RoomDims }) {
   );
 }
 
-/** اتاق بازسازی‌شده: کف + دیوارها (BackSide برای دید داخلی) + بازشوها */
+/** اتاق بازسازی‌شده: کف + دیوارها (BackSide برای دید داخلی) + بازشوها + نور جهت‌دار از سمت پنجره */
 export function RoomMesh({ spec }: { spec: RoomSpec }) {
   const room = useMemo<RoomDims>(
     () => ({ w: spec.widthM, d: spec.depthM, h: spec.heightM }),
     [spec]
   );
 
+  // پنجره اصلی = بزرگ‌ترین پنجره (مساحت عرض×ارتفاع — در تساوی اولین)؛ نور از بیرونِ همان دیوار می‌تابد
+  const primaryWall = useMemo<WallName | null>(() => {
+    if (!spec.windows.length) return null;
+    let best = spec.windows[0];
+    for (const win of spec.windows) {
+      if (win.width * win.height > best.width * best.height) best = win;
+    }
+    return best.wall;
+  }, [spec.windows]);
+
+  const sunPos = useMemo(() => windowSun(primaryWall, room), [primaryWall, room]);
+
   return (
     <group>
+      {/* نور جهت‌دار طبیعی — از سمت پنجره اصلی به مرکز اتاق */}
+      <directionalLight
+        position={sunPos}
+        intensity={primaryWall ? 1.15 : 0.85}
+        color={primaryWall ? '#fff1da' : '#fffaf2'}
+      />
+
       {/* کف */}
       <mesh rotation-x={-Math.PI / 2} position-y={0} receiveShadow>
         <planeGeometry args={[room.w, room.d]} />

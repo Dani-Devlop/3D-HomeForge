@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { requireOwner } from '@/lib/auth';
 import { parseJsonSafe, readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
@@ -12,7 +13,10 @@ const createSchema = z.object({
   data: z.array(z.unknown()),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const presets = await db.preset.findMany({ orderBy: { createdAt: 'desc' } });
     return NextResponse.json({
@@ -30,6 +34,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
@@ -60,6 +67,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const id = req.nextUrl.searchParams.get('id');
     if (!id) {

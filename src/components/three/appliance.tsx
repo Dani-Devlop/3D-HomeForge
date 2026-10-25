@@ -374,3 +374,280 @@ export function HoodMesh(ctx: MeshCtx) {
     </group>
   );
 }
+
+/** ماشین لباسشویی — درب گرد لولادار با شیشه تیره براق (هرگز کاملاً سیاه نیست) */
+export function WasherMesh(ctx: MeshCtx) {
+  const { obj, selected, canInteract, refsMap, onSelect } = ctx;
+  const p = obj.params;
+  const w = p.w ?? 0.6;
+  const h = p.h ?? 0.85;
+  const d = p.d ?? 0.6;
+  const bodyColor = p.color ?? '#e8eaee';
+
+  const toggleOpen = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    if (canInteract) ctx.onToggleOpen?.(obj.id);
+  };
+  const select = (e: { stopPropagation: () => void; shiftKey?: boolean }) => {
+    e.stopPropagation();
+    onSelect(obj.id, !!e.shiftKey);
+  };
+
+  const doorR = 0.21; // شعاع درب گرد
+  const doorY = h * 0.44; // مرکز درب
+  const openAngle = -1.1; // باز شدن درب به بیرون (لولا چپ)
+  const hingeX = w / 2 - 0.035;
+  const doorGroup = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (!doorGroup.current) return;
+    doorGroup.current.rotation.y = THREE.MathUtils.damp(
+      doorGroup.current.rotation.y, obj.open ? openAngle : 0, 8, delta
+    );
+  });
+
+  return (
+    <group
+      ref={(g) => {
+        if (g) refsMap.set(obj.id, g);
+      }}
+      position={obj.position}
+      rotation-y={obj.rotationY}
+      onClick={select}
+    >
+      {/* بدنه */}
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.15} />
+        {selected && <Edges scale={1.02} color={EDGE} />}
+      </mesh>
+
+      {/* پنل کنترل بالای دستگاه (کمی فرورفته) */}
+      <mesh position={[0, h - 0.055, d / 2 - 0.004]}>
+        <boxGeometry args={[w - 0.05, 0.075, 0.012]} />
+        <meshStandardMaterial color="#d7dae0" roughness={0.45} metalness={0.2} />
+      </mesh>
+      {/* ولوم برنامه‌ها */}
+      <mesh position={[w / 2 - 0.1, h - 0.055, d / 2 + 0.01]} rotation-x={Math.PI / 2}>
+        <cylinderGeometry args={[0.028, 0.028, 0.02, 20]} />
+        <meshStandardMaterial color="#b8bcc4" roughness={0.35} metalness={0.5} />
+      </mesh>
+      {/* دو دکمه کوچک */}
+      {[-0.16, -0.08].map((bx, i) => (
+        <mesh key={`btn-${i}`} position={[bx, h - 0.055, d / 2 + 0.008]}>
+          <boxGeometry args={[0.05, 0.02, 0.008]} />
+          <meshStandardMaterial color="#aeb3bb" roughness={0.4} metalness={0.3} />
+        </mesh>
+      ))}
+      {/* نمایشگر کوچک */}
+      <mesh position={[0.02, h - 0.055, d / 2 + 0.009]}>
+        <boxGeometry args={[0.1, 0.028, 0.006]} />
+        <meshStandardMaterial color="#2a2e33" emissive="#7ee0a0" emissiveIntensity={0.5} roughness={0.3} />
+      </mesh>
+
+      {/* دیگ داخلی — کمی فرورفته و ثابت (از پشت شیشه دیده می‌شود) */}
+      <mesh position={[0, doorY, d / 2 + 0.004]} rotation-x={Math.PI / 2}>
+        <cylinderGeometry args={[0.15, 0.15, 0.012, 28]} />
+        <meshStandardMaterial color="#8b939c" roughness={0.5} metalness={0.4} />
+      </mesh>
+
+      {/* درب گرد لولادار (لولا چپ) — حلقه بیرونی + شیشه تیره براق */}
+      <group ref={doorGroup} position={[-hingeX, doorY, d / 2 + 0.02]}>
+        <mesh
+          position={[doorR + 0.045, 0, 0.012]}
+          castShadow
+          onClick={toggleOpen}
+          onPointerOver={hoverCursor}
+          onPointerOut={unhover}
+        >
+          <torusGeometry args={[doorR, 0.022, 14, 40]} />
+          <meshStandardMaterial color="#c9ccd2" roughness={0.3} metalness={0.6} />
+        </mesh>
+        {/* شیشه درب — تینت تیره براق، شفاف (نه سیاه خالص) */}
+        <mesh
+          position={[doorR + 0.045, 0, 0]}
+          rotation-x={Math.PI / 2}
+          castShadow
+          onClick={toggleOpen}
+          onPointerOver={hoverCursor}
+          onPointerOut={unhover}
+        >
+          <cylinderGeometry args={[doorR - 0.005, doorR - 0.005, 0.018, 32]} />
+          <meshPhysicalMaterial
+            color="#3a4148"
+            metalness={0.35}
+            roughness={0.12}
+            transparent
+            opacity={0.85}
+          />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/** ماشین ظرفشویی — درب تمام‌صفحه لولادار با دستگیره افقی */
+export function DishwasherMesh(ctx: MeshCtx) {
+  const { obj, selected, canInteract, refsMap, onSelect } = ctx;
+  const p = obj.params;
+  const w = p.w ?? 0.6;
+  const h = p.h ?? 0.85;
+  const d = p.d ?? 0.6;
+  const bodyColor = p.bodyColor ?? '#c2c7cf';
+  const doorColor = p.color ?? '#c9cdd4';
+
+  const toggleOpen = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    if (canInteract) ctx.onToggleOpen?.(obj.id);
+  };
+  const select = (e: { stopPropagation: () => void; shiftKey?: boolean }) => {
+    e.stopPropagation();
+    onSelect(obj.id, !!e.shiftKey);
+  };
+
+  const doorH = h - 0.07;
+
+  return (
+    <group
+      ref={(g) => {
+        if (g) refsMap.set(obj.id, g);
+      }}
+      position={obj.position}
+      rotation-y={obj.rotationY}
+      onClick={select}
+    >
+      {/* بدنه */}
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.2} />
+        {selected && <Edges scale={1.02} color={EDGE} />}
+      </mesh>
+
+      {/* نوار کنترل باریک بالای درب */}
+      <mesh position={[0, h - 0.026, d / 2 + 0.008]} castShadow>
+        <boxGeometry args={[w - 0.06, 0.042, 0.014]} />
+        <meshStandardMaterial color="#9aa0a8" roughness={0.4} metalness={0.35} />
+      </mesh>
+
+      {/* درب لولادار (لولا چپ) با دستگیره افقی نزدیک لبه بالا */}
+      <HingedDoor
+        width={w - 0.02}
+        height={doorH}
+        side={-1}
+        open={!!obj.open}
+        color={doorColor}
+        zBase={d / 2 + 0.015}
+        hingeX={w / 2 - 0.01}
+        yCenter={doorH / 2 + 0.005}
+        onClick={toggleOpen}
+      >
+        <mesh position={[0, doorH / 2 - 0.06, 0.032]} castShadow>
+          <boxGeometry args={[Math.min(0.42, (w - 0.02) * 0.62), 0.026, 0.026]} />
+          <meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.3} />
+        </mesh>
+      </HingedDoor>
+    </group>
+  );
+}
+
+/** مایکروویو رومیزی — پنجره شیشه‌ای روشن + ستون کنترل؛ درب کامل باز می‌شود */
+export function MicrowaveMesh(ctx: MeshCtx) {
+  const { obj, selected, canInteract, refsMap, onSelect } = ctx;
+  const p = obj.params;
+  const w = p.w ?? 0.5;
+  const h = p.h ?? 0.3;
+  const d = p.d ?? 0.38;
+  const bodyColor = p.bodyColor ?? '#33373e';
+
+  const toggleOpen = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    if (canInteract) ctx.onToggleOpen?.(obj.id);
+  };
+  const select = (e: { stopPropagation: () => void; shiftKey?: boolean }) => {
+    e.stopPropagation();
+    onSelect(obj.id, !!e.shiftKey);
+  };
+
+  const doorW = w * 0.62; // درب = ۶۵٪ عرض جلو (بدون احتساب لبه)
+  const doorH = h - 0.04;
+
+  return (
+    <group
+      ref={(g) => {
+        if (g) refsMap.set(obj.id, g);
+      }}
+      position={obj.position}
+      rotation-y={obj.rotationY}
+      onClick={select}
+    >
+      {/* بدنه — کف روی نقطه نصب (position.y = mountY) */}
+      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.45} metalness={0.4} />
+        {selected && <Edges scale={1.02} color={EDGE} />}
+      </mesh>
+
+      {/* درب چپ لولادار (لولا چپ) با پنجره شیشه‌ای روشن */}
+      <HingedDoor
+        width={doorW}
+        height={doorH}
+        side={-1}
+        open={!!obj.open}
+        color={bodyColor}
+        zBase={d / 2 + 0.012}
+        hingeX={w / 2 - 0.008}
+        yCenter={h / 2}
+        onClick={toggleOpen}
+      >
+        {/* قاب تیره پنجره */}
+        <mesh position={[0, 0, 0.014]} onClick={toggleOpen} onPointerOver={hoverCursor} onPointerOut={unhover}>
+          <boxGeometry args={[w * 0.4, h * 0.66, 0.007]} />
+          <meshStandardMaterial color="#1d2025" roughness={0.4} metalness={0.3} />
+        </mesh>
+        {/* شیشه پنجره — سبز-آبی روشن و شفاف (هرگز سیاه) */}
+        <mesh position={[0, 0, 0.019]} onClick={toggleOpen} onPointerOver={hoverCursor} onPointerOut={unhover}>
+          <boxGeometry args={[w * 0.34, h * 0.55, 0.008]} />
+          <meshStandardMaterial
+            color="#9fb4bd"
+            transparent
+            opacity={0.4}
+            roughness={0.1}
+            metalness={0.1}
+          />
+        </mesh>
+        {/* دستگیره عمودی لبه بازشو (سمت ستون کنترل) */}
+        <mesh position={[doorW / 2 - 0.02, 0, 0.032]} castShadow>
+          <boxGeometry args={[0.02, doorH - 0.06, 0.026]} />
+          <meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.3} />
+        </mesh>
+      </HingedDoor>
+
+      {/* ستون کنترل راست (کلیک = انتخاب) */}
+      <group
+        position={[w / 2 - w * 0.175, h / 2, d / 2 + 0.012]}
+        onClick={select}
+        onPointerOver={hoverCursor}
+        onPointerOut={unhover}
+      >
+        {/* نمایشگر کوچک سبز */}
+        <mesh position={[0, h * 0.28, 0.002]}>
+          <boxGeometry args={[w * 0.15, 0.03, 0.006]} />
+          <meshStandardMaterial color="#181b1f" emissive="#7ee0a0" emissiveIntensity={0.8} roughness={0.3} />
+        </mesh>
+        {/* دو ولوم */}
+        {[-w * 0.09, w * 0.09].map((kx, i) => (
+          <mesh key={`knob-${i}`} position={[kx, -h * 0.08, 0.004]} rotation-x={Math.PI / 2}>
+            <cylinderGeometry args={[0.02, 0.02, 0.014, 18]} />
+            <meshStandardMaterial color={STEEL} metalness={0.6} roughness={0.3} />
+          </mesh>
+        ))}
+        {/* سه دکمه کوچک */}
+        {[-w * 0.09, 0, w * 0.09].map((bx, i) => (
+          <mesh key={`btn-${i}`} position={[bx, -h * 0.28, 0.002]}>
+            <boxGeometry args={[0.032, 0.02, 0.006]} />
+            <meshStandardMaterial color="#565b63" roughness={0.4} metalness={0.4} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}

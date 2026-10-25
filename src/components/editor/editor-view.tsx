@@ -16,6 +16,7 @@ import {
   Grid3x3,
   LampCeiling,
   Loader2,
+  Lock,
   Redo2,
   Share2,
   Send,
@@ -34,12 +35,74 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EditorScene from '@/components/three/editor-scene';
 import { LibraryPanel } from './library-panel';
 import { PropertiesPanel } from './properties-panel';
 import { PresetsPanel } from './presets-panel';
 import { ShareDialog } from './share-dialog';
+import { MovePad } from './move-pad';
+
+/** تشخیص تایپ‌کردن در فیلدهای متنی — کلیدهای جهت‌نما نباید صحنه را حرکت دهند */
+function isTypingTarget(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+}
+
+/** کارت ورود مجدد وقتی نشست مدیر منقضی شده (401) */
+function OwnerLoginInline({ onDone }: { onDone: () => void }) {
+  const { toast } = useToast();
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!pw || busy) return;
+    setBusy(true);
+    try {
+      await api.login(pw);
+      onDone();
+    } catch (e) {
+      toast({
+        title: 'ورود ناموفق',
+        description: (e as Error).message || 'رمز مدیر اشتباه است',
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="h-screen flex items-center justify-center bg-stone-50 p-6">
+      <Card className="w-full max-w-sm shadow-xl">
+        <CardContent className="p-8 space-y-5 text-center">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <Lock className="h-7 w-7 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-bold">ورود مدیر</h1>
+            <p className="text-sm text-muted-foreground">نشست شما منقضی شده — برای ادامه رمز را وارد کنید</p>
+          </div>
+          <Input
+            type="password"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            placeholder="رمز مدیر"
+            autoFocus
+            className="h-11 text-center"
+            aria-label="رمز مدیر"
+          />
+          <Button className="w-full h-11" onClick={submit} disabled={!pw || busy}>
+            {busy ? 'در حال ورود...' : 'ورود'}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function EditorView({ projectId }: { projectId: string }) {
   const { toast } = useToast();
@@ -244,6 +307,71 @@ export default function EditorView({ projectId }: { projectId: string }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [store]);
 
+  // ---- جابه‌جایی آبجکت انتخاب‌شده با کیبورد (جهت‌نما/ارتفاع/چرخش) ----
+  const nudgeRef = useRef<((d: [number, number, number], firstOfBurst: boolean) => void) | null>(null);
+  nudgeRef.current = (d, firstOfBurst) => {
+    const s = store.getState();
+    const id = s.selectedIds[s.selectedIds.length - 1];
+    const target = s.objects.find((o) => o.id === id);
+    if (!target) return;
+    if (firstOfBurst) s.beginAction();
+    s.updateObject(id, {
+      position: [
+        THREE.MathUtils.clamp(target.position[0] + d[0], -s.roomSpec.widthM, s.roomSpec.widthM),
+        THREE.MathUtils.clamp(target.position[1] + d[1], 0, s.roomSpec.heightM),
+        THREE.MathUtils.clamp(target.position[2] + d[2], -s.roomSpec.depthM, s.roomSpec.depthM),
+      ],
+    });
+  };
+
+  const rotateRef = useRef<((deltaRad: number, firstOfBurst: boolean) => void) | null>(null);
+  rotateRef.current = (deltaRad, firstOfBurst) => {
+    const s = store.getState();
+    const id = s.selectedIds[s.selectedIds.length - 1];
+    const target = s.objects.find((o) => o.id === id);
+    if (!target) return;
+    if (firstOfBurst) s.beginAction();
+    s.updateObject(id, { rotationY: target.rotationY + deltaRad });
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      const step = e.shiftKey ? 0.25 : 0.05;
+      let d: [number, number, number] | null = null;
+      let rot = 0;
+      switch (e.key) {
+        case 'ArrowUp': d = [0, 0, -step]; break;
+        case 'ArrowDown': d = [0, 0, step]; break;
+        case 'ArrowLeft': d = [-step, 0, 0]; break;
+        case 'ArrowRight': d = [step, 0, 0]; break;
+        case 'PageUp': d = [0, step, 0]; break;
+        case 'PageDown': d = [0, -step, 0]; break;
+        case 'q': case 'Q': rot = -Math.PI / 4; break;
+        case 'e': case 'E': rot = Math.PI / 4; break;
+        default: return;
+      }
+      e.preventDefault(); // جهت‌نما/PageUp صفحه را اسکرول نکند
+      if (d) nudgeRef.current?.(d, !e.repeat);
+      else rotateRef.current?.(rot, !e.repeat);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // ---- پد حرکت: یک beginAction برای هر نگه‌داشتن (نه هر تیک تکرار) ----
+  const lastHoldRef = useRef(0);
+  const holdNudge = (d: [number, number, number]) => {
+    const now = Date.now();
+    nudgeRef.current?.(d, now - lastHoldRef.current > 400);
+    lastHoldRef.current = now;
+  };
+  const holdRotate = (r: number) => {
+    const now = Date.now();
+    rotateRef.current?.(r, now - lastHoldRef.current > 400);
+    lastHoldRef.current = now;
+  };
+
   // ---- خروجی GLB ----
   const exportGLB = async () => {
     if (!sceneRootRef.current) return;
@@ -307,6 +435,18 @@ export default function EditorView({ projectId }: { projectId: string }) {
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // نشست منقضی — کارت ورود مجدد
+  if (projectQ.isError && (projectQ.error as Error & { status?: number }).status === 401) {
+    return (
+      <OwnerLoginInline
+        onDone={() => {
+          qc.invalidateQueries({ queryKey: ['project', projectId] });
+          qc.invalidateQueries({ queryKey: ['projects'] });
+        }}
+      />
     );
   }
 
@@ -505,9 +645,19 @@ export default function EditorView({ projectId }: { projectId: string }) {
           )}
 
           {/* راهنمای تعامل */}
-          <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
-            کلیک: انتخاب • کلیک روی درب: باز/بسته • درگ گیزموت: جابه‌جایی • Shift+کلیک: چندانتخابی
+          <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none max-w-[95%] overflow-hidden text-ellipsis">
+            کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ
           </div>
+
+          {/* پد حرکت آبجکت انتخاب‌شده (موبایل + دسکتاپ) */}
+          {primary && (
+            <MovePad
+              onNudge={holdNudge}
+              onRotate={holdRotate}
+              onDelete={() => store.getState().removeObject(primary.id)}
+              onDuplicate={() => store.getState().duplicateObject(primary.id)}
+            />
+          )}
 
           {dropActive && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

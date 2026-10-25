@@ -5,9 +5,10 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'rea
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls, Grid } from '@react-three/drei';
 import type { ObjectType, RoomSpec, SceneObject } from '@/lib/scene-types';
-import { FridgeMesh, HoodMesh, StoveMesh } from './appliance';
+import { DishwasherMesh, FridgeMesh, HoodMesh, MicrowaveMesh, StoveMesh, WasherMesh } from './appliance';
 import { CabinetMesh, type MeshCtx, type RefsMap } from './cabinet';
 import { FloorLampMesh, PendantMesh, PlantMesh, RugMesh } from './decor';
+import { BedMesh, ChairMesh, SofaMesh, TableMesh, TvMesh } from './furniture';
 import { RoomMesh } from './room';
 
 /** نور محیطی مشترک */
@@ -40,6 +41,22 @@ function ObjectEntry(ctx: MeshCtx) {
       return <StoveMesh {...ctx} />;
     case 'hood':
       return <HoodMesh {...ctx} />;
+    case 'washer':
+      return <WasherMesh {...ctx} />;
+    case 'dishwasher':
+      return <DishwasherMesh {...ctx} />;
+    case 'microwave':
+      return <MicrowaveMesh {...ctx} />;
+    case 'tv':
+      return <TvMesh {...ctx} />;
+    case 'sofa':
+      return <SofaMesh {...ctx} />;
+    case 'bed':
+      return <BedMesh {...ctx} />;
+    case 'table':
+      return <TableMesh {...ctx} />;
+    case 'chair':
+      return <ChairMesh {...ctx} />;
     case 'pendant':
       return <PendantMesh {...ctx} />;
     case 'floor-lamp':

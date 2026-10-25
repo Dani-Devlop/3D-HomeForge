@@ -29,7 +29,7 @@ function useCursor(pointer: boolean) {
   };
 }
 
-/** درب لولادار با انیمیشن نرم (الگوی Mesh States) */
+/** درب لولادار با انیمیشن نرم (الگوی Mesh States) — حالت شیشه‌ای: شفاف آبی-سبز روشن، هرگز سیاه */
 function HingedDoor({
   width,
   height,
@@ -40,6 +40,7 @@ function HingedDoor({
   zBase,
   hingeX,
   yCenter,
+  glass,
   onClick,
 }: {
   width: number; // عرض هر درب
@@ -51,6 +52,7 @@ function HingedDoor({
   zBase: number;
   hingeX: number; // فاصله لولا از مرکز کابینت (≈ w/2)
   yCenter: number; // ارتفاع مرکز درب از مبدأ کابینت
+  glass?: boolean; // درب شیشه‌ای شفاف با قاب باریک
   onClick: (e: { stopPropagation: () => void }) => void;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -79,23 +81,68 @@ function HingedDoor({
       </mesh>
     ) : null;
 
+  const T = 0.03; // ضخامت قاب دور شیشه
+  const D = 0.028; // عمق قاب
+
   return (
     <group
       ref={group}
       position={[side * hingeX, yCenter, zBase]}
     >
-      <mesh
-        position={[-side * (width / 2), 0, 0]}
-        castShadow
-        onClick={onClick}
-        onPointerOver={hover}
-        onPointerOut={() => {
-          document.body.style.cursor = 'auto';
-        }}
-      >
-        <boxGeometry args={[width, height, 0.028]} />
-        <meshStandardMaterial color={color} roughness={0.65} />
-      </mesh>
+      {glass ? (
+        <group
+          position={[-side * (width / 2), 0, 0]}
+          onClick={onClick}
+          onPointerOver={hover}
+          onPointerOut={() => {
+            document.body.style.cursor = 'auto';
+          }}
+        >
+          {/* شیشه شفاف با تینت روشن آبی-سبز */}
+          <mesh castShadow>
+            <boxGeometry args={[width, height, 0.014]} />
+            <meshPhysicalMaterial
+              color="#cdeaf2"
+              transparent
+              opacity={0.26}
+              roughness={0.06}
+              metalness={0.05}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          {/* قاب باریک دور شیشه — بالا و پایین */}
+          <mesh position={[0, height / 2 - T / 2, 0]} castShadow>
+            <boxGeometry args={[width, T, D]} />
+            <meshStandardMaterial color={color} roughness={0.65} />
+          </mesh>
+          <mesh position={[0, -height / 2 + T / 2, 0]} castShadow>
+            <boxGeometry args={[width, T, D]} />
+            <meshStandardMaterial color={color} roughness={0.65} />
+          </mesh>
+          {/* قاب باریک دور شیشه — چپ و راست */}
+          <mesh position={[-width / 2 + T / 2, 0, 0]} castShadow>
+            <boxGeometry args={[T, height - T * 2, D]} />
+            <meshStandardMaterial color={color} roughness={0.65} />
+          </mesh>
+          <mesh position={[width / 2 - T / 2, 0, 0]} castShadow>
+            <boxGeometry args={[T, height - T * 2, D]} />
+            <meshStandardMaterial color={color} roughness={0.65} />
+          </mesh>
+        </group>
+      ) : (
+        <mesh
+          position={[-side * (width / 2), 0, 0]}
+          castShadow
+          onClick={onClick}
+          onPointerOver={hover}
+          onPointerOut={() => {
+            document.body.style.cursor = 'auto';
+          }}
+        >
+          <boxGeometry args={[width, height, 0.028]} />
+          <meshStandardMaterial color={color} roughness={0.65} />
+        </mesh>
+      )}
       {handleEl}
     </group>
   );
@@ -246,6 +293,7 @@ export function CabinetMesh(ctx: MeshCtx) {
           zBase={d / 2 + 0.025}
           hingeX={w / 2 - 0.01}
           yCenter={drawersTop + doorsH / 2}
+          glass={!!p.glass}
           onClick={toggle}
         />
       )}
@@ -261,6 +309,7 @@ export function CabinetMesh(ctx: MeshCtx) {
             zBase={d / 2 + 0.025}
             hingeX={w / 2 - 0.01}
             yCenter={drawersTop + doorsH / 2}
+            glass={!!p.glass}
             onClick={toggle}
           />
           <HingedDoor
@@ -273,6 +322,7 @@ export function CabinetMesh(ctx: MeshCtx) {
             zBase={d / 2 + 0.025}
             hingeX={w / 2 - 0.01}
             yCenter={drawersTop + doorsH / 2}
+            glass={!!p.glass}
             onClick={toggle}
           />
         </>

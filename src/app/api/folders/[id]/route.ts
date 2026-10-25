@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Folder } from '@prisma/client';
 import { db } from '@/lib/db';
+import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
@@ -26,6 +27,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const body = await readJsonBody(req);
@@ -58,9 +62,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await requireOwner(req);
+  if (denied) return denied;
+
   try {
     const { id } = await params;
     const existing = await db.folder.findUnique({ where: { id }, select: { id: true } });
