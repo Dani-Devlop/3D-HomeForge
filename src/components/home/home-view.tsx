@@ -1425,6 +1425,8 @@ export default function HomeView() {
       <SiteLanding
         authed={authed}
         onEnterDashboard={() => {
+          // بعد از ورود (یا کلیک «پنل مدیریت») مستقیم به بخش مدیریت می‌رود
+          setTab('admin');
           setView('dashboard');
           window.scrollTo({ top: 0 });
         }}

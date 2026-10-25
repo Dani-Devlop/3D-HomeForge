@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -12,6 +13,7 @@ import {
   Lock,
   LogIn,
   MousePointerClick,
+  Rotate3d,
   Share2,
   Sparkles,
   Type,
@@ -19,6 +21,7 @@ import {
   Video,
 } from 'lucide-react';
 import { api, type PortfolioItemDTO } from '@/lib/api';
+import { hasLiveScene } from '@/components/three/portfolio-scene';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,8 +35,14 @@ import {
 } from '@/components/ui/dialog';
 
 // ============================================================
-// صفحه اصلی عمومی (لندینگ مشتری) — معرفی پلتفرم + نمونه‌کارها
+// صفحه اصلی عمومی (لندینگ مشتری) — معرفی پلتفرم + نمونه‌کارهای سه‌بعدی زنده
 // ============================================================
+
+// صحنه سه‌بعدی زنده — فقط سمت کلاینت (three.js)
+const PortfolioScene = dynamic(() => import('@/components/three/portfolio-scene'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-muted animate-pulse" aria-hidden />,
+});
 
 export const CATEGORY_LABEL: Record<string, string> = {
   kitchen: 'آشپزخانه',
@@ -401,19 +410,41 @@ function Features() {
 
 // ---------- نمونه‌کارها ----------
 function PortfolioCard({ item, index }: { item: PortfolioItemDTO; index: number }) {
+  const live = hasLiveScene(item.sceneState);
+
   return (
     <FadeIn delay={(index % 3) * 0.08}>
       <figure className="group h-full rounded-2xl border bg-card overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all">
         <div className="aspect-[4/3] overflow-hidden bg-muted relative">
-          <img
-            src={item.image}
-            alt={`نمونه‌کار: ${item.title}`}
-            loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-          <Badge className="absolute top-2.5 start-2.5 text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur">
-            {CATEGORY_LABEL[item.category] ?? 'فضا'}
-          </Badge>
+          {live ? (
+            <>
+              {/* مدل سه‌بعدی زنده — چرخش با درگ + تعامل درب/چراغ */}
+              <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-[1.02]">
+                <PortfolioScene roomSpec={item.roomSpec} sceneState={item.sceneState} />
+              </div>
+              <Badge className="absolute top-2.5 start-2.5 text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur pointer-events-none">
+                {CATEGORY_LABEL[item.category] ?? 'فضا'}
+              </Badge>
+              <Badge className="absolute top-2.5 end-2.5 text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0 backdrop-blur pointer-events-none">
+                <Rotate3d className="h-3 w-3" /> سه‌بعدی زنده
+              </Badge>
+              <span className="absolute bottom-2.5 inset-x-2 text-center text-[10px] text-white/90 bg-black/45 rounded-full py-1 backdrop-blur pointer-events-none opacity-90 transition-opacity group-hover:opacity-100">
+                بچرخانید • درب‌ها و چراغ‌ها را لمس کنید
+              </span>
+            </>
+          ) : (
+            <>
+              <img
+                src={item.image}
+                alt={`نمونه‌کار: ${item.title}`}
+                loading="lazy"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <Badge className="absolute top-2.5 start-2.5 text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur">
+                {CATEGORY_LABEL[item.category] ?? 'فضا'}
+              </Badge>
+            </>
+          )}
         </div>
         <figcaption className="p-4 space-y-1.5">
           <h3 className="font-bold text-sm">{item.title}</h3>
@@ -442,11 +473,12 @@ function PortfolioSection() {
       <div className="max-w-6xl mx-auto px-4 space-y-8">
         <FadeIn className="text-center space-y-2.5 max-w-2xl mx-auto">
           <Badge variant="outline" className="gap-1.5 text-primary border-primary/30">
-            <Images className="h-3.5 w-3.5" /> نمونه‌کارها
+            <Rotate3d className="h-3.5 w-3.5" /> نمونه‌کارها
           </Badge>
-          <h2 className="text-2xl md:text-4xl font-black">کارهایی که با این پلتفرم طراحی شده‌اند</h2>
+          <h2 className="text-2xl md:text-4xl font-black">کارهای واقعی — به‌صورت مدل سه‌بعدی زنده</h2>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-            نمونه‌های واقعی از آشپزخانه، اتاق خواب و فضاهای کاری — همه بازسازی‌شده از عکس‌های معمولی.
+            هر نمونه‌کار یک مدل سه‌بعدی تعاملی است؛ بچرخانید، درب کابینت‌ها را باز کنید و چراغ‌ها را
+            روشن کنید — دقیقاً همان چیزی که مشتری شما با لینک می‌بیند.
           </p>
         </FadeIn>
 

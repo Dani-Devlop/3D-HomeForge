@@ -77,7 +77,9 @@ model PortfolioItem {
   title       String
   description String   @default("")
   category    String   @default("kitchen") // kitchen | bedroom | living | office | other
-  image       String // مسیر فایل عمومی یا dataURL
+  image       String   @default("") // تصویر (اختیاری — وقتی مدل سه‌بعدی زنده هست)
+  roomSpec    String   @default("{}") // JSON RoomSpec — اگر ست باشد، کارت به‌صورت مدل سه‌بعدی زنده نمایش داده می‌شود
+  sceneState  String   @default("{}") // JSON SceneState {objects:[...]} — آبجکت‌های صحنه زنده
   visible     Boolean  @default(true) // نمایش در صفحه عمومی
   sortOrder   Int      @default(0) // ترتیب نمایش (کوچک‌تر = جلوتر)
   createdAt   DateTime @default(now())

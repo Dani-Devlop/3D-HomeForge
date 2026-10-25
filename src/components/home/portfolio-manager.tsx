@@ -1,8 +1,10 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Boxes,
   ChevronDown,
   ChevronUp,
   Eye,
@@ -12,11 +14,14 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Rotate3d,
   Trash2,
   UploadCloud,
+  X,
 } from 'lucide-react';
-import { api, type PortfolioItemDTO } from '@/lib/api';
+import { api, type PortfolioItemDTO, type ProjectDTO } from '@/lib/api';
 import { fileToResizedDataUrl } from '@/lib/image-utils';
+import { hasLiveScene } from '@/components/three/portfolio-scene';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,10 +57,34 @@ import {
 import { CATEGORY_LABEL } from './site-landing';
 
 // ============================================================
-// مدیریت نمونه‌کارها — محتوای بخش عمومی «نمونه‌کارها» را اداره می‌کند
+// مدیریت نمونه‌کارها — تصویر یا مدل سه‌بعدی زنده (از پروژه‌ها)
 // ============================================================
 
 const CATEGORIES = ['kitchen', 'bedroom', 'living', 'office', 'other'] as const;
+
+// صحنه سه‌بعدی زنده — فقط سمت کلاینت (three.js)
+const PortfolioScene = dynamic(() => import('@/components/three/portfolio-scene'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-muted animate-pulse" aria-hidden />,
+});
+
+/** صحنه زنده انتخاب‌شده برای نمونه‌کار */
+interface PickedScene {
+  roomSpec: unknown;
+  sceneState: unknown;
+  sourceName: string;
+}
+
+/** خروجی دیالوگ ذخیره */
+interface SavedItem {
+  title: string;
+  description: string;
+  category: string;
+  image: string;
+  visible: boolean;
+  roomSpec?: unknown;
+  sceneState?: unknown;
+}
 
 // ---------- دیالوگ افزودن/ویرایش ----------
 function ItemDialog({
@@ -66,13 +95,7 @@ function ItemDialog({
 }: {
   initial?: PortfolioItemDTO;
   saving: boolean;
-  onSave: (v: {
-    title: string;
-    description: string;
-    category: string;
-    image: string;
-    visible: boolean;
-  }) => void;
+  onSave: (v: SavedItem) => void;
   onCancel: () => void;
 }) {
   const imgRef = useRef<HTMLInputElement>(null);
@@ -82,6 +105,36 @@ function ItemDialog({
   const [image, setImage] = useState(initial?.image ?? '');
   const [visible, setVisible] = useState(initial?.visible ?? true);
   const [reading, setReading] = useState(false);
+  const [scene, setScene] = useState<PickedScene | null>(() => {
+    if (initial && hasLiveScene(initial.sceneState)) {
+      return {
+        roomSpec: initial.roomSpec,
+        sceneState: initial.sceneState,
+        sourceName: 'صحنه ذخیره‌شده',
+      };
+    }
+    return null;
+  });
+
+  // پروژه‌های مدیر — منبع مدل‌های سه‌بعدی زنده
+  const projectsQ = useQuery({
+    queryKey: ['projects', 'portfolio-picker'],
+    queryFn: () => api.listProjects(),
+    staleTime: 10_000,
+  });
+  const projects = (projectsQ.data?.projects ?? []).filter(
+    (p) => hasLiveScene(p.sceneState) || Object.keys(p.roomSpec ?? {}).length > 0,
+  );
+
+  const pickProject = (projectId: string) => {
+    const p = projects.find((x) => x.id === projectId) as ProjectDTO | undefined;
+    if (!p) return;
+    setScene({
+      roomSpec: p.roomSpec,
+      sceneState: Object.keys(p.sceneState ?? {}).length > 0 ? p.sceneState : { objects: [] },
+      sourceName: p.name,
+    });
+  };
 
   const pickImage = async (f: File | null | undefined) => {
     if (!f) return;
@@ -96,6 +149,9 @@ function ItemDialog({
     }
   };
 
+  const canSave =
+    title.trim().length > 0 && (image.length >= 8 || hasLiveScene(scene?.sceneState));
+
   return (
     <Dialog open onOpenChange={(v) => !v && onCancel()}>
       <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -104,7 +160,66 @@ function ItemDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* تصویر */}
+          {/* مدل سه‌بعدی زنده از پروژه‌ها */}
+          <div className="space-y-1.5">
+            <Label className="text-xs flex items-center gap-1.5">
+              <Rotate3d className="h-3.5 w-3.5 text-primary" /> مدل سه‌بعدی زنده
+            </Label>
+            <Select value="" onValueChange={pickProject} dir="rtl">
+              <SelectTrigger className="w-full" aria-label="انتخاب پروژه برای مدل سه‌بعدی">
+                <SelectValue placeholder={projects.length > 0 ? 'انتخاب از پروژه‌های من…' : 'پروژه‌ای با صحنه موجود نیست'} />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    {p.clientName ? ` — ${p.clientName}` : ''}
+                  </SelectItem>
+                ))}
+                {projects.length === 0 && (
+                  <SelectItem value="__none" disabled>
+                    ابتدا در تب پروژه‌ها یک پروژه بسازید
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+
+            {scene ? (
+              <div className="relative rounded-xl overflow-hidden border">
+                <div className="aspect-video bg-muted relative">
+                  <PortfolioScene
+                    roomSpec={scene.roomSpec as never}
+                    sceneState={scene.sceneState as never}
+                  />
+                </div>
+                <div className="absolute top-2 start-2 flex gap-1.5 pointer-events-none">
+                  <Badge className="text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0">
+                    <Rotate3d className="h-2.5 w-2.5" /> سه‌بعدی زنده
+                  </Badge>
+                  <Badge className="text-[10px] bg-black/50 text-white border-0 backdrop-blur">
+                    {scene.sourceName}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="absolute top-2 end-2 h-7 text-[11px] gap-1"
+                  onClick={() => setScene(null)}
+                  aria-label="حذف مدل سه‌بعدی"
+                >
+                  <X className="h-3 w-3" /> حذف مدل
+                </Button>
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                با انتخاب یکی از پروژه‌هایتان، کارت نمونه‌کار به‌جای عکس، یک مدل سه‌بعدی زنده و
+                قابل‌چرخش می‌شود.
+              </p>
+            )}
+          </div>
+
+          {/* تصویر (اختیاری وقتی مدل زنده هست) */}
           <input
             ref={imgRef}
             type="file"
@@ -165,8 +280,12 @@ function ItemDialog({
               ) : (
                 <>
                   <UploadCloud className="h-8 w-8 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-                  <p className="text-xs font-medium">تصویر نمونه‌کار را انتخاب یا بکشید اینجا</p>
-                  <p className="text-[10px] text-muted-foreground">بهتر است عریض و باکیفیت باشد</p>
+                  <p className="text-xs font-medium">
+                    تصویر (اختیاری{scene ? ' — مدل زنده کافی است' : ''})
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {scene ? 'به‌عنوان جایگزین نمایش داده می‌شود' : 'اگر مدل سه‌بعدی ندارید، تصویر الزامی است'}
+                  </p>
                 </>
               )}
             </div>
@@ -229,7 +348,21 @@ function ItemDialog({
           <Button variant="outline" onClick={onCancel}>
             انصراف
           </Button>
-          <Button onClick={() => onSave({ title: title.trim(), description: description.trim(), category, image, visible })} disabled={!title.trim() || !image || saving}>
+          <Button
+            onClick={() =>
+              onSave({
+                title: title.trim(),
+                description: description.trim(),
+                category,
+                image,
+                visible,
+                ...(scene
+                  ? { roomSpec: scene.roomSpec, sceneState: scene.sceneState }
+                  : { roomSpec: {}, sceneState: { objects: [] } }),
+              })
+            }
+            disabled={!canSave || saving}
+          >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
           </Button>
         </DialogFooter>
@@ -253,6 +386,8 @@ function ManagerCard({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [delOpen, setDelOpen] = useState(false);
+
+  const live = hasLiveScene(item.sceneState);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['portfolio'] });
@@ -301,7 +436,9 @@ function ManagerCard({
   return (
     <Card className="overflow-hidden">
       <div className="aspect-video bg-muted relative">
-        {item.image ? (
+        {live ? (
+          <PortfolioScene roomSpec={item.roomSpec as never} sceneState={item.sceneState as never} />
+        ) : item.image ? (
           <img src={item.image} alt={`نمونه‌کار ${item.title}`} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -309,9 +446,14 @@ function ManagerCard({
           </div>
         )}
         <div className="absolute top-2 start-2 flex gap-1">
-          <Badge className="text-[10px] bg-black/50 text-white border-0 backdrop-blur">
+          <Badge className="text-[10px] bg-black/50 text-white border-0 backdrop-blur pointer-events-none">
             {CATEGORY_LABEL[item.category] ?? 'فضا'}
           </Badge>
+          {live && (
+            <Badge className="text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0 backdrop-blur pointer-events-none">
+              <Rotate3d className="h-2.5 w-2.5" /> سه‌بعدی زنده
+            </Badge>
+          )}
           {item.visible ? (
             <Badge variant="secondary" className="text-[10px] gap-1 bg-emerald-600/90 text-white border-0">
               <Eye className="h-2.5 w-2.5" /> نمایش
@@ -372,7 +514,7 @@ function ManagerCard({
               onClick={() => setDelOpen(true)}
               aria-label={`حذف ${item.title}`}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3 w-3" />
             </Button>
           </div>
         </div>
@@ -413,8 +555,7 @@ export function PortfolioManager() {
   });
 
   const create = useMutation({
-    mutationFn: (v: { title: string; description: string; category: string; image: string; visible: boolean }) =>
-      api.createPortfolioItem(v),
+    mutationFn: (v: SavedItem) => api.createPortfolioItem(v),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['portfolio'] });
       setDlg({ open: false });
@@ -424,8 +565,7 @@ export function PortfolioManager() {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, ...v }: { id: string } & { title: string; description: string; category: string; image: string; visible: boolean }) =>
-      api.updatePortfolioItem(id, v),
+    mutationFn: ({ id, ...v }: { id: string } & SavedItem) => api.updatePortfolioItem(id, v),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['portfolio'] });
       setDlg({ open: false });
@@ -436,6 +576,7 @@ export function PortfolioManager() {
 
   const items = itemsQ.data?.items ?? [];
   const visibleCount = items.filter((i) => i.visible).length;
+  const liveCount = items.filter((i) => hasLiveScene(i.sceneState)).length;
 
   return (
     <div className="space-y-4">
@@ -448,6 +589,12 @@ export function PortfolioManager() {
             این موارد در صفحه اصلی عمومی (لندینگ مشتری) نمایش داده می‌شوند —{' '}
             <span className="tabular-nums">{visibleCount.toLocaleString('fa-IR')} مورد نمایش</span> از{' '}
             <span className="tabular-nums">{items.length.toLocaleString('fa-IR')} مورد</span>
+            {liveCount > 0 && (
+              <>
+                {' '}• <Boxes className="inline h-3 w-3 text-primary" />{' '}
+                <span className="tabular-nums">{liveCount.toLocaleString('fa-IR')} مدل سه‌بعدی زنده</span>
+              </>
+            )}
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => setDlg({ open: true })}>
@@ -472,7 +619,7 @@ export function PortfolioManager() {
           <Images className="h-10 w-10 mx-auto text-muted-foreground/30" />
           <p className="text-sm font-medium">هنوز نمونه‌کاری ندارید</p>
           <p className="text-xs text-muted-foreground">
-            با «نمونه‌کار جدید» تصویر و توضیح کارهای خود را برای صفحه اصلی اضافه کنید
+            با «نمونه‌کار جدید» یک پروژه سه‌بعدی زنده یا تصویر کار خود را برای صفحه اصلی اضافه کنید
           </p>
         </div>
       ) : (

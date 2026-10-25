@@ -119,13 +119,17 @@ export interface GeneratedItem {
   params: SceneObject['params'];
 }
 
-/** نمونه‌کار صفحه عمومی (لندینگ) */
+/** نمونه‌کار صفحه عمومی (لندینگ) — تصویر یا مدل سه‌بعدی زنده */
 export interface PortfolioItemDTO {
   id: string;
   title: string;
   description: string;
   category: string;
   image: string;
+  /** مشخصات فضا — اگر معتبر باشد کارت به‌صورت مدل سه‌بعدی زنده نمایش داده می‌شود */
+  roomSpec: Partial<RoomSpec> | Record<string, never>;
+  /** آبجکت‌های صحنه زنده */
+  sceneState: { objects?: SceneObject[] } | Record<string, never>;
   visible: boolean;
   sortOrder: number;
   createdAt: string;
@@ -136,7 +140,10 @@ export interface PortfolioItemInput {
   title: string;
   description?: string;
   category?: string;
-  image: string;
+  image?: string;
+  /** JSON ارسالی به سرور (اعتبارسنجی سمت سرور انجام می‌شود) */
+  roomSpec?: unknown;
+  sceneState?: unknown;
   visible?: boolean;
   sortOrder?: number;
 }

@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
-import { serializePortfolioItem } from '@/app/api/_lib/portfolio';
+import {
+  hasSceneObjects,
+  serializePortfolioItem,
+  stringifyOrEmpty,
+} from '@/app/api/_lib/portfolio';
 
 // ============================================================
 // PATCH  /api/portfolio/[id] → ویرایش نمونه‌کار (فقط مدیر)
@@ -14,18 +18,23 @@ const MAX_IMAGE_CHARS = 6_000_000;
 
 const CATEGORIES = ['kitchen', 'bedroom', 'living', 'office', 'other'] as const;
 
+const looseObject = z.record(z.string(), z.unknown());
+
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(80).optional(),
   description: z.string().trim().max(400).optional(),
   category: z.enum(CATEGORIES).optional(),
   image: z
     .string()
-    .min(8)
     .max(MAX_IMAGE_CHARS)
     .refine(
-      (v) => v.startsWith('data:image/') || v.startsWith('/'),
+      (v) => v === '' || v.startsWith('data:image/') || v.startsWith('/'),
       'تصویر باید dataURL یا مسیر عمومی باشد',
     )
+    .optional(),
+  roomSpec: looseObject.optional(),
+  sceneState: z
+    .object({ objects: z.array(z.unknown()).max(400).optional().default([]) })
     .optional(),
   visible: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
@@ -57,12 +66,43 @@ export async function PATCH(
       return NextResponse.json({ error: 'اطلاعات ارسالی نامعتبر است' }, { status: 400 });
     }
 
-    const item = await db.portfolioItem.update({ where: { id }, data: parsed.data });
+    // بعد از اعمال پچ باید حداقل تصویر یا مدل سه‌بعدی زنده باقی بماند
+    const nextImage = parsed.data.image ?? existing.image;
+    const nextScene = parsed.data.sceneState
+      ? { objects: parsed.data.sceneState.objects ?? [] }
+      : parseExistingScene(existing.sceneState);
+    if (nextImage.length < 8 && !hasSceneObjects(nextScene)) {
+      return NextResponse.json(
+        { error: 'حداقل تصویر یا مدل سه‌بعدی زنده لازم است' },
+        { status: 400 },
+      );
+    }
+
+    const item = await db.portfolioItem.update({
+      where: { id },
+      data: {
+        ...parsed.data,
+        roomSpec: parsed.data.roomSpec ? stringifyOrEmpty(parsed.data.roomSpec) : undefined,
+        sceneState: parsed.data.sceneState ? stringifyOrEmpty(nextScene) : undefined,
+      },
+    });
     return NextResponse.json({ item: serializePortfolioItem(item) });
   } catch (err) {
     console.error('PATCH /api/portfolio/[id] failed:', err);
     return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
   }
+}
+
+function parseExistingScene(raw: string): { objects: unknown[] } {
+  try {
+    const v = JSON.parse(raw || '{}');
+    if (v && typeof v === 'object' && Array.isArray((v as { objects?: unknown }).objects)) {
+      return v as { objects: unknown[] };
+    }
+  } catch {
+    // ignore
+  }
+  return { objects: [] };
 }
 
 export async function DELETE(
