@@ -36,7 +36,7 @@ import {
 //  - درب‌های شیشه‌ای با glass:true و رنگ روشن (هرگز تیره/سیاه)
 // ============================================================
 
-const RECONSTRUCT_PROMPT = `You are an expert interior analyzer for a 3D WHOLE-HOME reconstruction pipeline (v3).
+const RECONSTRUCT_PROMPT = `You are an expert interior analyzer for a 3D WHOLE-HOME reconstruction pipeline (v3.2).
 Analyze the attached room photo and produce a structured metric reconstruction.
 
 Guidelines:
@@ -68,7 +68,7 @@ Guidelines:
 7. Detect EXISTING furniture/equipment visible in the photo and report each as an "item":
    - kind must be exactly one of: "base" (floor cabinet), "wall" (upper wall cabinet),
      "tall" (full-height unit), "island" (kitchen island), "shelf" (open shelves),
-     "fridge" (refrigerator), "stove" (stove/oven), "hood" (range hood),
+     "fridge" (refrigerator), "stove" (stove/oven), "hood" (range hood/extractor),
      "tv" (flat-screen television), "sofa" (couch), "bed" (bed),
      "table" (dining/coffee table), "chair" (chair),
      "washer" (washing machine), "dishwasher" (dishwasher), "microwave" (microwave oven).
@@ -77,13 +77,30 @@ Guidelines:
      against a slanted/diagonal wall of a non-rectangular room — plus offsetX (horizontal distance of
      the item center from that wall's center, -7..7), widthM (0.3..3), heightM (0.3..2.4), depthM
      (optional, meters), colorHex (dominant color, #rrggbb), description (short, English or Persian).
+   - mountY (optional, meters above floor): for anything NOT standing on the floor report the height
+     of its BOTTOM — wall cabinets ≈ 1.4..1.6, range hood ≈ 1.5..1.7, TV ≈ 1.0..1.6,
+     microwave on counter ≈ 0.9, microwave built into upper cabinet ≈ 1.4..1.7.
    - glassDoors (boolean): true ONLY when the item's doors are made of GLASS (transparent panes visible).
      Glass must be reported as glassDoors:true with a LIGHT frame colorHex — never report dark/black
      color for glass objects.
    - IMPORTANT: a long run of base cabinets along one wall must be reported as SEPARATE segments of
      0.6..1.2 m each, so every segment can be edited individually.
-     Report fridge / stove / hood / tv / washer / dishwasher / microwave each as their own item.
+     Report fridge / stove / hood / tv / washer / dishwasher / microwave each as their own item —
+     NEVER merge an appliance into a cabinet item.
    - Report at most 40 items (most important first). Do not report items you cannot see.
+8. APPLIANCE & FURNITURE CHECKLIST — scan the photo SYSTEMATICALLY, area by area (countertop,
+   walls above the counter, floor line, corners, ceiling) and check EVERY one of these:
+   a) Microwave: a small box roughly 0.45–0.6 m wide and 0.25–0.35 m tall. It may sit ON the
+      countertop, be BUILT INTO an upper cabinet stack (often stainless or black, with a front door
+      and small window), or be combined with the range hood. If you see it ANYWHERE — even partly
+      cut off at the image edge, even in a reflection — report it as kind "microwave" with mountY.
+   b) Range hood: metal funnel/box above the cooktop, kind "hood" with mountY.
+   c) Refrigerator ("fridge"), stove/oven ("stove"), dishwasher ("dishwasher"), washing machine
+      ("washer").
+   d) TV on wall or on a stand ("tv" with mountY), sofa ("sofa"), bed ("bed"), tables ("table"),
+      chairs ("chair"), open shelves ("shelf").
+   Report an item for EVERY appliance you find — a missing appliance is a serious error.
+   Appliances visible in only ONE photo are still important; they will be merged later.
 
 Respond with ONLY a JSON object — no markdown fences, no commentary — shaped exactly like:
 {
@@ -91,7 +108,7 @@ Respond with ONLY a JSON object — no markdown fences, no commentary — shaped
   "room": { "widthM": number, "depthM": number, "heightM": number, "outline": [[x,z], ...] | omitted, "wallColor": "#hex", "floorColor": "#hex", "ceilingColor": "#hex" },
   "windows": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "sillY": number, "width": number, "height": number } ],
   "doorways": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "width": number, "height": number } ],
-  "items": [ { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "widthM": number, "heightM": number, "depthM": number, "glassDoors": boolean, "colorHex": "#hex", "description": "short" } ],
+  "items": [ { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "widthM": number, "heightM": number, "depthM": number, "mountY": number | omitted, "glassDoors": boolean, "colorHex": "#hex", "description": "short" } ],
   "description": "کوتاه به فارسی"
 }`;
 
@@ -136,8 +153,14 @@ Produce the UNION/CONSENSUS:
   photos taken from different angles as best you can using the room description.
 - "doorways": same dedup rule as windows.
 - "items": union of all furniture items, deduplicated by kind + wall + approximate offsetX (within ~0.6 m);
-  for duplicates keep the largest / most complete variant (including glassDoors). Do NOT invent items that no
-  part reported.
+  for duplicates keep the largest / most complete variant (including glassDoors and mountY). Do NOT invent
+  items that no part reported.
+  APPLIANCES ARE CRITICAL: an appliance kind reported in ANY part (fridge, stove, hood, tv, washer,
+  dishwasher, microwave) must survive into the final output — even if it appears in only ONE part and
+  even if it overlaps a cabinet position. Only merge two items when their kind is IDENTICAL; never drop
+  a microwave/hood/tv because a cabinet occupies a similar position — keep both, they are at different
+  heights (use mountY). When the same appliance is reported in several parts from different angles,
+  keep one instance at the most plausible wall/offset.
 - "roomType": the most frequent value; "description": keep the richest Persian description (or merge them into
   one short paragraph).
 Respond with ONLY a JSON object of exactly the same shape as the inputs (roomType, room, windows, doorways,
@@ -166,6 +189,8 @@ interface ReconstructItem {
   widthM: number;
   heightM: number;
   depthM?: number;
+  /** ارتفاع نصب از کف (متر) — هود/مایکروویو/تلویزیون/کابینت دیواری */
+  mountY?: number;
   glassDoors: boolean;
   colorHex: string;
   description: string;
@@ -302,6 +327,9 @@ function normalizeAnalysis(data: unknown): Analysis | null {
         widthM: clamp(toFinite(it.widthM, 0.8), 0.3, 3),
         heightM: clamp(toFinite(it.heightM, 0.85), 0.3, 2.4),
         depthM: Number.isFinite(dRaw) ? clamp(dRaw, 0.25, 1.2) : undefined,
+        ...(optFinite(it.mountY, 0.3, 2.2) !== undefined
+          ? { mountY: optFinite(it.mountY, 0.3, 2.2) }
+          : {}),
         glassDoors: it.glassDoors === true,
         colorHex: toColor(it.colorHex, '#6b4f3a'),
         description: typeof it.description === 'string' ? it.description.slice(0, 120) : '',
@@ -512,17 +540,18 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
   } else if (kind === 'hood') {
     rawParams = {
       w, h, d, color, bodyColor: color,
-      doors: 0, drawers: 0, handles: 'none', mountY: 1.62,
+      doors: 0, drawers: 0, handles: 'none',
+      mountY: item.mountY ?? 1.62,
     };
   } else if (kind === 'wall') {
     rawParams = {
       w, h, d, bodyColor: color, doorColor: shadeColor(color, 0.2),
       countertopColor: '#d8d3c8', doors: w > 0.7 ? 2 : 1, drawers: 0,
-      handles: 'bar', mountY: 1.5,
+      handles: 'bar', mountY: item.mountY ?? 1.5,
     };
   } else if (kind === 'tv') {
-    // تلویزیون نازک — نصب روی دیوار با ارتفاع پیش‌فرض ۱.۴ متر
-    rawParams = { w, h, d: 0.06, color: '#101318', bodyColor: '#1b1f26', mountY: 1.4 };
+    // تلویزیون نازک — نصب روی دیوار
+    rawParams = { w, h, d: 0.06, color: '#101318', bodyColor: '#1b1f26', mountY: item.mountY ?? 1.4 };
   } else if (kind === 'sofa') {
     rawParams = { w, h: clamp(h, 0.7, 1.0), d: clamp(d, 0.8, 1.2), color, bodyColor: shadeColor(color, -0.15) };
   } else if (kind === 'bed') {
@@ -536,8 +565,11 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
   } else if (kind === 'dishwasher') {
     rawParams = { w: 0.6, h: 0.85, d: 0.6, color, bodyColor: color, doors: 1, handles: 'bar' };
   } else if (kind === 'microwave') {
-    // مایکروویو روی کانتر (y = 0.9)
-    rawParams = { w: clamp(w, 0.4, 0.7), h: 0.3, d: 0.38, color, bodyColor: color, mountY: 0.9 };
+    // مایکروویو — روی کانتر (۰٫۹) یا توکار کابینت دیواری (mountY از مدل)
+    rawParams = {
+      w: clamp(w, 0.4, 0.7), h: 0.3, d: 0.38, color, bodyColor: color,
+      mountY: item.mountY ?? 0.9,
+    };
   } else {
     // base / tall / island / shelf
     rawParams = {

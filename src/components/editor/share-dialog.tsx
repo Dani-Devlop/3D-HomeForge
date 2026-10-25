@@ -44,9 +44,14 @@ const ROLE_SHORT: Record<ShareRole, string> = {
   modifier: 'ویرایشگر',
 };
 
-export function shareUrl(token: string): string {
-  if (typeof window === 'undefined') return `#/s/${token}`;
-  return `${window.location.origin}${window.location.pathname}#/s/${token}`;
+/** مقداری که بعد از #/s/ می‌آید — کد کوتاه اگر هست، وگرنه توکن کامل */
+export function shareSlug(link: Pick<ShareLinkDTO, 'shortCode' | 'token'>): string {
+  return link.shortCode || link.token;
+}
+
+export function shareUrl(link: Pick<ShareLinkDTO, 'shortCode' | 'token'>): string {
+  if (typeof window === 'undefined') return `#/s/${shareSlug(link)}`;
+  return `${window.location.origin}${window.location.pathname}#/s/${shareSlug(link)}`;
 }
 
 function LinkRow({ link }: { link: ShareLinkDTO }) {
@@ -64,17 +69,18 @@ function LinkRow({ link }: { link: ShareLinkDTO }) {
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl(link.token));
+      await navigator.clipboard.writeText(shareUrl(link));
       toast({ title: 'لینک کپی شد ✓' });
     } catch {
-      toast({ title: 'کپی نشد', description: shareUrl(link.token), variant: 'destructive' });
+      toast({ title: 'کپی نشد', description: shareUrl(link), variant: 'destructive' });
     }
   };
 
   const expired = new Date(link.expiresAt).getTime() < Date.now();
+  const slug = shareSlug(link);
 
   return (
-    <div className="rounded-lg border bg-card p-3 space-y-2">
+    <div className="rounded-lg border bg-card p-3 space-y-2 min-w-0">
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant={link.active && !expired ? 'default' : 'secondary'}>
           {expired ? 'منقضی' : link.active ? 'فعال' : 'غیرفعال'}
@@ -87,21 +93,29 @@ function LinkRow({ link }: { link: ShareLinkDTO }) {
           تا {new Date(link.expiresAt).toLocaleDateString('fa-IR')}
           {typeof link.guestCount === 'number' && ` • ${link.guestCount} بازدیدکننده`}
         </span>
-        <div className="ms-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-1">
           <Switch
             checked={link.active && !expired}
             disabled={expired}
             onCheckedChange={(v) => patch.mutate({ active: v })}
             aria-label="فعال/غیرفعال کردن لینک"
           />
-          <Button size="icon" variant="ghost" onClick={copy} title="کپی لینک">
+          <Button size="icon" variant="ghost" onClick={copy} title="کپی لینک" aria-label="کپی لینک">
             <Copy className="h-4 w-4" />
           </Button>
         </div>
       </div>
-      <code dir="ltr" className="block text-[11px] text-muted-foreground truncate bg-muted rounded px-2 py-1">
-        {shareUrl(link.token)}
-      </code>
+      {/* لینک کوتاه — همیشه یک خط کوتاه و قابل کپی */}
+      <button
+        type="button"
+        dir="ltr"
+        onClick={copy}
+        title={shareUrl(link)}
+        className="block w-full text-start text-xs text-foreground/80 bg-muted rounded px-2.5 py-1.5 font-mono truncate hover:bg-muted/70 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+      >
+        {shareUrl(link)}
+      </button>
+      <p className="text-[10px] text-muted-foreground">کد لینک: <span dir="ltr" className="font-mono">{slug}</span> — با کلیک روی نوار بالا یا دکمه کپی، لینک کامل کپی می‌شود</p>
     </div>
   );
 }
@@ -119,7 +133,7 @@ function GuestRow({ guest, projectId }: { guest: GuestDTO; projectId: string }) 
   });
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+    <div className="flex items-center gap-3 rounded-lg border bg-card p-3 min-w-0">
       <span
         className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
         style={{ backgroundColor: guest.color }}
@@ -136,7 +150,7 @@ function GuestRow({ guest, projectId }: { guest: GuestDTO; projectId: string }) 
         )}
       </div>
       <Select value={guest.role} onValueChange={(v) => patch.mutate(v as ShareRole)}>
-        <SelectTrigger className="w-36 h-9 text-xs" aria-label={`سطح دسترسی ${guest.name}`}>
+        <SelectTrigger className="w-32 sm:w-36 h-9 text-xs shrink-0" aria-label={`سطح دسترسی ${guest.name}`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -185,10 +199,10 @@ export function ShareDialog({
     onSuccess: async (res) => {
       qc.invalidateQueries({ queryKey: ['share-links'] });
       try {
-        await navigator.clipboard.writeText(shareUrl(res.link.token));
-        toast({ title: 'لینک ساخته و کپی شد ✓', description: 'برای مشتری ارسال کنید' });
+        await navigator.clipboard.writeText(shareUrl(res.link));
+        toast({ title: 'لینک کوتاه ساخته و کپی شد ✓', description: 'برای مشتری ارسال کنید' });
       } catch {
-        toast({ title: 'لینک ساخته شد', description: shareUrl(res.link.token) });
+        toast({ title: 'لینک ساخته شد', description: shareUrl(res.link) });
       }
     },
     onError: (e: Error) =>
@@ -197,14 +211,14 @@ export function ShareDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[85dvh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
             اشتراک‌گذاری پروژه
           </DialogTitle>
           <DialogDescription>
-            لینک امضاشده بدون نیاز به ثبت‌نام — نقش دسترسی درون لینک ذخیره می‌شود.
+            لینک کوتاه بدون نیاز به ثبت‌نام — نقش دسترسی درون لینک ذخیره می‌شود.
           </DialogDescription>
         </DialogHeader>
 

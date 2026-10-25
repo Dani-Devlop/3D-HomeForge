@@ -784,14 +784,19 @@ export default function EditorView({ projectId, portfolioId }: { projectId?: str
             </div>
           )}
 
-          {/* راهنمای تعامل */}
-          <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none max-w-[95%] overflow-hidden text-ellipsis">
-            کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ • دکمه ساخت با متن: کابینت یا کل فضا را با یک جمله بسازید
+          {/* راهنمای تعامل — بخش کیبورد فقط روی دسکتاپ */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs text-muted-foreground text-center pointer-events-none max-w-[94%] overflow-hidden text-ellipsis">
+            کلیک: انتخاب
+            <span className="hidden [@media(hover:hover)_and_(pointer:fine)]:inline">
+              {' • '}کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ
+            </span>
+            {' • '}دکمه ساخت با متن: کابینت یا کل فضا را با یک جمله بسازید
           </div>
 
           {/* پد حرکت آبجکت انتخاب‌شده (موبایل + دسکتاپ) */}
           {primary && (
             <MovePad
+              storageKey="c3d-movepad-editor"
               onNudge={holdNudge}
               onRotate={holdRotate}
               onDelete={() => store.getState().removeObject(primary.id)}

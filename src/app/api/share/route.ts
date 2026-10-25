@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { signShareToken } from '@/lib/share-token';
+import { generateShortCode } from '@/lib/share-code';
 import { requireOwner } from '@/lib/auth';
 import { isValidRole } from '@/lib/scene-types';
 import { readJsonBody } from '@/app/api/_lib/serialize';
@@ -13,6 +14,7 @@ import { readJsonBody } from '@/app/api/_lib/serialize';
 interface LinkPayload {
   id: string;
   token: string;
+  shortCode?: string | null;
   role: string;
   active: boolean;
   expiresAt: string;
@@ -23,6 +25,7 @@ interface LinkPayload {
 const serializeLink = (link: {
   id: string;
   token: string;
+  shortCode?: string | null;
   role: string;
   active: boolean;
   expiresAt: Date;
@@ -31,12 +34,24 @@ const serializeLink = (link: {
 }): LinkPayload => ({
   id: link.id,
   token: link.token,
+  shortCode: link.shortCode ?? null,
   role: link.role,
   active: link.active,
   expiresAt: link.expiresAt.toISOString(),
   createdAt: link.createdAt.toISOString(),
   ...(link._count ? { guestCount: link._count.guests } : {}),
 });
+
+/** کد کوتاه یکتا تولید می‌کند (چک برخورد در دیتابیس) */
+async function allocateShortCode(): Promise<string> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const code = generateShortCode();
+    const exists = await db.shareLink.findUnique({ where: { shortCode: code }, select: { id: true } });
+    if (!exists) return code;
+  }
+  // احتمال بسیار ناچیز — کد بلندتر
+  return generateShortCode(10);
+}
 
 const createSchema = z.object({
   projectId: z.string().min(1),
@@ -71,10 +86,12 @@ export async function POST(req: NextRequest) {
 
     const exp = Date.now() + days * 86400000;
     const id = crypto.randomUUID();
+    const shortCode = await allocateShortCode();
     const link = await db.shareLink.create({
       data: {
         id,
         token: signShareToken({ lid: id, pid: projectId, role, exp }),
+        shortCode,
         role,
         expiresAt: new Date(exp),
         projectId,
@@ -101,6 +118,25 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { guests: true } } },
     });
+    // بک‌فیل کد کوتاه برای لینک‌های قدیمیِ فاقد کد — یک‌بارمصرف و ماندگار
+    const missing = links.filter((l) => !l.shortCode);
+    if (missing.length > 0) {
+      await Promise.all(
+        missing.map(async (l) => {
+          try {
+            await db.shareLink.update({
+              where: { id: l.id },
+              data: { shortCode: await allocateShortCode() },
+            });
+            l.shortCode = await db.shareLink
+              .findUnique({ where: { id: l.id }, select: { shortCode: true } })
+              .then((r) => r?.shortCode ?? null);
+          } catch {
+            // برخورد unique — بی‌خطر؛ دفعه بعد دوباره تلاش می‌شود
+          }
+        }),
+      );
+    }
     return NextResponse.json({ links: links.map(serializeLink) });
   } catch (err) {
     console.error('GET /api/share failed:', err);

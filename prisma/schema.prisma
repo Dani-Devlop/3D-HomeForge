@@ -48,6 +48,7 @@ model Folder {
 model ShareLink {
   id        String    @id @default(cuid())
   token     String    @unique // توکن امضاشده HMAC: payload.signature
+  shortCode String?   @unique // کد کوتاه لینک (مثلاً k7m3xq) — URL کوتاه برای مشتری
   role      String    @default("viewer") // viewer | modifier
   active    Boolean   @default(true)
   expiresAt DateTime

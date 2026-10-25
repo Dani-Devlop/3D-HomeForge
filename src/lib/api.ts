@@ -56,6 +56,7 @@ export interface FolderDTO {
 export interface ShareLinkDTO {
   id: string;
   token: string;
+  shortCode?: string | null;
   role: ShareRole;
   active: boolean;
   expiresAt: string;

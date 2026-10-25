@@ -363,6 +363,7 @@ export default function ViewerView({ token }: { token: string }) {
         {/* پد حرکت برای مهمان ویرایشگر */}
         {canMove && selected && (
           <MovePad
+            storageKey={`c3d-movepad-viewer:${token}`}
             onNudge={(d) => patchObject(selected.id, { position: clampPos(selected.position, d) })}
             onRotate={(r) =>
               patchObject(selected.id, { rotationY: selected.rotationY + r })
@@ -371,10 +372,16 @@ export default function ViewerView({ token }: { token: string }) {
         )}
 
         {/* راهنما */}
-        <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none">
-          {canMove
-            ? 'کلیک روی کابینت: انتخاب • دکمه‌های حرکت یا درگ گیزموت: جابه‌جایی • ذخیره خودکار'
-            : 'کلیک روی درب‌ها: باز/بسته • درگ: چرخش نما • اسکرول: زوم'}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs text-muted-foreground text-center pointer-events-none max-w-[94%]">
+          {canMove ? (
+            <span>
+              کلیک روی کابینت: انتخاب • دکمه‌های حرکت یا درگ گیزموت: جابه‌جایی • ذخیره خودکار
+            </span>
+          ) : (
+            <span>
+              کلیک روی درب‌ها: باز/بسته • درگ: چرخش نما • اسکرول: زوم
+            </span>
+          )}
         </div>
       </main>
 
