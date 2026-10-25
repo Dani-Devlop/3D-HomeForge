@@ -68,9 +68,9 @@ export default function Page() {
   return (
     <QueryClientProvider client={queryClient}>
       {route.view === 'editor' ? (
-        <EditorView projectId={route.projectId} />
+        <EditorView key={route.projectId} projectId={route.projectId} />
       ) : route.view === 'share' ? (
-        <ViewerView token={route.token} />
+        <ViewerView key={route.token} token={route.token} />
       ) : (
         <HomeView />
       )}

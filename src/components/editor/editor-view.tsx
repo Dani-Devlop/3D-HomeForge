@@ -17,13 +17,15 @@ import {
   LampCeiling,
   Loader2,
   Lock,
+  PencilRuler,
   Redo2,
-  Share2,
   Send,
   Undo2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ObjectPatch, SceneObject, CatalogItem, RoomSpec } from '@/lib/scene-types';
+import { ensureObjectIds } from '@/lib/scene-types';
+import { clampPositionToRoom } from '@/lib/polygon';
 import { exportGroupToGLB } from '@/lib/export-glb';
 import {
   findFreeSpot,
@@ -36,11 +38,19 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EditorScene from '@/components/three/editor-scene';
 import { LibraryPanel } from './library-panel';
 import { PropertiesPanel } from './properties-panel';
 import { PresetsPanel } from './presets-panel';
+import { RoomPlanPanel } from './room-plan-panel';
 import { ShareDialog } from './share-dialog';
 import { MovePad } from './move-pad';
 
@@ -131,6 +141,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
 
   const [loaded, setLoaded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [dropActive, setDropActive] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -146,10 +157,11 @@ export default function EditorView({ projectId }: { projectId: string }) {
         p.roomSpec && 'widthM' in p.roomSpec
           ? (p.roomSpec as RoomSpec)
           : roomSpec;
-      const objs: SceneObject[] =
+      const objs: SceneObject[] = ensureObjectIds(
         p.sceneState && 'objects' in p.sceneState && Array.isArray(p.sceneState.objects)
-          ? p.sceneState.objects
-          : [];
+          ? (p.sceneState.objects as SceneObject[])
+          : [],
+      );
       store.getState().loadProject(p.id, p.name, spec, objs);
       setLoaded(true);
     }
@@ -172,6 +184,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
         }
         await api.patchProject(s.projectId, {
           name: s.projectName,
+          roomSpec: s.roomSpec,
           sceneState: { objects: s.objects },
           ...(thumbnail !== undefined ? { thumbnail } : {}),
         });
@@ -203,10 +216,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
       const type = pendingDrop.current;
       if (!type) return;
       pendingDrop.current = null;
-      const w = roomSpec.widthM / 2;
-      const d = roomSpec.depthM / 2;
-      const cx = THREE.MathUtils.clamp(x, -w + 0.2, w - 0.2);
-      const cz = THREE.MathUtils.clamp(z, -d + 0.2, d - 0.2);
+      const [cx, , cz] = clampPositionToRoom(roomSpec, [x, 0, z]);
       store.getState().addObject(type.type, [cx, 0, cz], type.label);
     },
     [roomSpec, store]
@@ -253,11 +263,14 @@ export default function EditorView({ projectId }: { projectId: string }) {
     if (!target) return;
     const pos = target.position;
     const nextPosition: [number, number, number] = patch.positionDelta
-      ? [
-        THREE.MathUtils.clamp(pos[0] + patch.positionDelta[0], -s.roomSpec.widthM, s.roomSpec.widthM),
-        THREE.MathUtils.clamp(pos[1] + patch.positionDelta[1], 0, s.roomSpec.heightM),
-        THREE.MathUtils.clamp(pos[2] + patch.positionDelta[2], -s.roomSpec.depthM, s.roomSpec.depthM),
-      ]
+      ? clampPositionToRoom(
+          s.roomSpec,
+          [
+            pos[0] + patch.positionDelta[0],
+            THREE.MathUtils.clamp(pos[1] + patch.positionDelta[1], 0, s.roomSpec.heightM),
+            pos[2] + patch.positionDelta[2],
+          ],
+        )
       : pos;
     s.updateObject(id, {
       position: nextPosition,
@@ -315,13 +328,15 @@ export default function EditorView({ projectId }: { projectId: string }) {
     const target = s.objects.find((o) => o.id === id);
     if (!target) return;
     if (firstOfBurst) s.beginAction();
-    s.updateObject(id, {
-      position: [
-        THREE.MathUtils.clamp(target.position[0] + d[0], -s.roomSpec.widthM, s.roomSpec.widthM),
+    const next = clampPositionToRoom(
+      s.roomSpec,
+      [
+        target.position[0] + d[0],
         THREE.MathUtils.clamp(target.position[1] + d[1], 0, s.roomSpec.heightM),
-        THREE.MathUtils.clamp(target.position[2] + d[2], -s.roomSpec.depthM, s.roomSpec.depthM),
+        target.position[2] + d[2],
       ],
-    });
+    );
+    s.updateObject(id, { position: next });
   };
 
   const rotateRef = useRef<((deltaRad: number, firstOfBurst: boolean) => void) | null>(null);
@@ -512,6 +527,15 @@ export default function EditorView({ projectId }: { projectId: string }) {
           <Button
             size="icon"
             variant="ghost"
+            onClick={() => setPlanOpen(true)}
+            title="ویرایش پلان اتاق (دیوار کج / گوشه اضافه)"
+            aria-label="ویرایش پلان اتاق"
+          >
+            <PencilRuler className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
             onClick={() => setShowGrid((v) => !v)}
             title="شبکه راهنما"
             aria-label="شبکه راهنما"
@@ -666,7 +690,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
           )}
         </main>
 
-        {/* پنل مشخصات */}
+        {/* پنل مشخصات — بدون انتخاب: ویرایشگر پلان اتاق */}
         <aside className="w-full md:w-72 shrink-0 bg-card border-t md:border-t-0 md:border-s md:order-3 h-64 md:h-auto">
           {primary ? (
             <PropertiesPanel
@@ -684,17 +708,34 @@ export default function EditorView({ projectId }: { projectId: string }) {
               onDelete={() => store.getState().removeObject(primary.id)}
             />
           ) : (
-            <div className="h-full flex flex-col items-center justify-center gap-2 p-6 text-center">
-              <Share2 className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                یک آبجکت را از کتابخانه به صحنه اضافه یا در صحنه انتخاب کنید
-              </p>
-            </div>
+            <RoomPlanPanel
+              roomSpec={roomSpec}
+              onOutlineChange={(o) => store.getState().setRoomOutline(o)}
+            />
           )}
         </aside>
       </div>
 
       <ShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />
+
+      {/* دیالوگ ویرایش پلان (وقتی آبجکتی انتخاب است و پنل کناری مشغول است) */}
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PencilRuler className="h-4 w-4 text-primary" />
+              ویرایش پلان اتاق
+            </DialogTitle>
+            <DialogDescription>
+              گوشه‌ها را بکشید تا دیوار کج بسازید — اتاق لزوماً ۴ دیوار نیست
+            </DialogDescription>
+          </DialogHeader>
+          <RoomPlanPanel
+            roomSpec={roomSpec}
+            onOutlineChange={(o) => store.getState().setRoomOutline(o)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

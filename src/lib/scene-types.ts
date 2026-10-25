@@ -4,9 +4,14 @@
 
 export type WallName = 'back' | 'front' | 'left' | 'right';
 
+/** نقطه outline اتاق [x, z] بر حسب متر — مرکز اتاق مبدأ */
+export type OutlinePoint = [number, number];
+
 export interface WindowSpec {
   wall: WallName;
-  offsetX: number; // فاصله از مرکز دیوار (متر)
+  /** اندیس لبه outline برای اتاق‌های چندضلعی (دیوار کج) — اگر بود بر wall اولویت دارد */
+  wallIndex?: number;
+  offsetX: number; // فاصله از مرکز دیوار/لبه (متر)
   sillY: number; // ارتفاع کف پنجره
   width: number;
   height: number;
@@ -14,6 +19,8 @@ export interface WindowSpec {
 
 export interface DoorwaySpec {
   wall: WallName;
+  /** اندیس لبه outline برای اتاق‌های چندضلعی */
+  wallIndex?: number;
   offsetX: number;
   width: number;
   height: number;
@@ -24,6 +31,11 @@ export interface RoomSpec {
   widthM: number;
   depthM: number;
   heightM: number;
+  /**
+   * پلان اتاق به‌صورت چندضلع (۳..۱۲ گوشه) — برای دیوارهای کج/گوشه‌های اضافی.
+   * غایب = مستطیل ساده widthM×depthM. widthM/depthM باید bbox چندضلع باشند.
+   */
+  outline?: OutlinePoint[];
   wallColor: string;
   floorColor: string;
   ceilingColor: string;
@@ -105,6 +117,18 @@ export interface SceneState {
 }
 
 export const defaultSceneState = (): SceneState => ({ objects: [] });
+
+/**
+ * تضمین id برای آبجکت‌های فاقد شناسه (دادهٔ قدیمی/وارد‌شده از API) —
+ * برای کلید React، انتخاب و ذخیرهٔ مهمان ضروری است.
+ */
+export function ensureObjectIds(objects: SceneObject[]): SceneObject[] {
+  return objects.map((o, i) =>
+    o && typeof o.id === 'string' && o.id
+      ? o
+      : { ...o, id: `auto-${i}-${objects.length}` },
+  );
+}
 
 // ---------------- کاتالوگ کتابخانه (پارامتریک) ----------------
 
@@ -318,6 +342,14 @@ export const CATALOG: CatalogItem[] = [
 
 // ---------------- جانمایی روی دیوار (مشترک بین AI و UI) ----------------
 
+/** اندیس لبه هر دیوار نامی در outline مرجع مستطیل */
+export const WALL_NAME_EDGE: Record<WallName, number> = {
+  back: 0,
+  right: 1,
+  front: 2,
+  left: 3,
+};
+
 /** نقطه قرارگیری آبجکت با عمق مشخص روی دیوار — offsetX از مرکز دیوار (متر) */
 export function placeAtWall(
   wall: WallName,
@@ -337,6 +369,37 @@ export function placeAtWall(
     case 'right':
       return { position: [spec.widthM / 2 - inset, y, offsetX], rotationY: -Math.PI / 2 };
   }
+}
+
+/**
+ * نقطه قرارگیری آبجکت روی لبه i از outline اتاق (دیوار کج هم پشتیبانی می‌شود) —
+ * offsetAlong = فاصله از مرکز لبه در راستای لبه (متر)
+ */
+export function placeAtEdge(
+  outline: OutlinePoint[],
+  edgeIndex: number,
+  offsetAlong: number,
+  objDepth: number,
+  y = 0
+): { position: [number, number, number]; rotationY: number } {
+  const n = outline.length;
+  const i = ((Math.round(edgeIndex) % n) + n) % n;
+  const [ax, az] = outline[i];
+  const [bx, bz] = outline[(i + 1) % n];
+  const len = Math.max(0.05, Math.hypot(bx - ax, bz - az));
+  const dirX = (bx - ax) / len;
+  const dirZ = (bz - az) / len;
+  const inX = -dirZ; // نرمال داخلی برای winding مثبت
+  const inZ = dirX;
+  const inset = objDepth / 2 + 0.02;
+  return {
+    position: [
+      (ax + bx) / 2 + dirX * offsetAlong + inX * inset,
+      y,
+      (az + bz) / 2 + dirZ * offsetAlong + inZ * inset,
+    ],
+    rotationY: Math.atan2(inX, inZ),
+  };
 }
 
 // ---------------- پچ ویرایش متنی آبجکت (خروجی /api/ai/edit) ----------------

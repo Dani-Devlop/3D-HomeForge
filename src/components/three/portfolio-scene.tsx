@@ -5,6 +5,7 @@ import { useInView } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { RoomSpec, SceneObject } from '@/lib/scene-types';
+import { normalizeOutline, outlineBBox } from '@/lib/polygon';
 import { SceneEnvironment } from './editor-scene';
 import { RoomMesh } from './room';
 import { CabinetMesh, type MeshCtx, type RefsMap } from './cabinet';
@@ -34,10 +35,20 @@ export function normalizeRoomSpec(
   raw: Partial<RoomSpec> | Record<string, never> | null | undefined,
 ): RoomSpec {
   const s = (raw ?? {}) as Partial<RoomSpec>;
+  const outline = normalizeOutline(s.outline) ?? undefined;
+  // با outline معتبر، ابعاد مرجع باید bbox پلان باشند
+  let widthM = clampNum(s.widthM, 2, 15, 4.2);
+  let depthM = clampNum(s.depthM, 2, 15, 3.6);
+  if (outline) {
+    const bb = outlineBBox(outline);
+    widthM = Math.min(15, Math.max(2, Math.round(bb.w * 100) / 100));
+    depthM = Math.min(15, Math.max(2, Math.round(bb.d * 100) / 100));
+  }
   return {
-    widthM: clampNum(s.widthM, 2, 15, 4.2),
-    depthM: clampNum(s.depthM, 2, 15, 3.6),
+    widthM,
+    depthM,
     heightM: clampNum(s.heightM, 2.2, 4.2, 2.7),
+    ...(outline ? { outline } : {}),
     wallColor: typeof s.wallColor === 'string' ? s.wallColor : '#efe9df',
     floorColor: typeof s.floorColor === 'string' ? s.floorColor : '#c8b294',
     ceilingColor: typeof s.ceilingColor === 'string' ? s.ceilingColor : '#f7f4ee',
@@ -46,17 +57,22 @@ export function normalizeRoomSpec(
   };
 }
 
-/** آبجکت‌های معتبر صحنه (بدون آبجکت خراب/ناقص) */
+/** آبجکت‌های معتبر صحنه (بدون آبجکت خراب/ناقص) — id غایب تضمین می‌شود (کلید React) */
 export function normalizeSceneObjects(raw: unknown): SceneObject[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (o): o is SceneObject =>
-      !!o &&
-      typeof o === 'object' &&
-      typeof (o as SceneObject).type === 'string' &&
-      Array.isArray((o as SceneObject).position) &&
-      ((o as SceneObject).position as unknown[]).length === 3,
-  );
+  return raw
+    .filter(
+      (o): o is SceneObject =>
+        !!o &&
+        typeof o === 'object' &&
+        typeof (o as SceneObject).type === 'string' &&
+        Array.isArray((o as SceneObject).position) &&
+        ((o as SceneObject).position as unknown[]).length === 3,
+    )
+    .map((o, i) => ({
+      ...o,
+      id: typeof o.id === 'string' && o.id ? o.id : `po-${i}`,
+    }));
 }
 
 /** آیا این نمونه‌کار مدل سه‌بعدی زنده دارد؟ */

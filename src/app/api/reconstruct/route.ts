@@ -7,7 +7,8 @@ import type {
   VisionMessage,
 } from 'z-ai-web-dev-sdk';
 import type { ObjectType, RoomSpec, SceneObject, WallName } from '@/lib/scene-types';
-import { placeAtWall } from '@/lib/scene-types';
+import { placeAtEdge, placeAtWall, type OutlinePoint } from '@/lib/scene-types';
+import { edgeFrame, normalizeOutline } from '@/lib/polygon';
 import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 import {
@@ -55,7 +56,16 @@ Guidelines:
    Report sillY and size accurately — daylight direction matters for rendering.
    Windows: wall, offsetX (-7..7), sillY (0.3..1.8), width (0.6..2.6), height (0.6..2.2). Max 8 windows.
    Doorways: wall, offsetX (-7..7), width (0.8..1.4), height (1.9..2.5).
-6. Detect EXISTING furniture/equipment visible in the photo and report each as an "item":
+6. NON-RECTANGULAR ROOMS: Most rooms are simple rectangles, but some are NOT — a corner may be
+   CUT DIAGONALLY (a slanted wall at 30°-60°), a wall may be angled, or the room may be a trapezoid
+   or have 5, 6 corners. If the floor plan of the space is NOT a rectangle, add a room field
+   "outline": the floor polygon corners as [x, z] points in METERS, ordered by walking around the
+   room (3..10 points). Coordinates are room-centered: x ∈ [-widthM/2, widthM/2] (right positive),
+   z ∈ [-depthM/2, depthM/2] (toward the camera positive). widthM/depthM must be the bounding box
+   of the outline. For a window/doorway/item that sits on a SLANTED edge, use "wallIndex"
+   (0-based index of the outline edge: edge i connects outline[i] to outline[i+1]) instead of "wall".
+   For a normal rectangular room OMIT outline and use wall names as usual.
+7. Detect EXISTING furniture/equipment visible in the photo and report each as an "item":
    - kind must be exactly one of: "base" (floor cabinet), "wall" (upper wall cabinet),
      "tall" (full-height unit), "island" (kitchen island), "shelf" (open shelves),
      "fridge" (refrigerator), "stove" (stove/oven), "hood" (range hood),
@@ -63,9 +73,10 @@ Guidelines:
      "table" (dining/coffee table), "chair" (chair),
      "washer" (washing machine), "dishwasher" (dishwasher), "microwave" (microwave oven).
    - For each item report: the wall it stands against ("back"|"left"|"right"|"front" — for an island
-     pick the wall it is closest and parallel to), offsetX (horizontal distance of the item center from
-     that wall's center, -7..7), widthM (0.3..3), heightM (0.3..2.4), depthM (optional, meters),
-     colorHex (dominant color, #rrggbb), description (short, English or Persian).
+     pick the wall it is closest and parallel to) — or "wallIndex" (outline edge) when it stands
+     against a slanted/diagonal wall of a non-rectangular room — plus offsetX (horizontal distance of
+     the item center from that wall's center, -7..7), widthM (0.3..3), heightM (0.3..2.4), depthM
+     (optional, meters), colorHex (dominant color, #rrggbb), description (short, English or Persian).
    - glassDoors (boolean): true ONLY when the item's doors are made of GLASS (transparent panes visible).
      Glass must be reported as glassDoors:true with a LIGHT frame colorHex — never report dark/black
      color for glass objects.
@@ -77,10 +88,10 @@ Guidelines:
 Respond with ONLY a JSON object — no markdown fences, no commentary — shaped exactly like:
 {
   "roomType": "kitchen"|"bedroom"|"living"|"dining"|"bathroom"|"office"|"other",
-  "room": { "widthM": number, "depthM": number, "heightM": number, "wallColor": "#hex", "floorColor": "#hex", "ceilingColor": "#hex" },
-  "windows": [ { "wall": "back"|"left"|"right"|"front", "offsetX": number, "sillY": number, "width": number, "height": number } ],
-  "doorways": [ { "wall": "back"|"left"|"right"|"front", "offsetX": number, "width": number, "height": number } ],
-  "items": [ { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "wall": "back"|"left"|"right"|"front", "offsetX": number, "widthM": number, "heightM": number, "depthM": number, "glassDoors": boolean, "colorHex": "#hex", "description": "short" } ],
+  "room": { "widthM": number, "depthM": number, "heightM": number, "outline": [[x,z], ...] | omitted, "wallColor": "#hex", "floorColor": "#hex", "ceilingColor": "#hex" },
+  "windows": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "sillY": number, "width": number, "height": number } ],
+  "doorways": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "width": number, "height": number } ],
+  "items": [ { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "widthM": number, "heightM": number, "depthM": number, "glassDoors": boolean, "colorHex": "#hex", "description": "short" } ],
   "description": "کوتاه به فارسی"
 }`;
 
@@ -92,6 +103,9 @@ Extract:
 - "widthM" / "depthM": approximate overall dimensions in meters — use the drawn scale bar,
   door widths (~0.9 m) or dimension labels if present.
 - "rooms": every room with its "name" and approximate "widthM"/"depthM" if estimable.
+- "outline": ONLY if the overall footprint of the home/room is NOT a rectangle (cut corner,
+  slanted wall, trapezoid): the footprint polygon corners as [x, z] meters, walking around,
+  room-centered (x right+, z toward the bottom of the plan+). Otherwise omit it.
 - "windows": windows with wall/side relative to the plan (assume "back" = bottom of the plan),
   offsetX, width, height in meters when estimable.
 - "notes": short facts useful for reconstruction (compass direction, entrance position, stairs, columns...).
@@ -101,6 +115,7 @@ Respond with ONLY a JSON object — no markdown fences, no commentary — shaped
   "summary": "english facts",
   "widthM": number,
   "depthM": number,
+  "outline": [[x,z], ...] | omitted,
   "rooms": [ { "name": "...", "widthM": number, "depthM": number } ],
   "windows": [ { "wall": "back"|"left"|"right"|"front", "offsetX": number, "width": number, "height": number } ],
   "notes": ["..."]
@@ -113,6 +128,9 @@ Produce the UNION/CONSENSUS:
 - If a floorPlan summary is provided it is GROUND TRUTH for dimensions/room layout — prefer it over photo estimates.
 - "room": take the LARGEST plausible widthM and depthM across the parts and a sensible heightM (they describe the
   same room); pick the most consistent wallColor / floorColor / ceilingColor.
+- "room.outline" (floor polygon for non-rectangular rooms): if the floorPlan provides an "outline" it is
+  GROUND TRUTH — use it verbatim. Otherwise if ANY part provides "room.outline", keep the most complete /
+  most consistent variant. If none does, omit it. widthM/depthM must equal the bounding box of the outline.
 - "windows": union of all windows, deduplicated — windows on the same wall whose offsetX differs by less than
   ~0.5 m and whose size is similar are the SAME window (keep the more complete variant). Map walls between
   photos taken from different angles as best you can using the room description.
@@ -142,6 +160,8 @@ const bodySchema = z.object({
 interface ReconstructItem {
   kind: FurnitureKind;
   wall: WallName;
+  /** اندیس لبه outline (دیوار کج) — اگر بود بر wall اولویت دارد */
+  wallIndex?: number;
   offsetX: number;
   widthM: number;
   heightM: number;
@@ -157,6 +177,8 @@ interface Analysis {
     widthM: number;
     depthM: number;
     heightM: number;
+    /** پلان چندضلعی اتاق (فقط برای فضاهای غیرمستطیلی) */
+    outline?: OutlinePoint[];
     wallColor: string;
     floorColor: string;
     ceilingColor: string;
@@ -183,6 +205,8 @@ interface FloorPlanSummary {
   summary: string;
   widthM?: number;
   depthM?: number;
+  /** پلان کلی فضای غیرمستطیلی از روی نقشه */
+  outline?: OutlinePoint[];
   rooms: { name: string; widthM?: number; depthM?: number }[];
   windows: Record<string, unknown>[];
   notes: string[];
@@ -209,6 +233,13 @@ const optFinite = (v: unknown, min: number, max: number): number | undefined => 
   return Number.isFinite(n) ? clamp(n, min, max) : undefined;
 };
 
+/** عدد صحیح اختیاری در بازه — نامعتبر/غایب → undefined */
+function optInt(v: unknown, min: number, max: number): number | undefined {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number.parseFloat(v) : Number.NaN;
+  if (!Number.isFinite(n)) return undefined;
+  return Math.round(clamp(n, min, max));
+}
+
 // ---------------- نرمال‌سازی خروجی هر تحلیل ----------------
 
 /** خروجی مدل را به تحلیل امن تبدیل می‌کند؛ ورودی غیرآبجکت → null */
@@ -216,11 +247,30 @@ function normalizeAnalysis(data: unknown): Analysis | null {
   if (!isRecord(data)) return null;
   const room = isRecord(data.room) ? data.room : {};
 
+  // پلان چندضلعی (دیوار کج) — نامعتبر → undefined (مستطیل)
+  const parsedOutline = normalizeOutline(room.outline);
+
+  // با outline معتبر، widthM/depthM باید دقیقاً bbox چندضلع باشند
+  let widthM = clamp(toFinite(room.widthM, 4), 2, 15);
+  let depthM = clamp(toFinite(room.depthM, 3.5), 2, 15);
+  if (parsedOutline) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [x, z] of parsedOutline) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
+    }
+    widthM = clamp(Math.round((maxX - minX) * 100) / 100, 2, 15);
+    depthM = clamp(Math.round((maxZ - minZ) * 100) / 100, 2, 15);
+  }
+
   const windows = (Array.isArray(data.windows) ? data.windows : [])
     .slice(0, 8)
     .filter(isRecord)
     .map((w) => ({
       wall: toWall(w.wall),
+      ...(optInt(w.wallIndex, 0, 11) !== undefined ? { wallIndex: optInt(w.wallIndex, 0, 11) } : {}),
       offsetX: clamp(toFinite(w.offsetX, 0), -7, 7),
       sillY: clamp(toFinite(w.sillY, 1), 0.3, 1.8),
       width: clamp(toFinite(w.width, 1.2), 0.6, 2.6),
@@ -232,6 +282,7 @@ function normalizeAnalysis(data: unknown): Analysis | null {
     .filter(isRecord)
     .map((d) => ({
       wall: toWall(d.wall),
+      ...(optInt(d.wallIndex, 0, 11) !== undefined ? { wallIndex: optInt(d.wallIndex, 0, 11) } : {}),
       offsetX: clamp(toFinite(d.offsetX, 0), -7, 7),
       width: clamp(toFinite(d.width, 0.95), 0.8, 1.4),
       height: clamp(toFinite(d.height, 2.1), 1.9, 2.5),
@@ -242,9 +293,11 @@ function normalizeAnalysis(data: unknown): Analysis | null {
     .filter(isRecord)
     .map((it): ReconstructItem => {
       const dRaw = toFinite(it.depthM, Number.NaN);
+      const wIdx = optInt(it.wallIndex, 0, 11);
       return {
         kind: toFurnitureKind(it.kind),
         wall: toWall(it.wall),
+        ...(wIdx !== undefined ? { wallIndex: wIdx } : {}),
         offsetX: clamp(toFinite(it.offsetX, 0), -7, 7),
         widthM: clamp(toFinite(it.widthM, 0.8), 0.3, 3),
         heightM: clamp(toFinite(it.heightM, 0.85), 0.3, 2.4),
@@ -261,9 +314,10 @@ function normalizeAnalysis(data: unknown): Analysis | null {
         ? data.roomType
         : 'other',
     room: {
-      widthM: clamp(toFinite(room.widthM, 4), 2, 15),
-      depthM: clamp(toFinite(room.depthM, 3.5), 2, 15),
+      widthM,
+      depthM,
       heightM: clamp(toFinite(room.heightM, 2.8), 2.2, 4.2),
+      ...(parsedOutline ? { outline: parsedOutline } : {}),
       wallColor: toColor(room.wallColor, '#ece7dd'),
       floorColor: toColor(room.floorColor, '#a97c50'),
       ceilingColor: toColor(room.ceilingColor, '#fafafa'),
@@ -282,6 +336,9 @@ function normalizeFloorPlan(data: unknown): FloorPlanSummary | null {
     summary: typeof data.summary === 'string' ? data.summary.slice(0, 1200) : '',
     widthM: optFinite(data.widthM, 2, 30),
     depthM: optFinite(data.depthM, 2, 30),
+    ...(normalizeOutline(data.outline, { bound: 30 })
+      ? { outline: normalizeOutline(data.outline, { bound: 30 })! }
+      : {}),
     rooms: (Array.isArray(data.rooms) ? data.rooms : [])
       .slice(0, 20)
       .filter(isRecord)
@@ -502,14 +559,25 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
   const y = kind === 'wall' || kind === 'hood' || kind === 'tv' || kind === 'microwave'
     ? params.mountY ?? 0
     : 0;
-  const offsetX = clampOffsetOnWall(item.wall, item.offsetX, w, room);
-  const { position, rotationY } = placeAtWall(
-    item.wall,
-    offsetX,
-    d,
-    { widthM: room.widthM, depthM: room.depthM },
-    y,
-  );
+
+  // جانمایی: لبه کج outline (wallIndex) در اولویت، وگرنه دیوار نامی مستطیل
+  let position: [number, number, number];
+  let rotationY: number;
+  if (room.outline && room.outline.length >= 3 && item.wallIndex !== undefined) {
+    const edge = edgeFrame(room.outline, item.wallIndex);
+    const maxAbs = Math.max(0, edge.len / 2 - 0.05 - w / 2);
+    const off = maxAbs <= 0 ? 0 : clamp(item.offsetX, -maxAbs, maxAbs);
+    ({ position, rotationY } = placeAtEdge(room.outline, item.wallIndex, off, d, y));
+  } else {
+    const offsetX = clampOffsetOnWall(item.wall, item.offsetX, w, room);
+    ({ position, rotationY } = placeAtWall(
+      item.wall,
+      offsetX,
+      d,
+      { widthM: room.widthM, depthM: room.depthM },
+      y,
+    ));
+  }
 
   return {
     id: crypto.randomUUID().slice(0, 8),

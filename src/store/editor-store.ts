@@ -5,9 +5,15 @@ import {
   isLightType,
   type ObjectParams,
   type ObjectType,
+  type OutlinePoint,
   type RoomSpec,
   type SceneObject,
 } from '@/lib/scene-types';
+import {
+  clampPositionToRoom,
+  normalizeOutline,
+  outlineBBox,
+} from '@/lib/polygon';
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -47,6 +53,10 @@ interface EditorState {
 
   loadProject: (id: string, name: string, spec: RoomSpec, objects: SceneObject[]) => void;
   setProjectName: (name: string) => void;
+  /** پچ مستقیم roomSpec (رنگ/ابعاد/بازشوها) */
+  setRoomSpec: (patch: Partial<RoomSpec>) => void;
+  /** تعیین پلان چندضلعی اتاق — null = بازگشت به مستطیل */
+  setRoomOutline: (outline: OutlinePoint[] | null) => void;
 
   beginAction: () => void;
   addObject: (type: ObjectType, position: [number, number, number], label?: string) => string;
@@ -96,6 +106,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setProjectName: (name) => set({ projectName: name, dirty: true }),
 
+  setRoomSpec: (patch) =>
+    set((s) => ({ roomSpec: { ...s.roomSpec, ...patch }, dirty: true })),
+
+  setRoomOutline: (outline) =>
+    set((s) => {
+      if (!outline) {
+        // صریحاً null → بازگشت به مستطیل ساده
+        const { outline: _ignored, ...rest } = s.roomSpec;
+        return { roomSpec: rest as RoomSpec, dirty: true };
+      }
+      const pts = normalizeOutline(outline);
+      if (!pts || pts.length < 3) return {}; // وضعیت موقت نامعتبر حین درگ — دست نخور
+      // ابعاد مرجع = bbox پلان تا دوربین/گرید/جانمایی با فرم هم‌خوان بمانند
+      const bb = outlineBBox(pts);
+      return {
+        roomSpec: {
+          ...s.roomSpec,
+          outline: pts,
+          widthM: Math.round(bb.w * 100) / 100,
+          depthM: Math.round(bb.d * 100) / 100,
+        },
+        dirty: true,
+      };
+    }),
+
   beginAction: () =>
     set((s) => ({
       past: [...s.past.slice(-MAX_HISTORY), clone(s.objects)],
@@ -105,11 +140,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addObject: (type, position, label) => {
     get().beginAction();
     const { params, label: catLabel } = catalogDefaults(type, label);
-    const y = defaultY(type, params, get().roomSpec.heightM);
+    const roomSpec = get().roomSpec;
+    const y = defaultY(type, params, roomSpec.heightM);
+    const [cx, , cz] = clampPositionToRoom(roomSpec, position);
     const id = uid();
     const obj: SceneObject = {
       id, type, label: catLabel, params,
-      position: [position[0], y, position[2]],
+      position: [cx, y, cz],
       rotationY: 0,
       open: false,
       on: isLightType(type),
@@ -121,11 +158,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   /** افزودن آبجکت تولیدشده با متن/AI با پارامترهای سفارشی */
   addGenerated: (type, label, params, position) => {
     get().beginAction();
-    const y = defaultY(type, params, get().roomSpec.heightM);
+    const roomSpec = get().roomSpec;
+    const y = defaultY(type, params, roomSpec.heightM);
+    const [cx, , cz] = clampPositionToRoom(roomSpec, position);
     const id = uid();
     const obj: SceneObject = {
       id, type, label, params,
-      position: [position[0], y, position[2]],
+      position: [cx, y, cz],
       rotationY: 0,
       open: false,
       on: isLightType(type),
@@ -137,7 +176,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addObjects: (objs) => {
     if (!objs.length) return;
     get().beginAction();
-    set((s) => ({ objects: [...s.objects, ...clone(objs)], dirty: true }));
+    const roomSpec = get().roomSpec;
+    const safe = clone(objs).map((o) => {
+      const [cx, , cz] = clampPositionToRoom(roomSpec, o.position);
+      return { ...o, position: [cx, o.position[1], cz] as [number, number, number] };
+    });
+    set((s) => ({ objects: [...s.objects, ...safe], dirty: true }));
   },
 
   updateObject: (id, patch) =>

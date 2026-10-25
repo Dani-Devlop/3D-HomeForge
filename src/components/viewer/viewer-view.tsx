@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { api, type GuestDTO } from '@/lib/api';
 import type { RoomSpec, SceneObject, ShareRole } from '@/lib/scene-types';
+import { ensureObjectIds } from '@/lib/scene-types';
+import { clampPositionToRoom } from '@/lib/polygon';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,10 +106,11 @@ export default function ViewerView({ token }: { token: string }) {
   useEffect(() => {
     if (!resolveQ.data || guest) return;
     const p = resolveQ.data.project;
-    const objs: SceneObject[] =
+    const objs = ensureObjectIds(
       p.sceneState && Array.isArray((p.sceneState as { objects?: SceneObject[] }).objects)
         ? (p.sceneState as { objects: SceneObject[] }).objects
-        : [];
+        : [],
+    );
     setObjects(objs);
     setRole(resolveQ.data.link.role);
 
@@ -231,14 +234,16 @@ export default function ViewerView({ token }: { token: string }) {
   const clampPos = (
     pos: [number, number, number],
     d: [number, number, number]
-  ): [number, number, number] =>
-    spec
-      ? [
-        THREE.MathUtils.clamp(pos[0] + d[0], -spec.widthM, spec.widthM),
-        THREE.MathUtils.clamp(pos[1] + d[1], 0, spec.heightM),
-        THREE.MathUtils.clamp(pos[2] + d[2], -spec.depthM, spec.depthM),
-      ]
-      : pos;
+  ): [number, number, number] => {
+    if (!spec) return pos;
+    // داخل چندضلع پلان (دیوار کج) محدود می‌شود — y جداگانه
+    const [cx, , cz] = clampPositionToRoom(spec, [
+      pos[0] + d[0],
+      0,
+      pos[2] + d[2],
+    ]);
+    return [cx, THREE.MathUtils.clamp(pos[1] + d[1], 0, spec.heightM), cz];
+  };
 
   return (
     <div className="h-screen flex flex-col bg-stone-100 overflow-hidden">

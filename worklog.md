@@ -303,3 +303,27 @@ Stage Summary:
 - نمونه‌کارها حالا «مدل سه‌بعدی زنده»اند: کارت لندینگ خودش می‌چرخد، با درگ می‌چرخد، درب‌ها باز/بسته و چراغ‌ها روشن/خاموش می‌شوند؛ عکس فقط fallback است
 - قرارداد: GET /api/portfolio عمومی roomSpec/sceneState پارس‌شده می‌دهد؛ POST/PATCH حداقل «تصویر یا صحنه» می‌خواهند؛ منبع صحنه = انتخاب از پروژه‌های مدیر در دیالوگ نمونه‌کار
 - فایل‌ها: schema.prisma، api/portfolio (هر دو route)، _lib/portfolio.ts، lib/api.ts، three/portfolio-scene.tsx (جدید)، home/site-landing.tsx، home/portfolio-manager.tsx، home/home-view.tsx (یک‌خطی ورود)، scripts/seed-portfolio-3d.ts (یک‌بارمصرف)
+---
+Task ID: 10
+Agent: orchestrator (main)
+Task: پشتیبانی از اتاق‌های غیرمستطیلی — دیوار کج و گوشه‌های بیشتر از ۴ (خواسته کاربر: «یه سری خونه ها هست که دیوارش از کج هستن و ۴ تا گوشه ای نیست» با نقاشی پلان پنج‌ضلعی)
+
+Work Log:
+- src/lib/polygon.ts (جدید): هندسه چندضلع مشترک سرور/کلاینت — Pt، rectangleOutline (ترتیب لبه‌ها back/right/front/left)، normalizeOutline تدافعی (۳..۱۲ نقطه، حذف نقاط نزدیک، winding مثبت، مساحت حداقلی)، signedAreaXZ/outlineBBox/outlineArea/pointInPolygon/polygonCentroid/clampPointToOutline/edgeFrame (نرمال داخلی/بیرونی + angleY)/getRoomOutline/hasCustomOutline/clampPositionToRoom
+- scene-types.ts: RoomSpec.outline? (پلان چندضلعی متریک)، WindowSpec/DoorwaySpec.wallIndex? (اندیس لبه برای دیوار کج)، WALL_NAME_EDGE، placeAtEdge (جانمایی روی لبه i با نرمال داخلی) در کنار placeAtWall قدیمی
+- room.tsx (بازنویسی): یک مسیر رندر یکپارچه — getRoomOutline همیشه چندضلع می‌دهد (مستطیل = حالت خاص)؛ کف/سقف ShapeGeometry با تضمین winding CCW (ShapeUtils.area)، دیوار = صفحه FrontSide رو به داخل برای هر لبه (dollhouse حفظ شد)، قرنیز دنبال‌کننده لبه‌ها، پنجره/درب روی لبه با wallIndex یا «نزدیک‌ترین لبه به جهت نام دیوار» (هوشمند برای چندضلع، همان قدیمی برای مستطیل)، نور خورشید از بیرونِ لبه پنجره اصلی
+- reconstruct/route.ts: پرامپت v3.1 — قانون ۶ جدید NON-RECTANGULAR ROOMS (outline [x,z] متریک + wallIndex برای لبه‌های کج)، FLOORPLAN_PROMPT استخراج outline footprint، MERGE_PROMPT قاعده outline (نقشه = ground truth)، normalizeAnalysis پارس outline + بازمحاسبه widthM/depthM از bbox + wallIndex پنجره/درب/آیتم‌ها، buildObject جانمایی روی لبه کج با placeAtEdge (fallback نام دیوار)
+- editor-store: setRoomSpec + setRoomOutline (bbox → widthM/depthM، null = بازگشت مستطیل، outline موقت نامعتبر نادیده) + clamp خودکار داخل چندضلع در addObject/addGenerated/addObjects
+- room-plan-panel.tsx (جدید): ویرایشگر پلان SVG دوبعدی — درگ گوشه (۵سانت خوشه، viewBox منجمد حین درگ)، «+» درج گوشه روی هر دیوار (تا ۱۲)، «×» حذف گوشه (حداقل ۳)، «مستطیل» ریست، نمایش عرض×عمق/مساحت/تعداد دیوار با ارقام فارسی
+- editor-view: پنل پلان در حالت بدون انتخاب + دکمه PencilRuler در هدر (دیالوگ پلان)؛ saveProject حالا roomSpec را هم ذخیره می‌کند؛ clamp موقعیت (درگ/کیبورد/AI/drop) با clampPositionToRoom
+- viewer-view: clampPos مهمان ویرایشگر داخل چندضلع؛ page.tsx: key برای EditorView/ViewerView (رفع باگ ناوبری ویرایشگر→ویرایشگر که پروژه قبلی را نگه می‌داشت)
+- portfolio-scene: normalizeRoomSpec عبور outline + bbox؛ normalizeSceneObjects تضمین id (رفع هشدار React key در کارت زنده)
+- scene-types: ensureObjectIds — تضمین id آبجکت‌های فاقد شناسه در لود ویرایشگر/ویوئر (داده API/قدیمی)
+- تست E2E مرورگر: پروژه پنج‌ضلعی با API ساخته شد → رندر ۵دیواره با دیوار کج دقیقاً مطابق نقاشی کاربر؛ درگ گوشه در پلان → عمق ۳٫۴→۴٫۱ زنده در 3D + «ذخیره شد» + ماندگار بعد از رفرش؛ درج گوشه (۵→۶ضلعی)؛ ریست مستطیل؛ درب/پنجره روی لبه درست (دراب بدون wallIndex → نزدیک‌ترین لبه)؛ لندینگ با کارت زنده پنج‌ضلعی + ویوئر مشتری (نمای داخل، چراغ روشن)؛ رگرسیون کامل مستطیل (پروژه‌های «عباس»/«حال» — پنجره و درب سر جای خود)؛ موبایل ۳۹۰px سالم
+- رفع باگ‌های جانبی: هشدار React key (آبجکت بدون id در نمونه‌کار/ویوئر/ویرایشگر)، ناوبری ویرایشگر→ویرایشگر (key در page.tsx)
+
+Stage Summary:
+- اتاق دیگر لزوماً ۴دیواره نیست: RoomSpec.outline (۳..۱۲ گوشه [x,z] متریک) همه‌جا پشتیبانی می‌شود — رندر، بازسازی AI (تشخیص دیوار کج از عکس/نقشه)، ویرایش دستی پلان (درگ گوشه/درج/حذف)، clamp آبجکت‌ها، ویوئر مشتری، نمونه‌کار زنده، GLB
+- قرارداد: outline نبود = مستطیل (رفتار قبل ۱۰۰٪ حفظ شد)؛ widthM/depthM همیشه bbox پلان؛ پنجره/درب/آیتم روی دیوار کج با wallIndex (لبه i از نقطه i تا i+1)؛ نام دیوار بدون wallIndex → نزدیک‌ترین لبه به جهت آن
+- فایل‌ها: polygon.ts و room-plan-panel.tsx جدید؛ scene-types/room/editor-store/editor-view/viewer-view/portfolio-scene/reconstruct/page تغییر
+- دمو نگه‌داری‌شده: پروژه و نمونه‌کار «آشپزخانه پنج‌ضلعی — دیوار کج» در لندینگ برای نمایش قابلیت
