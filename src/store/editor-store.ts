@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   CATALOG,
   defaultSceneState,
+  ensureObjectIds,
   isLightType,
   type ObjectParams,
   type ObjectType,
@@ -11,9 +12,11 @@ import {
 } from '@/lib/scene-types';
 import {
   clampPositionToRoom,
+  hasCustomOutline,
   normalizeOutline,
   outlineBBox,
 } from '@/lib/polygon';
+import { snapNewObject } from '@/components/three/wall-snap';
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -59,7 +62,12 @@ interface EditorState {
   setRoomOutline: (outline: OutlinePoint[] | null) => void;
 
   beginAction: () => void;
-  addObject: (type: ObjectType, position: [number, number, number], label?: string) => string;
+  addObject: (
+    type: ObjectType,
+    position: [number, number, number],
+    label?: string,
+    rotationY?: number,
+  ) => string;
   addGenerated: (
     type: ObjectType,
     label: string,
@@ -74,6 +82,9 @@ interface EditorState {
   toggleOpen: (id: string) => void;
   toggleLight: (id: string) => void;
   setLightOn: (id: string, on: boolean) => void;
+
+  /** جایگزینی کامل صحنه (طراحی کل فضا با متن) — با undo */
+  replaceScene: (roomSpec: RoomSpec, objects: SceneObject[]) => void;
 
   select: (id: string | null, additive?: boolean) => void;
   undo: () => void;
@@ -137,7 +148,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       future: [],
     })),
 
-  addObject: (type, position, label) => {
+  addObject: (type, position, label, rotationY) => {
     get().beginAction();
     const { params, label: catLabel } = catalogDefaults(type, label);
     const roomSpec = get().roomSpec;
@@ -147,7 +158,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const obj: SceneObject = {
       id, type, label: catLabel, params,
       position: [cx, y, cz],
-      rotationY: 0,
+      rotationY: rotationY ?? 0,
       open: false,
       on: isLightType(type),
     };
@@ -182,6 +193,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { ...o, position: [cx, o.position[1], cz] as [number, number, number] };
     });
     set((s) => ({ objects: [...s.objects, ...safe], dirty: true }));
+  },
+
+  /** جایگزینی کامل صحنه — past قبل از اعمال ذخیره می‌شود (واگرد ممکن) */
+  replaceScene: (roomSpec, objects) => {
+    get().beginAction();
+    const prev = get().roomSpec;
+    // پوشش دفاعی فیلدهای گمشده roomSpec خروجی AI
+    const spec: RoomSpec = {
+      ...roomSpec,
+      widthM: roomSpec.widthM > 0 ? roomSpec.widthM : prev.widthM,
+      depthM: roomSpec.depthM > 0 ? roomSpec.depthM : prev.depthM,
+      heightM: roomSpec.heightM > 0 ? roomSpec.heightM : prev.heightM,
+      wallColor: roomSpec.wallColor || prev.wallColor,
+      floorColor: roomSpec.floorColor || prev.floorColor,
+      ceilingColor: roomSpec.ceilingColor || prev.ceilingColor,
+      windows: Array.isArray(roomSpec.windows) ? roomSpec.windows : [],
+      doorways: Array.isArray(roomSpec.doorways) ? roomSpec.doorways : [],
+    };
+    const safe = ensureObjectIds(clone(objects)).map((o) => {
+      const [cx, , cz] = clampPositionToRoom(spec, o.position);
+      return { ...o, position: [cx, o.position[1], cz] as [number, number, number] };
+    });
+    set({ roomSpec: spec, objects: safe, selectedIds: [], dirty: true });
   },
 
   updateObject: (id, patch) =>
@@ -292,13 +326,22 @@ export function findFreeSpot(
   if (WALL_ROW_TYPES.includes(type)) {
     // تلویزیون نازک است و باید به دیوار بچسبد؛ بقیه با فاصله استاندارد
     const backZ = -d / 2 + (type === 'tv' ? 0.09 : 0.35);
+    let spot: [number, number] = [0, backZ];
     for (let x = -w / 2 + 0.5; x <= w / 2 - 0.5; x += 0.05) {
       const occupied = objects.some(
         (o) => o.type !== 'pendant' && Math.abs(o.position[0] - x) < 0.45 && Math.abs(o.position[2] - backZ) < 0.5
       );
-      if (!occupied) return [Math.round(x * 20) / 20, backZ];
+      if (!occupied) {
+        spot = [Math.round(x * 20) / 20, backZ];
+        break;
+      }
     }
-    return [0, backZ];
+    // پلان غیرمستطیلی: ردیف سخت‌کد ممکن است بیرون چندضلعی بیفتد → کشیدن روی نزدیک‌ترین لبه
+    if (spec.outline && hasCustomOutline(spec)) {
+      const snapped = snapNewObject(spec, type, spot[0], spot[1]);
+      return [snapped.x, snapped.z];
+    }
+    return spot;
   }
   if (type === 'island') return [0, 0];
   // دکور/میز/صندلی: جای خالی در وسط (مارپیچ مرکزی)

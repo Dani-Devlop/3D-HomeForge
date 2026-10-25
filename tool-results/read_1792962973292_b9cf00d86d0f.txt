@@ -1,0 +1,742 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import * as THREE from 'three';
+     4→     4→import {
+     5→     5→  useCallback,
+     6→     6→  useEffect,
+     7→     7→  useMemo,
+     8→     8→  useRef,
+     9→     9→  useState,
+    10→    10→} from 'react';
+    11→    11→import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+    12→    12→import {
+    13→    13→  ArrowRight,
+    14→    14→  Check,
+    15→    15→  Download,
+    16→    16→  Grid3x3,
+    17→    17→  LampCeiling,
+    18→    18→  Loader2,
+    19→    19→  Lock,
+    20→    20→  PencilRuler,
+    21→    21→  Redo2,
+    22→    22→  Send,
+    23→    23→  Undo2,
+    24→    24→} from 'lucide-react';
+    25→    25→import { api } from '@/lib/api';
+    26→    26→import type { ObjectPatch, SceneObject, CatalogItem, RoomSpec } from '@/lib/scene-types';
+    27→    27→import { ensureObjectIds } from '@/lib/scene-types';
+    28→    28→import { clampPositionToRoom } from '@/lib/polygon';
+    29→    29→import { exportGroupToGLB } from '@/lib/export-glb';
+    30→    30→import {
+    31→    31→  findFreeSpot,
+    32→    32→  uid,
+    33→    33→  useEditorStore,
+    34→    34→} from '@/store/editor-store';
+    35→    35→import { useToast } from '@/hooks/use-toast';
+    36→    36→import { Button } from '@/components/ui/button';
+    37→    37→import { Input } from '@/components/ui/input';
+    38→    38→import { Badge } from '@/components/ui/badge';
+    39→    39→import { Switch } from '@/components/ui/switch';
+    40→    40→import { Card, CardContent } from '@/components/ui/card';
+    41→    41→import {
+    42→    42→  Dialog,
+    43→    43→  DialogContent,
+    44→    44→  DialogDescription,
+    45→    45→  DialogHeader,
+    46→    46→  DialogTitle,
+    47→    47→} from '@/components/ui/dialog';
+    48→    48→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    49→    49→import EditorScene from '@/components/three/editor-scene';
+    50→    50→import { LibraryPanel } from './library-panel';
+    51→    51→import { PropertiesPanel } from './properties-panel';
+    52→    52→import { PresetsPanel } from './presets-panel';
+    53→    53→import { RoomPlanPanel } from './room-plan-panel';
+    54→    54→import { ShareDialog } from './share-dialog';
+    55→    55→import { MovePad } from './move-pad';
+    56→    56→
+    57→    57→/** تشخیص تایپ‌کردن در فیلدهای متنی — کلیدهای جهت‌نما نباید صحنه را حرکت دهند */
+    58→    58→function isTypingTarget(t: EventTarget | null): boolean {
+    59→    59→  const el = t as HTMLElement | null;
+    60→    60→  if (!el) return false;
+    61→    61→  return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+    62→    62→}
+    63→    63→
+    64→    64→/** کارت ورود مجدد وقتی نشست مدیر منقضی شده (401) */
+    65→    65→function OwnerLoginInline({ onDone }: { onDone: () => void }) {
+    66→    66→  const { toast } = useToast();
+    67→    67→  const [pw, setPw] = useState('');
+    68→    68→  const [busy, setBusy] = useState(false);
+    69→    69→
+    70→    70→  const submit = async () => {
+    71→    71→    if (!pw || busy) return;
+    72→    72→    setBusy(true);
+    73→    73→    try {
+    74→    74→      await api.login(pw);
+    75→    75→      onDone();
+    76→    76→    } catch (e) {
+    77→    77→      toast({
+    78→    78→        title: 'ورود ناموفق',
+    79→    79→        description: (e as Error).message || 'رمز مدیر اشتباه است',
+    80→    80→        variant: 'destructive',
+    81→    81→      });
+    82→    82→    } finally {
+    83→    83→      setBusy(false);
+    84→    84→    }
+    85→    85→  };
+    86→    86→
+    87→    87→  return (
+    88→    88→    <div className="h-screen flex items-center justify-center bg-stone-50 p-6">
+    89→    89→      <Card className="w-full max-w-sm shadow-xl">
+    90→    90→        <CardContent className="p-8 space-y-5 text-center">
+    91→    91→          <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+    92→    92→            <Lock className="h-7 w-7 text-primary" />
+    93→    93→          </div>
+    94→    94→          <div className="space-y-1.5">
+    95→    95→            <h1 className="text-lg font-bold">ورود مدیر</h1>
+    96→    96→            <p className="text-sm text-muted-foreground">نشست شما منقضی شده — برای ادامه رمز را وارد کنید</p>
+    97→    97→          </div>
+    98→    98→          <Input
+    99→    99→            type="password"
+   100→   100→            value={pw}
+   101→   101→            onChange={(e) => setPw(e.target.value)}
+   102→   102→            onKeyDown={(e) => e.key === 'Enter' && submit()}
+   103→   103→            placeholder="رمز مدیر"
+   104→   104→            autoFocus
+   105→   105→            className="h-11 text-center"
+   106→   106→            aria-label="رمز مدیر"
+   107→   107→          />
+   108→   108→          <Button className="w-full h-11" onClick={submit} disabled={!pw || busy}>
+   109→   109→            {busy ? 'در حال ورود...' : 'ورود'}
+   110→   110→          </Button>
+   111→   111→        </CardContent>
+   112→   112→      </Card>
+   113→   113→    </div>
+   114→   114→  );
+   115→   115→}
+   116→   116→
+   117→   117→export default function EditorView({ projectId }: { projectId: string }) {
+   118→   118→  const { toast } = useToast();
+   119→   119→  const qc = useQueryClient();
+   120→   120→
+   121→   121→  const projectQ = useQuery({
+   122→   122→    queryKey: ['project', projectId],
+   123→   123→    queryFn: () => api.getProject(projectId),
+   124→   124→    retry: 1,
+   125→   125→  });
+   126→   126→
+   127→   127→  // ---- store bindings ----
+   128→   128→  const roomSpec = useEditorStore((s) => s.roomSpec);
+   129→   129→  const objects = useEditorStore((s) => s.objects);
+   130→   130→  const selectedIds = useEditorStore((s) => s.selectedIds);
+   131→   131→  const projectName = useEditorStore((s) => s.projectName);
+   132→   132→  const dirty = useEditorStore((s) => s.dirty);
+   133→   133→  const pastLen = useEditorStore((s) => s.past.length);
+   134→   134→  const futureLen = useEditorStore((s) => s.future.length);
+   135→   135→  const store = useEditorStore;
+   136→   136→
+   137→   137→  const refsMap = useRef<Map<string, THREE.Group>>(new Map());
+   138→   138→  const glRef = useRef<THREE.WebGLRenderer | null>(null);
+   139→   139→  const sceneRootRef = useRef<THREE.Group | null>(null);
+   140→   140→  const placeRequestRef = useRef<((sx: number, sy: number) => void) | null>(null);
+   141→   141→
+   142→   142→  const [loaded, setLoaded] = useState(false);
+   143→   143→  const [shareOpen, setShareOpen] = useState(false);
+   144→   144→  const [planOpen, setPlanOpen] = useState(false);
+   145→   145→  const [showGrid, setShowGrid] = useState(true);
+   146→   146→  const [dropActive, setDropActive] = useState(false);
+   147→   147→  const [saving, setSaving] = useState(false);
+   148→   148→  const [exporting, setExporting] = useState(false);
+   149→   149→  const [generating, setGenerating] = useState(false);
+   150→   150→  const [aiEditing, setAiEditing] = useState(false);
+   151→   151→
+   152→   152→  // بارگذاری پروژه در استور
+   153→   153→  useEffect(() => {
+   154→   154→    if (projectQ.data?.project && !loaded) {
+   155→   155→      const p = projectQ.data.project;
+   156→   156→      const spec =
+   157→   157→        p.roomSpec && 'widthM' in p.roomSpec
+   158→   158→          ? (p.roomSpec as RoomSpec)
+   159→   159→          : roomSpec;
+   160→   160→      const objs: SceneObject[] = ensureObjectIds(
+   161→   161→        p.sceneState && 'objects' in p.sceneState && Array.isArray(p.sceneState.objects)
+   162→   162→          ? (p.sceneState.objects as SceneObject[])
+   163→   163→          : [],
+   164→   164→      );
+   165→   165→      store.getState().loadProject(p.id, p.name, spec, objs);
+   166→   166→      setLoaded(true);
+   167→   167→    }
+   168→   168→  }, [projectQ.data, loaded, store, roomSpec]);
+   169→   169→
+   170→   170→  // ---- ذخیره خودکار ----
+   171→   171→  const saveProject = useCallback(
+   172→   172→    async (withThumb: boolean) => {
+   173→   173→      const s = store.getState();
+   174→   174→      if (!s.projectId) return;
+   175→   175→      try {
+   176→   176→        setSaving(true);
+   177→   177→        let thumbnail: string | null | undefined;
+   178→   178→        if (withThumb && glRef.current && sceneRootRef.current) {
+   179→   179→          try {
+   180→   180→            thumbnail = glRef.current.domElement.toDataURL('image/jpeg', 0.55);
+   181→   181→          } catch {
+   182→   182→            thumbnail = undefined;
+   183→   183→          }
+   184→   184→        }
+   185→   185→        await api.patchProject(s.projectId, {
+   186→   186→          name: s.projectName,
+   187→   187→          roomSpec: s.roomSpec,
+   188→   188→          sceneState: { objects: s.objects },
+   189→   189→          ...(thumbnail !== undefined ? { thumbnail } : {}),
+   190→   190→        });
+   191→   191→        store.getState().markSaved();
+   192→   192→      } catch (e) {
+   193→   193→        // خطای ذخیره بی‌صدا برای جلوگیری از اسپم
+   194→   194→        console.error('save failed', e);
+   195→   195→      } finally {
+   196→   196→        setSaving(false);
+   197→   197→      }
+   198→   198→    },
+   199→   199→    [store]
+   200→   200→  );
+   201→   201→
+   202→   202→  useEffect(() => {
+   203→   203→    if (!dirty || !loaded) return;
+   204→   204→    const t = setTimeout(() => saveProject(true), 1400);
+   205→   205→    return () => clearTimeout(t);
+   206→   206→  }, [dirty, objects, projectName, loaded, saveProject]);
+   207→   207→
+   208→   208→  // نام پروژه → عنوان مرورگر
+   209→   209→  useEffect(() => {
+   210→   210→    document.title = `${projectName} | ویرایشگر کابینت`;
+   211→   211→  }, [projectName]);
+   212→   212→
+   213→   213→  // ---- Drag & Drop از کتابخانه ----
+   214→   214→  const handlePlace = useCallback(
+   215→   215→    (x: number, z: number) => {
+   216→   216→      const type = pendingDrop.current;
+   217→   217→      if (!type) return;
+   218→   218→      pendingDrop.current = null;
+   219→   219→      const [cx, , cz] = clampPositionToRoom(roomSpec, [x, 0, z]);
+   220→   220→      store.getState().addObject(type.type, [cx, 0, cz], type.label);
+   221→   221→    },
+   222→   222→    [roomSpec, store]
+   223→   223→  );
+   224→   224→
+   225→   225→  const pendingDrop = useRef<{ type: SceneObject['type']; label?: string } | null>(null);
+   226→   226→
+   227→   227→  // ---- افزودن با کلیک ----
+   228→   228→  const addFromCatalog = (item: CatalogItem) => {
+   229→   229→    const s = store.getState();
+   230→   230→    const [x, z] = findFreeSpot(s.objects, item.type, s.roomSpec);
+   231→   231→    s.addObject(item.type, [x, 0, z], item.label);
+   232→   232→    toast({ title: `${item.label} اضافه شد`, description: 'با کشیدن گیزموت جابه‌جا کنید' });
+   233→   233→  };
+   234→   234→
+   235→   235→  // ---- تولید مدل با توصیف متنی (text-to-3D) ----
+   236→   236→  const generateFromText = async (text: string) => {
+   237→   237→    try {
+   238→   238→      setGenerating(true);
+   239→   239→      const { item } = await api.generateObject(text);
+   240→   240→      const s = store.getState();
+   241→   241→      const [x, z] = findFreeSpot(s.objects, item.type, s.roomSpec);
+   242→   242→      s.addGenerated(item.type, item.label, item.params, [x, 0, z]);
+   243→   243→      toast({
+   244→   244→        title: `«${item.label}» ساخته شد ✓`,
+   245→   245→        description: 'مدل پارامتریک به صحنه اضافه شد — با پنل کناری تنظیمش کنید',
+   246→   246→      });
+   247→   247→    } catch (e) {
+   248→   248→      toast({
+   249→   249→        title: 'تولید مدل ناموفق بود',
+   250→   250→        description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
+   251→   251→        variant: 'destructive',
+   252→   252→      });
+   253→   253→    } finally {
+   254→   254→      setGenerating(false);
+   255→   255→    }
+   256→   256→  };
+   257→   257→
+   258→   258→  // ---- ویرایش متنی آبجکت انتخاب‌شده ----
+   259→   259→  const applyAiPatch = (id: string, patch: ObjectPatch) => {
+   260→   260→    const s = store.getState();
+   261→   261→    s.beginAction();
+   262→   262→    const target = s.objects.find((o) => o.id === id);
+   263→   263→    if (!target) return;
+   264→   264→    const pos = target.position;
+   265→   265→    const nextPosition: [number, number, number] = patch.positionDelta
+   266→   266→      ? clampPositionToRoom(
+   267→   267→          s.roomSpec,
+   268→   268→          [
+   269→   269→            pos[0] + patch.positionDelta[0],
+   270→   270→            THREE.MathUtils.clamp(pos[1] + patch.positionDelta[1], 0, s.roomSpec.heightM),
+   271→   271→            pos[2] + patch.positionDelta[2],
+   272→   272→          ],
+   273→   273→        )
+   274→   274→      : pos;
+   275→   275→    s.updateObject(id, {
+   276→   276→      position: nextPosition,
+   277→   277→      ...(patch.rotationYDelta !== undefined
+   278→   278→        ? { rotationY: target.rotationY + patch.rotationYDelta }
+   279→   279→        : {}),
+   280→   280→      ...(patch.params ? { params: { ...target.params, ...patch.params } } : {}),
+   281→   281→      ...(patch.label ? { label: patch.label } : {}),
+   282→   282→      ...(patch.open !== undefined ? { open: patch.open } : {}),
+   283→   283→      ...(patch.on !== undefined ? { on: patch.on } : {}),
+   284→   284→    });
+   285→   285→  };
+   286→   286→
+   287→   287→  const aiEditSelected = async (text: string) => {
+   288→   288→    const s = store.getState();
+   289→   289→    const target = s.objects.find((o) => o.id === selectedIds[selectedIds.length - 1]);
+   290→   290→    if (!target) return;
+   291→   291→    try {
+   292→   292→      setAiEditing(true);
+   293→   293→      const { patch } = await api.aiEditObject(target, text);
+   294→   294→      applyAiPatch(target.id, patch);
+   295→   295→      toast({ title: 'تغییر اعمال شد ✓', description: 'با Ctrl+Z قابل بازگشت است' });
+   296→   296→    } catch (e) {
+   297→   297→      toast({
+   298→   298→        title: 'اعمال تغییر ناموفق بود',
+   299→   299→        description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
+   300→   300→        variant: 'destructive',
+   301→   301→      });
+   302→   302→    } finally {
+   303→   303→      setAiEditing(false);
+   304→   304→    }
+   305→   305→  };
+   306→   306→
+   307→   307→  // ---- Undo/Redo کیبورد ----
+   308→   308→  useEffect(() => {
+   309→   309→    const onKey = (e: KeyboardEvent) => {
+   310→   310→      if (!(e.ctrlKey || e.metaKey)) return;
+   311→   311→      if (e.key === 'z' && !e.shiftKey) {
+   312→   312→        e.preventDefault();
+   313→   313→        store.getState().undo();
+   314→   314→      } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+   315→   315→        e.preventDefault();
+   316→   316→        store.getState().redo();
+   317→   317→      }
+   318→   318→    };
+   319→   319→    window.addEventListener('keydown', onKey);
+   320→   320→    return () => window.removeEventListener('keydown', onKey);
+   321→   321→  }, [store]);
+   322→   322→
+   323→   323→  // ---- جابه‌جایی آبجکت انتخاب‌شده با کیبورد (جهت‌نما/ارتفاع/چرخش) ----
+   324→   324→  const nudgeRef = useRef<((d: [number, number, number], firstOfBurst: boolean) => void) | null>(null);
+   325→   325→  nudgeRef.current = (d, firstOfBurst) => {
+   326→   326→    const s = store.getState();
+   327→   327→    const id = s.selectedIds[s.selectedIds.length - 1];
+   328→   328→    const target = s.objects.find((o) => o.id === id);
+   329→   329→    if (!target) return;
+   330→   330→    if (firstOfBurst) s.beginAction();
+   331→   331→    const next = clampPositionToRoom(
+   332→   332→      s.roomSpec,
+   333→   333→      [
+   334→   334→        target.position[0] + d[0],
+   335→   335→        THREE.MathUtils.clamp(target.position[1] + d[1], 0, s.roomSpec.heightM),
+   336→   336→        target.position[2] + d[2],
+   337→   337→      ],
+   338→   338→    );
+   339→   339→    s.updateObject(id, { position: next });
+   340→   340→  };
+   341→   341→
+   342→   342→  const rotateRef = useRef<((deltaRad: number, firstOfBurst: boolean) => void) | null>(null);
+   343→   343→  rotateRef.current = (deltaRad, firstOfBurst) => {
+   344→   344→    const s = store.getState();
+   345→   345→    const id = s.selectedIds[s.selectedIds.length - 1];
+   346→   346→    const target = s.objects.find((o) => o.id === id);
+   347→   347→    if (!target) return;
+   348→   348→    if (firstOfBurst) s.beginAction();
+   349→   349→    s.updateObject(id, { rotationY: target.rotationY + deltaRad });
+   350→   350→  };
+   351→   351→
+   352→   352→  useEffect(() => {
+   353→   353→    const onKey = (e: KeyboardEvent) => {
+   354→   354→      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+   355→   355→      const step = e.shiftKey ? 0.25 : 0.05;
+   356→   356→      let d: [number, number, number] | null = null;
+   357→   357→      let rot = 0;
+   358→   358→      switch (e.key) {
+   359→   359→        case 'ArrowUp': d = [0, 0, -step]; break;
+   360→   360→        case 'ArrowDown': d = [0, 0, step]; break;
+   361→   361→        case 'ArrowLeft': d = [-step, 0, 0]; break;
+   362→   362→        case 'ArrowRight': d = [step, 0, 0]; break;
+   363→   363→        case 'PageUp': d = [0, step, 0]; break;
+   364→   364→        case 'PageDown': d = [0, -step, 0]; break;
+   365→   365→        case 'q': case 'Q': rot = -Math.PI / 4; break;
+   366→   366→        case 'e': case 'E': rot = Math.PI / 4; break;
+   367→   367→        default: return;
+   368→   368→      }
+   369→   369→      e.preventDefault(); // جهت‌نما/PageUp صفحه را اسکرول نکند
+   370→   370→      if (d) nudgeRef.current?.(d, !e.repeat);
+   371→   371→      else rotateRef.current?.(rot, !e.repeat);
+   372→   372→    };
+   373→   373→    window.addEventListener('keydown', onKey);
+   374→   374→    return () => window.removeEventListener('keydown', onKey);
+   375→   375→  }, []);
+   376→   376→
+   377→   377→  // ---- پد حرکت: یک beginAction برای هر نگه‌داشتن (نه هر تیک تکرار) ----
+   378→   378→  const lastHoldRef = useRef(0);
+   379→   379→  const holdNudge = (d: [number, number, number]) => {
+   380→   380→    const now = Date.now();
+   381→   381→    nudgeRef.current?.(d, now - lastHoldRef.current > 400);
+   382→   382→    lastHoldRef.current = now;
+   383→   383→  };
+   384→   384→  const holdRotate = (r: number) => {
+   385→   385→    const now = Date.now();
+   386→   386→    rotateRef.current?.(r, now - lastHoldRef.current > 400);
+   387→   387→    lastHoldRef.current = now;
+   388→   388→  };
+   389→   389→
+   390→   390→  // ---- خروجی GLB ----
+   391→   391→  const exportGLB = async () => {
+   392→   392→    if (!sceneRootRef.current) return;
+   393→   393→    try {
+   394→   394→      setExporting(true);
+   395→   395→      await exportGroupToGLB(sceneRootRef.current, `${projectName || 'cabinet'}.glb`);
+   396→   396→      toast({ title: 'فایل GLB دانلود شد ✓', description: 'فرمت استاندارد glTF دودویی' });
+   397→   397→    } catch (e) {
+   398→   398→      console.error(e);
+   399→   399→      toast({ title: 'خطا در ساخت فایل GLB', variant: 'destructive' });
+   400→   400→    } finally {
+   401→   401→      setExporting(false);
+   402→   402→    }
+   403→   403→  };
+   404→   404→
+   405→   405→  // ---- پریست‌ها ----
+   406→   406→  const insertPreset = (data: Partial<SceneObject>[]) => {
+   407→   407→    const s = store.getState();
+   408→   408→    // کمترین فاصله تا دیوارها → وسط صحنه آزاد
+   409→   409→    const spot = findFreeSpot(s.objects, 'island', s.roomSpec);
+   410→   410→    const objs: SceneObject[] = [];
+   411→   411→    for (const o of data) {
+   412→   412→      if (!o.type) continue;
+   413→   413→      objs.push({
+   414→   414→        ...o,
+   415→   415→        type: o.type,
+   416→   416→        id: uid(),
+   417→   417→        label: o.label,
+   418→   418→        params: o.params ?? {},
+   419→   419→        rotationY: o.rotationY ?? 0,
+   420→   420→        position: [
+   421→   421→          spot[0] + (o.position?.[0] ?? 0),
+   422→   422→          o.position?.[1] ?? 0,
+   423→   423→          spot[1] + (o.position?.[2] ?? 0),
+   424→   424→        ] as [number, number, number],
+   425→   425→        open: false,
+   426→   426→      });
+   427→   427→    }
+   428→   428→    s.addObjects(objs);
+   429→   429→    toast({ title: 'پریست به صحنه اضافه شد ✓' });
+   430→   430→  };
+   431→   431→
+   432→   432→  // ---- چراغ‌ها برای چیپ‌های کنترل ----
+   433→   433→  const lights = useMemo(
+   434→   434→    () => objects.filter((o) => o.type === 'pendant' || o.type === 'floor-lamp'),
+   435→   435→    [objects]
+   436→   436→  );
+   437→   437→
+   438→   438→  const primary =
+   439→   439→    selectedIds.length > 0
+   440→   440→      ? objects.find((o) => o.id === selectedIds[selectedIds.length - 1])
+   441→   441→      : undefined;
+   442→   442→
+   443→   443→  const renameProject = useMutation({
+   444→   444→    mutationFn: (name: string) => api.patchProject(projectId, { name }),
+   445→   445→    onSuccess: () => qc.invalidateQueries({ queryKey: ['project', projectId] }),
+   446→   446→  });
+   447→   447→
+   448→   448→  if (projectQ.isLoading) {
+   449→   449→    return (
+   450→   450→      <div className="h-screen flex items-center justify-center">
+   451→   451→        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+   452→   452→      </div>
+   453→   453→    );
+   454→   454→  }
+   455→   455→
+   456→   456→  // نشست منقضی — کارت ورود مجدد
+   457→   457→  if (projectQ.isError && (projectQ.error as Error & { status?: number }).status === 401) {
+   458→   458→    return (
+   459→   459→      <OwnerLoginInline
+   460→   460→        onDone={() => {
+   461→   461→          qc.invalidateQueries({ queryKey: ['project', projectId] });
+   462→   462→          qc.invalidateQueries({ queryKey: ['projects'] });
+   463→   463→        }}
+   464→   464→      />
+   465→   465→    );
+   466→   466→  }
+   467→   467→
+   468→   468→  if (projectQ.isError) {
+   469→   469→    return (
+   470→   470→      <div className="h-screen flex flex-col items-center justify-center gap-3 p-6 text-center">
+   471→   471→        <p className="text-lg font-semibold">پروژه پیدا نشد</p>
+   472→   472→        <p className="text-sm text-muted-foreground">{(projectQ.error as Error).message}</p>
+   473→   473→        <Button onClick={() => (window.location.hash = '')} variant="outline" className="gap-2">
+   474→   474→          <ArrowRight className="h-4 w-4" /> بازگشت به خانه
+   475→   475→        </Button>
+   476→   476→      </div>
+   477→   477→    );
+   478→   478→  }
+   479→   479→
+   480→   480→  return (
+   481→   481→    <div className="h-screen flex flex-col bg-stone-100 overflow-hidden">
+   482→   482→      {/* ---------- نوار بالا ---------- */}
+   483→   483→      <header className="shrink-0 bg-card border-b px-3 py-2 flex items-center gap-2 flex-wrap">
+   484→   484→        <Button
+   485→   485→          size="sm"
+   486→   486→          variant="ghost"
+   487→   487→          onClick={() => (window.location.hash = '')}
+   488→   488→          className="gap-1.5"
+   489→   489→          aria-label="بازگشت"
+   490→   490→        >
+   491→   491→          <ArrowRight className="h-4 w-4" />
+   492→   492→          <span className="hidden sm:inline">خانه</span>
+   493→   493→        </Button>
+   494→   494→
+   495→   495→        <Input
+   496→   496→          value={projectName}
+   497→   497→          onChange={(e) => store.getState().setProjectName(e.target.value)}
+   498→   498→          onBlur={(e) => {
+   499→   499→            const name = e.target.value.trim();
+   500→   500→            if (name) renameProject.mutate(name);
+   501→   501→          }}
+   502→   502→          className="h-9 w-44 sm:w-56 font-semibold"
+   503→   503→          aria-label="نام پروژه"
+   504→   504→        />
+   505→   505→
+   506→   506→        <div className="flex items-center gap-1">
+   507→   507→          <Button
+   508→   508→            size="icon"
+   509→   509→            variant="ghost"
+   510→   510→            onClick={() => store.getState().undo()}
+   511→   511→            disabled={pastLen === 0}
+   512→   512→            title="واگرد (Ctrl+Z)"
+   513→   513→            aria-label="واگرد"
+   514→   514→          >
+   515→   515→            <Undo2 className="h-4 w-4" />
+   516→   516→          </Button>
+   517→   517→          <Button
+   518→   518→            size="icon"
+   519→   519→            variant="ghost"
+   520→   520→            onClick={() => store.getState().redo()}
+   521→   521→            disabled={futureLen === 0}
+   522→   522→            title="ازنو (Ctrl+Shift+Z)"
+   523→   523→            aria-label="ازنو"
+   524→   524→          >
+   525→   525→            <Redo2 className="h-4 w-4" />
+   526→   526→          </Button>
+   527→   527→          <Button
+   528→   528→            size="icon"
+   529→   529→            variant="ghost"
+   530→   530→            onClick={() => setPlanOpen(true)}
+   531→   531→            title="ویرایش پلان اتاق (دیوار کج / گوشه اضافه)"
+   532→   532→            aria-label="ویرایش پلان اتاق"
+   533→   533→          >
+   534→   534→            <PencilRuler className="h-4 w-4" />
+   535→   535→          </Button>
+   536→   536→          <Button
+   537→   537→            size="icon"
+   538→   538→            variant="ghost"
+   539→   539→            onClick={() => setShowGrid((v) => !v)}
+   540→   540→            title="شبکه راهنما"
+   541→   541→            aria-label="شبکه راهنما"
+   542→   542→            className={showGrid ? 'text-primary' : ''}
+   543→   543→          >
+   544→   544→            <Grid3x3 className="h-4 w-4" />
+   545→   545→          </Button>
+   546→   546→        </div>
+   547→   547→
+   548→   548→        <span className="text-xs text-muted-foreground flex items-center gap-1" aria-live="polite">
+   549→   549→          {saving ? (
+   550→   550→            <>
+   551→   551→              <Loader2 className="h-3 w-3 animate-spin" /> در حال ذخیره...
+   552→   552→            </>
+   553→   553→          ) : dirty ? (
+   554→   554→            'تغییرات ذخیره‌نشده'
+   555→   555→          ) : (
+   556→   556→            <>
+   557→   557→              <Check className="h-3.5 w-3.5 text-emerald-600" /> ذخیره شد
+   558→   558→            </>
+   559→   559→          )}
+   560→   560→        </span>
+   561→   561→
+   562→   562→        <div className="ms-auto flex items-center gap-2 flex-wrap">
+   563→   563→          <Button size="sm" variant="outline" onClick={exportGLB} disabled={exporting} className="gap-1.5">
+   564→   564→            <Download className="h-4 w-4" />
+   565→   565→            <span className="hidden sm:inline">{exporting ? 'در حال ساخت...' : 'خروجی GLB'}</span>
+   566→   566→          </Button>
+   567→   567→          <Button size="sm" onClick={() => setShareOpen(true)} className="gap-1.5">
+   568→   568→            <Send className="h-4 w-4" />
+   569→   569→            انتشار
+   570→   570→          </Button>
+   571→   571→        </div>
+   572→   572→      </header>
+   573→   573→
+   574→   574→      {/* ---------- بدنه ---------- */}
+   575→   575→      <div className="flex-1 flex min-h-0 flex-col md:flex-row">
+   576→   576→        {/* پنل چپ (در RTL: راست صفحه) */}
+   577→   577→        <aside className="w-full md:w-64 shrink-0 bg-card border-b md:border-b-0 md:border-e md:order-1 flex flex-col h-52 md:h-auto">
+   578→   578→          <div className="flex-1 min-h-0">
+   579→   579→            <Tabs defaultValue="library" dir="rtl" className="h-full flex flex-col">
+   580→   580→              <TabsList className="mx-3 mt-2 grid grid-cols-2 shrink-0">
+   581→   581→                <TabsTrigger value="library">کتابخانه</TabsTrigger>
+   582→   582→                <TabsTrigger value="presets">پریست‌ها</TabsTrigger>
+   583→   583→              </TabsList>
+   584→   584→              <TabsContent value="library" className="flex-1 min-h-0 mt-0">
+   585→   585→                <LibraryPanel onPick={addFromCatalog} onGenerate={generateFromText} generating={generating} />
+   586→   586→              </TabsContent>
+   587→   587→              <TabsContent value="presets" className="flex-1 min-h-0 mt-0">
+   588→   588→                <PresetsPanel
+   589→   589→                  selectedObjects={objects.filter((o) => selectedIds.includes(o.id))}
+   590→   590→                  onInsert={insertPreset}
+   591→   591→                />
+   592→   592→              </TabsContent>
+   593→   593→            </Tabs>
+   594→   594→          </div>
+   595→   595→        </aside>
+   596→   596→
+   597→   597→        {/* صحنه سه‌بعدی */}
+   598→   598→        <main
+   599→   599→          className={`relative flex-1 min-h-0 md:order-2 ${dropActive ? 'canvas-drop-active' : ''}`}
+   600→   600→          onDragOver={(e) => {
+   601→   601→            e.preventDefault();
+   602→   602→            setDropActive(true);
+   603→   603→          }}
+   604→   604→          onDragLeave={(e) => {
+   605→   605→            if (e.currentTarget === e.target) setDropActive(false);
+   606→   606→          }}
+   607→   607→          onDrop={(e) => {
+   608→   608→            e.preventDefault();
+   609→   609→            setDropActive(false);
+   610→   610→            try {
+   611→   611→              const raw = e.dataTransfer.getData('application/x-c3d-item');
+   612→   612→              if (raw) {
+   613→   613→                pendingDrop.current = JSON.parse(raw);
+   614→   614→                placeRequestRef.current?.(e.clientX, e.clientY);
+   615→   615→              }
+   616→   616→            } catch {
+   617→   617→              // داده نامعتبر — نادیده بگیر
+   618→   618→            }
+   619→   619→          }}
+   620→   620→        >
+   621→   621→          <EditorScene
+   622→   622→            roomSpec={roomSpec}
+   623→   623→            objects={objects}
+   624→   624→            selectedIds={selectedIds}
+   625→   625→            canTransform
+   626→   626→            showGrid={showGrid}
+   627→   627→            refsMap={refsMap.current}
+   628→   628→            glRef={glRef}
+   629→   629→            sceneRootRef={sceneRootRef}
+   630→   630→            placeRequestRef={placeRequestRef}
+   631→   631→            onSelect={(id, additive) => store.getState().select(id, additive)}
+   632→   632→            onToggleOpen={(id) => store.getState().toggleOpen(id)}
+   633→   633→            onToggleLight={(id) => store.getState().toggleLight(id)}
+   634→   634→            onBeginAction={() => store.getState().beginAction()}
+   635→   635→            onMoved={(id) => {
+   636→   636→              const g = refsMap.current.get(id);
+   637→   637→              if (g) store.getState().updateObject(id, {
+   638→   638→                position: [
+   639→   639→                  +g.position.x.toFixed(3),
+   640→   640→                  +g.position.y.toFixed(3),
+   641→   641→                  +g.position.z.toFixed(3),
+   642→   642→                ],
+   643→   643→              });
+   644→   644→            }}
+   645→   645→            onPlace={handlePlace}
+   646→   646→          />
+   647→   647→
+   648→   648→          {/* چیپ‌های کنترل چراغ */}
+   649→   649→          {lights.length > 0 && (
+   650→   650→            <div className="absolute top-3 start-3 flex flex-wrap gap-2 max-w-[70%] pointer-events-auto">
+   651→   651→              {lights.map((l) => (
+   652→   652→                <div
+   653→   653→                  key={l.id}
+   654→   654→                  className="flex items-center gap-2 rounded-full bg-card/95 shadow-md border px-3 py-1.5 backdrop-blur"
+   655→   655→                >
+   656→   656→                  <LampCeiling className="h-3.5 w-3.5 text-primary" />
+   657→   657→                  <span className="text-xs font-medium">
+   658→   658→                    {l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}
+   659→   659→                  </span>
+   660→   660→                  <Switch
+   661→   661→                    checked={!!l.on}
+   662→   662→                    onCheckedChange={() => store.getState().toggleLight(l.id)}
+   663→   663→                    aria-label={`روشن/خاموش ${l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}`}
+   664→   664→                    className="scale-90"
+   665→   665→                  />
+   666→   666→                </div>
+   667→   667→              ))}
+   668→   668→            </div>
+   669→   669→          )}
+   670→   670→
+   671→   671→          {/* راهنمای تعامل */}
+   672→   672→          <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none max-w-[95%] overflow-hidden text-ellipsis">
+   673→   673→            کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ
+   674→   674→          </div>
+   675→   675→
+   676→   676→          {/* پد حرکت آبجکت انتخاب‌شده (موبایل + دسکتاپ) */}
+   677→   677→          {primary && (
+   678→   678→            <MovePad
+   679→   679→              onNudge={holdNudge}
+   680→   680→              onRotate={holdRotate}
+   681→   681→              onDelete={() => store.getState().removeObject(primary.id)}
+   682→   682→              onDuplicate={() => store.getState().duplicateObject(primary.id)}
+   683→   683→            />
+   684→   684→          )}
+   685→   685→
+   686→   686→          {dropActive && (
+   687→   687→            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+   688→   688→              <Badge className="text-sm px-4 py-2 shadow-lg">رها کنید تا اضافه شود</Badge>
+   689→   689→            </div>
+   690→   690→          )}
+   691→   691→        </main>
+   692→   692→
+   693→   693→        {/* پنل مشخصات — بدون انتخاب: ویرایشگر پلان اتاق */}
+   694→   694→        <aside className="w-full md:w-72 shrink-0 bg-card border-t md:border-t-0 md:border-s md:order-3 h-64 md:h-auto">
+   695→   695→          {primary ? (
+   696→   696→            <PropertiesPanel
+   697→   697→              obj={primary}
+   698→   698→              aiEditing={aiEditing}
+   699→   699→              onUpdate={(patch) => store.getState().updateObject(primary.id, patch)}
+   700→   700→              onUpdateParams={(params) => store.getState().updateParams(primary.id, params)}
+   701→   701→              onAiEdit={aiEditSelected}
+   702→   702→              onRotate={() => {
+   703→   703→                const s = store.getState();
+   704→   704→                s.beginAction();
+   705→   705→                s.updateObject(primary.id, { rotationY: primary.rotationY + Math.PI / 2 });
+   706→   706→              }}
+   707→   707→              onDuplicate={() => store.getState().duplicateObject(primary.id)}
+   708→   708→              onDelete={() => store.getState().removeObject(primary.id)}
+   709→   709→            />
+   710→   710→          ) : (
+   711→   711→            <RoomPlanPanel
+   712→   712→              roomSpec={roomSpec}
+   713→   713→              onOutlineChange={(o) => store.getState().setRoomOutline(o)}
+   714→   714→            />
+   715→   715→          )}
+   716→   716→        </aside>
+   717→   717→      </div>
+   718→   718→
+   719→   719→      <ShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />
+   720→   720→
+   721→   721→      {/* دیالوگ ویرایش پلان (وقتی آبجکتی انتخاب است و پنل کناری مشغول است) */}
+   722→   722→      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+   723→   723→        <DialogContent className="max-w-md" dir="rtl">
+   724→   724→          <DialogHeader>
+   725→   725→            <DialogTitle className="flex items-center gap-2">
+   726→   726→              <PencilRuler className="h-4 w-4 text-primary" />
+   727→   727→              ویرایش پلان اتاق
+   728→   728→            </DialogTitle>
+   729→   729→            <DialogDescription>
+   730→   730→              گوشه‌ها را بکشید تا دیوار کج بسازید — اتاق لزوماً ۴ دیوار نیست
+   731→   731→            </DialogDescription>
+   732→   732→          </DialogHeader>
+   733→   733→          <RoomPlanPanel
+   734→   734→            roomSpec={roomSpec}
+   735→   735→            onOutlineChange={(o) => store.getState().setRoomOutline(o)}
+   736→   736→          />
+   737→   737→        </DialogContent>
+   738→   738→      </Dialog>
+   739→   739→    </div>
+   740→   740→  );
+   741→   741→}
+   742→   742→

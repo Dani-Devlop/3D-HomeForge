@@ -8,10 +8,16 @@ import { Loader2 } from 'lucide-react';
 type Route =
   | { view: 'home' }
   | { view: 'editor'; projectId: string }
+  | { view: 'editor-pf'; portfolioId: string }
   | { view: 'share'; token: string };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#/, '');
+  // ⚠️ باید قبل از '/editor/' چک شود (پیشوند مشترک)
+  if (h.startsWith('/editor/pf/')) {
+    const portfolioId = h.slice('/editor/pf/'.length);
+    if (portfolioId) return { view: 'editor-pf', portfolioId };
+  }
   if (h.startsWith('/editor/')) {
     const projectId = h.slice('/editor/'.length);
     if (projectId) return { view: 'editor', projectId };
@@ -69,6 +75,8 @@ export default function Page() {
     <QueryClientProvider client={queryClient}>
       {route.view === 'editor' ? (
         <EditorView key={route.projectId} projectId={route.projectId} />
+      ) : route.view === 'editor-pf' ? (
+        <EditorView key={`pf-${route.portfolioId}`} portfolioId={route.portfolioId} />
       ) : route.view === 'share' ? (
         <ViewerView key={route.token} token={route.token} />
       ) : (

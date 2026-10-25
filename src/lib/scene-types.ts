@@ -350,6 +350,14 @@ export const WALL_NAME_EDGE: Record<WallName, number> = {
   left: 3,
 };
 
+/** برچسب فارسی دیوارها (پنل نما و بازشوها و ...) */
+export const WALL_NAME_FA: Record<WallName, string> = {
+  back: 'پشت',
+  front: 'جلو',
+  left: 'چپ',
+  right: 'راست',
+};
+
 /** نقطه قرارگیری آبجکت با عمق مشخص روی دیوار — offsetX از مرکز دیوار (متر) */
 export function placeAtWall(
   wall: WallName,

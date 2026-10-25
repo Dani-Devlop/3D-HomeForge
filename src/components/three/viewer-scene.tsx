@@ -10,6 +10,7 @@ import { FloorLampMesh, PendantMesh, PlantMesh, RugMesh } from './decor';
 import { BedMesh, ChairMesh, SofaMesh, TableMesh, TvMesh } from './furniture';
 import { RoomMesh } from './room';
 import { SceneEnvironment } from './editor-scene';
+import { applyToneMapping } from './scene-quality';
 
 function ViewerTransform({
   targetId,
@@ -80,7 +81,10 @@ export default function ViewerScene(props: ViewerSceneProps) {
       key={cameraKey}
       camera={{ position: cameraPos, fov: 50 }}
       gl={{ antialias: true }}
-      onCreated={({ gl }) => gl.setClearColor('#d9d2c7')}
+      onCreated={({ gl }) => {
+        gl.setClearColor('#cdc6ba');
+        applyToneMapping(gl);
+      }}
       onPointerMissed={() => handleSelect(null)}
     >
       <SceneEnvironment />

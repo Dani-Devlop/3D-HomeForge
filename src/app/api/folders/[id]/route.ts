@@ -6,7 +6,7 @@ import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/folders/[id] — تغییر نام و حذف یک پوشه
+// /api/folders/[id] — ویرایش (نام مشتری/تلفن) و حذف یک پوشه مشتری
 // (حذف پوشه پروژه‌ها را حذف نمی‌کند؛ folderId آن‌ها با SetNull تهی می‌شود)
 // ============================================================
 
@@ -14,13 +14,15 @@ function serializeFolder(f: Folder & { _count?: { projects: number } }) {
   return {
     id: f.id,
     name: f.name,
+    phone: f.phone,
     createdAt: f.createdAt.toISOString(),
     projectCount: f._count?.projects ?? 0,
   };
 }
 
 const patchSchema = z.object({
-  name: z.string().trim().min(1).max(60),
+  name: z.string().trim().min(1).max(60).optional(),
+  phone: z.string().trim().max(60).nullable().optional(),
 });
 
 export async function PATCH(
@@ -37,9 +39,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
     }
     const parsed = patchSchema.safeParse(body.data);
-    if (!parsed.success) {
+    if (!parsed.success || (!parsed.data.name && parsed.data.phone === undefined)) {
       return NextResponse.json(
-        { error: 'نام پوشه را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
+        { error: 'نام مشتری را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
         { status: 400 },
       );
     }
@@ -51,7 +53,10 @@ export async function PATCH(
 
     const folder = await db.folder.update({
       where: { id },
-      data: { name: parsed.data.name },
+      data: {
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone || null } : {}),
+      },
       include: { _count: { select: { projects: true } } },
     });
     return NextResponse.json({ folder: serializeFolder(folder) });

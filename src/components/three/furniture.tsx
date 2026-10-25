@@ -5,8 +5,10 @@
 // الگوها اقتباس‌شده از cabinet.tsx (MeshCtx/Edges) و appliance.tsx (هاور/نور)
 // ============================================================
 
+import { useMemo } from 'react';
 import { Edges } from '@react-three/drei';
 import type { MeshCtx } from './cabinet';
+import { woodGrainTexture } from './textures';
 
 const EDGE = '#f59e0b'; // رنگ لبه‌های حالت انتخاب
 const LEG_DARK = '#2a2118'; // پایه‌های چوبی تیره
@@ -78,11 +80,11 @@ export function TvMesh(ctx: MeshCtx) {
         onPointerOut={unhover}
       >
         <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color={frameColor} roughness={0.45} metalness={0.4} />
+        <meshStandardMaterial color={frameColor} roughness={0.3} metalness={0.4} envMapIntensity={0.9} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* صفحه نمایش — وقتی روشن است می‌درخشد */}
+      {/* صفحه نمایش — وقتی روشن است پرنور و زنده می‌درخشد */}
       <mesh
         position={[0, 0, d / 2 + 0.006]}
         castShadow
@@ -93,10 +95,10 @@ export function TvMesh(ctx: MeshCtx) {
         <boxGeometry args={[w - 0.04, h - 0.04, 0.01]} />
         <meshStandardMaterial
           color={screenColor}
-          emissive={on ? '#9fd8ff' : '#000000'}
-          emissiveIntensity={on ? 1.4 : 0}
+          emissive={on ? '#cfe6f5' : '#000000'}
+          emissiveIntensity={on ? 1.6 : 0}
           metalness={0.35}
-          roughness={0.2}
+          roughness={0.15}
         />
         {selected && <Edges scale={1.01} color={EDGE} />}
       </mesh>
@@ -166,7 +168,7 @@ export function SofaMesh(ctx: MeshCtx) {
       {/* بدنه اصلی */}
       <mesh position={[0, baseY, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, baseH, d]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+        <meshStandardMaterial color={bodyColor} roughness={0.95} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
@@ -182,25 +184,25 @@ export function SofaMesh(ctx: MeshCtx) {
           castShadow
         >
           <boxGeometry args={[cushionW, cushionH, d - 0.24]} />
-          <meshStandardMaterial color={color} roughness={0.9} />
+          <meshStandardMaterial color={color} roughness={0.95} />
         </mesh>
       ))}
 
       {/* پشتی */}
       <mesh position={[0, seatTop + backH / 2 - 0.02, -d / 2 + 0.09]} castShadow>
         <boxGeometry args={[w, backH, 0.18]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+        <meshStandardMaterial color={bodyColor} roughness={0.95} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
       {/* دسته‌های کناری */}
       <mesh position={[-w / 2 + armW / 2, seatTop / 2 + 0.06, 0]} castShadow>
         <boxGeometry args={[armW, seatTop + 0.12, d]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+        <meshStandardMaterial color={bodyColor} roughness={0.95} />
       </mesh>
       <mesh position={[w / 2 - armW / 2, seatTop / 2 + 0.06, 0]} castShadow>
         <boxGeometry args={[armW, seatTop + 0.12, d]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.9} />
+        <meshStandardMaterial color={bodyColor} roughness={0.95} />
       </mesh>
 
       {/* دو کوسن تزئینی چرخیده */}
@@ -280,7 +282,7 @@ export function BedMesh(ctx: MeshCtx) {
       {/* تشک روشن */}
       <mesh position={[0, frameTop + mattressH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w - 0.1, mattressH, mattressD]} />
-        <meshStandardMaterial color={mattressColor} roughness={0.9} />
+        <meshStandardMaterial color={mattressColor} roughness={0.95} />
       </mesh>
 
       {/* لحاف روی نیمه پایین (سمت پا) */}
@@ -326,6 +328,10 @@ export function TableMesh(ctx: MeshCtx) {
   const legH = h - topH;
   const inset = 0.08;
 
+  // رگه چوب میز — تولید یک‌بار به‌ازای هر رنگ (کش ماژول textures)
+  const topTex = useMemo(() => woodGrainTexture(color), [color]);
+  const legTex = useMemo(() => woodGrainTexture(bodyColor), [bodyColor]);
+
   return (
     <group
       ref={(g) => {
@@ -338,7 +344,12 @@ export function TableMesh(ctx: MeshCtx) {
       {/* رویه میز */}
       <mesh position={[0, h - topH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, topH, d]} />
-        <meshStandardMaterial color={color} roughness={0.55} />
+        <meshStandardMaterial
+          map={topTex ?? undefined}
+          color={topTex ? '#ffffff' : color}
+          roughness={0.5}
+          envMapIntensity={0.5}
+        />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
@@ -351,7 +362,12 @@ export function TableMesh(ctx: MeshCtx) {
       ].map(([lx, lz], i) => (
         <mesh key={`leg-${i}`} position={[lx, legH / 2, lz]} castShadow receiveShadow>
           <boxGeometry args={[0.06, legH, 0.06]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.65} />
+          <meshStandardMaterial
+            map={legTex ?? undefined}
+            color={legTex ? '#ffffff' : bodyColor}
+            roughness={0.55}
+            envMapIntensity={0.5}
+          />
         </mesh>
       ))}
     </group>
@@ -379,6 +395,10 @@ export function ChairMesh(ctx: MeshCtx) {
   const legInset = 0.045;
   const backH = Math.max(0.3, h - seatY); // پشتی از نشیمن تا ارتفاع کل
 
+  // رگه چوب صندلی (کش ماژول textures)
+  const seatTex = useMemo(() => woodGrainTexture(color), [color]);
+  const legTex = useMemo(() => woodGrainTexture(bodyColor), [bodyColor]);
+
   return (
     <group
       ref={(g) => {
@@ -391,14 +411,24 @@ export function ChairMesh(ctx: MeshCtx) {
       {/* نشیمن */}
       <mesh position={[0, seatY, 0]} castShadow receiveShadow>
         <boxGeometry args={[seatW, seatH, seatD]} />
-        <meshStandardMaterial color={color} roughness={0.65} />
+        <meshStandardMaterial
+          map={seatTex ?? undefined}
+          color={seatTex ? '#ffffff' : color}
+          roughness={0.5}
+          envMapIntensity={0.5}
+        />
         {selected && <Edges scale={1.03} color={EDGE} />}
       </mesh>
 
       {/* پشتی */}
       <mesh position={[0, seatY + backH / 2, -seatD / 2 + 0.02]} castShadow>
         <boxGeometry args={[seatW, backH, 0.04]} />
-        <meshStandardMaterial color={color} roughness={0.65} />
+        <meshStandardMaterial
+          map={seatTex ?? undefined}
+          color={seatTex ? '#ffffff' : color}
+          roughness={0.5}
+          envMapIntensity={0.5}
+        />
         {selected && <Edges scale={1.03} color={EDGE} />}
       </mesh>
 
@@ -411,7 +441,12 @@ export function ChairMesh(ctx: MeshCtx) {
       ].map(([lx, lz], i) => (
         <mesh key={`leg-${i}`} position={[lx, legH / 2, lz]} castShadow>
           <boxGeometry args={[0.035, legH, 0.035]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.6} />
+          <meshStandardMaterial
+            map={legTex ?? undefined}
+            color={legTex ? '#ffffff' : bodyColor}
+            roughness={0.55}
+            envMapIntensity={0.5}
+          />
         </mesh>
       ))}
     </group>

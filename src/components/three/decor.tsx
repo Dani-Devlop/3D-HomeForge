@@ -49,7 +49,7 @@ export function PendantMesh(ctx: MeshCtx) {
       {/* کاسه */}
       <mesh position={[0, -0.55 * scale, 0]} castShadow onClick={click} onPointerOver={hoverCursor} onPointerOut={unhover}>
         <cylinderGeometry args={[0.05 * scale, 0.2 * scale, 0.22 * scale, 24, 1, true]} />
-        <meshStandardMaterial color={color} roughness={0.4} metalness={0.3} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={color} roughness={0.4} metalness={0.4} side={THREE.DoubleSide} />
         {selected && <Edges scale={1.03} color="#f59e0b" />}
       </mesh>
       {/* لامپ */}
@@ -68,8 +68,6 @@ export function PendantMesh(ctx: MeshCtx) {
           distance={4.5}
           decay={2}
           color="#ffdcae"
-          castShadow
-          shadow-mapSize={[512, 512]}
         />
       )}
     </group>
@@ -171,7 +169,7 @@ export function PlantMesh(ctx: MeshCtx) {
       {/* گلدان */}
       <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.13, 0.1, 0.32, 20]} />
-        <meshStandardMaterial color="#b0663f" roughness={0.7} />
+        <meshStandardMaterial color="#b0663f" roughness={0.6} envMapIntensity={0.5} />
         {selected && <Edges scale={1.03} color="#f59e0b" />}
       </mesh>
       {/* خاک */}
@@ -213,13 +211,13 @@ export function RugMesh(ctx: MeshCtx) {
     >
       <mesh receiveShadow>
         <boxGeometry args={[1.9 * scale, 0.024, 1.3 * scale]} />
-        <meshStandardMaterial color={color} roughness={0.95} />
+        <meshStandardMaterial color={color} roughness={1} />
         {selected && <Edges scale={1.01} color="#f59e0b" />}
       </mesh>
       {/* حاشیه */}
       <mesh position={[0, 0.002, 0]}>
         <boxGeometry args={[1.78 * scale, 0.03, 1.18 * scale]} />
-        <meshStandardMaterial color="#d9c5ae" roughness={0.95} />
+        <meshStandardMaterial color="#d9c5ae" roughness={1} />
       </mesh>
     </group>
   );

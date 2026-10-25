@@ -4,6 +4,12 @@ import * as THREE from 'three';
 import { useMemo } from 'react';
 import type { DoorwaySpec, OutlinePoint, RoomSpec, WindowSpec } from '@/lib/scene-types';
 import { edgeFrame, getRoomOutline, type EdgeFrame } from '@/lib/polygon';
+import {
+  cloneWithRepeat,
+  plasterWallBumpTexture,
+  plasterWallTexture,
+  woodFloorTexture,
+} from './textures';
 
 // ============================================================
 // اتاق بازسازی‌شده — نسخه چندضلعی
@@ -26,7 +32,7 @@ function Frame({
   depth?: number;
   color?: string;
 }) {
-  const mat = <meshStandardMaterial color={color} roughness={0.6} />;
+  const mat = <meshStandardMaterial color={color} roughness={0.5} />;
   return (
     <group>
       {/* بالا */}
@@ -124,15 +130,18 @@ function WindowCutout({ spec, edge }: { spec: WindowSpec; edge: EdgeFrame }) {
   return (
     <EdgeGroup edge={edge} offsetAlong={offsetAlong}>
       <group position={[0, cy, 0]}>
-        {/* شیشه */}
+        {/* شیشه — شفاف روشن با درخشش ملایم؛ هرگز تیره/سیاه رندر نمی‌شود */}
         <mesh position={[0, 0, 0.005]}>
           <planeGeometry args={[spec.width, spec.height]} />
           <meshStandardMaterial
             color="#d7ecf9"
-            emissive="#a8cfe6"
-            emissiveIntensity={0.55}
-            roughness={0.15}
-            metalness={0.1}
+            emissive="#b8d9ea"
+            emissiveIntensity={0.35}
+            transparent
+            opacity={0.3}
+            roughness={0.05}
+            metalness={0}
+            envMapIntensity={1.2}
           />
         </mesh>
         {/* قاب */}
@@ -140,12 +149,12 @@ function WindowCutout({ spec, edge }: { spec: WindowSpec; edge: EdgeFrame }) {
         {/* میله عمودی وسط */}
         <mesh position={[0, 0, 0.01]}>
           <boxGeometry args={[0.04, spec.height, 0.03]} />
-          <meshStandardMaterial color="#f5f2ec" roughness={0.6} />
+          <meshStandardMaterial color="#f5f2ec" roughness={0.5} />
         </mesh>
         {/* طاقچه پایین */}
         <mesh position={[0, -spec.height / 2 - 0.03, 0.05]} castShadow>
           <boxGeometry args={[spec.width + 0.14, 0.05, 0.14]} />
-          <meshStandardMaterial color="#efeae0" roughness={0.7} />
+          <meshStandardMaterial color="#efeae0" roughness={0.5} envMapIntensity={0.4} />
         </mesh>
       </group>
     </EdgeGroup>
@@ -214,19 +223,54 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
     ];
   }, [primaryEdge, h, outline]);
 
+  // بافت‌ها — تولید یک‌بار در ماژول textures (کش بر اساس رنگ)؛ null = SSR/Fallback رنگی
+  const bbox = useMemo(() => outlineBBoxSafe(outline), [outline]);
+  const floorTex = useMemo(() => {
+    const t = woodFloorTexture(spec.floorColor);
+    if (!t) return null;
+    // تخته‌های پارکت ~۱.۲ متر
+    return cloneWithRepeat(t, Math.max(1, bbox.w / 1.2), Math.max(1, bbox.d / 1.2));
+  }, [spec.floorColor, bbox.w, bbox.d]);
+
+  // هر دیوار repeat خودش را نیاز دارد — کلون با source مشترک (ارزان روی GPU)
+  const wallTex = useMemo(
+    () =>
+      edges.map((edge) => {
+        const rx = Math.max(1, edge.len / 1.5);
+        const ry = Math.max(1, h / 1.5);
+        return {
+          map: cloneWithRepeat(plasterWallTexture(spec.wallColor), rx, ry),
+          bump: cloneWithRepeat(plasterWallBumpTexture(spec.wallColor), rx, ry),
+        };
+      }),
+    [edges, spec.wallColor, h],
+  );
+
   return (
     <group>
-      {/* نور جهت‌دار طبیعی — از سمت پنجره اصلی به مرکز اتاق */}
+      {/* نور جهت‌دار طبیعی — از سمت پنجره اصلی به مرکز اتاق (تنها نور سایه‌انداز صحنه) */}
       <directionalLight
         position={sunPos}
         intensity={primaryEdge ? 1.15 : 0.85}
         color={primaryEdge ? '#fff1da' : '#fffaf2'}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
       />
 
-      {/* کف چندضلعی */}
+      {/* کف چندضلعی — پارکت پروسیجرال (نقشه رنگ را حمل می‌کند؛ رنگ سفید) */}
       <mesh rotation-x={-Math.PI / 2} position-y={0} receiveShadow>
         <shapeGeometry args={[floorShape]} />
-        <meshStandardMaterial color={spec.floorColor} roughness={0.85} />
+        {floorTex ? (
+          <meshStandardMaterial map={floorTex} color="#ffffff" roughness={0.55} envMapIntensity={0.6} />
+        ) : (
+          <meshStandardMaterial color={spec.floorColor} roughness={0.55} envMapIntensity={0.6} />
+        )}
       </mesh>
 
       {/* سقف — فقط از داخل دیده می‌شود */}
@@ -235,7 +279,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
         <meshStandardMaterial color={spec.ceilingColor} roughness={0.95} />
       </mesh>
 
-      {/* دیوارها — یک صفحه رو به داخل برای هر لبه (دیوار کج = صفحه چرخیده) */}
+      {/* دیوارها — گچ پروسیجرال با bump ملایم؛ هر لبه repeat خودش */}
       {edges.map((edge, i) => (
         <mesh
           key={`wall-${i}`}
@@ -244,7 +288,14 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
           receiveShadow
         >
           <planeGeometry args={[edge.len + 0.02, h]} />
-          <meshStandardMaterial color={spec.wallColor} roughness={0.95} />
+          <meshStandardMaterial
+            map={wallTex[i].map ?? undefined}
+            bumpMap={wallTex[i].bump ?? undefined}
+            bumpScale={0.015}
+            color={wallTex[i].map ? '#ffffff' : spec.wallColor}
+            roughness={0.9}
+            envMapIntensity={0.45}
+          />
         </mesh>
       ))}
 
@@ -256,7 +307,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
           rotation={[0, edge.angleY, 0]}
         >
           <boxGeometry args={[edge.len, 0.1, 0.04]} />
-          <meshStandardMaterial color="#e0d8ca" roughness={0.7} />
+          <meshStandardMaterial color="#e0d8ca" roughness={0.5} envMapIntensity={0.4} />
         </mesh>
       ))}
 

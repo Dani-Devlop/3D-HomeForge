@@ -1,4 +1,5 @@
 import type { RoomSpec, SceneState, SceneObject, ObjectPatch, ShareRole } from './scene-types';
+import type { ProjectStage } from './crm';
 
 // ---------------- DTOs ----------------
 
@@ -12,10 +13,15 @@ export interface ProjectDTO {
   isPublic: boolean;
   folderId: string | null;
   folderName: string | null;
-  // CRM — مشخصات مشتری و زمان‌بندی (ISO یا null)
+  // CRM — مشخصات مشتری، مرحله پیشرفت و مذاکره (ISO یا null)
   clientName?: string | null;
   clientPhone?: string | null;
   address?: string | null;
+  stage?: ProjectStage;
+  dealAt?: string | null;
+  contractAmount?: number | null;
+  contractPhoto?: string | null;
+  invoicePhoto?: string | null;
   visitAt?: string | null;
   installAt?: string | null;
   dueAt?: string | null;
@@ -29,6 +35,11 @@ export interface ProjectCrmFields {
   clientName?: string | null;
   clientPhone?: string | null;
   address?: string | null;
+  stage?: ProjectStage;
+  dealAt?: string | null;
+  contractAmount?: number | null;
+  contractPhoto?: string | null;
+  invoicePhoto?: string | null;
   visitAt?: string | null;
   installAt?: string | null;
   dueAt?: string | null;
@@ -37,6 +48,7 @@ export interface ProjectCrmFields {
 export interface FolderDTO {
   id: string;
   name: string;
+  phone?: string | null;
   createdAt: string;
   projectCount?: number;
 }
@@ -117,6 +129,14 @@ export interface GeneratedItem {
   type: SceneObject['type'];
   label: string;
   params: SceneObject['params'];
+}
+
+/** خروجی طراحی کل فضا با توصیف متنی (text-to-room) */
+export interface GeneratedRoom {
+  roomType: string;
+  roomSpec: RoomSpec;
+  objects: SceneObject[];
+  description: string;
 }
 
 /** نمونه‌کار صفحه عمومی (لندینگ) — تصویر یا مدل سه‌بعدی زنده */
@@ -270,6 +290,10 @@ export const api = {
   listPortfolio: (all?: boolean) =>
     request<{ items: PortfolioItemDTO[] }>(`/api/portfolio${all ? '?all=1' : ''}`),
 
+  /** خواندن یک نمونه‌کار (برای ویرایش مدل سه‌بعدی در ویرایشگر) */
+  getPortfolioItem: (id: string) =>
+    request<{ item: PortfolioItemDTO }>(`/api/portfolio/${id}`),
+
   createPortfolioItem: (p: PortfolioItemInput) =>
     request<{ item: PortfolioItemDTO }>('/api/portfolio', {
       method: 'POST',
@@ -308,6 +332,13 @@ export const api = {
       body: JSON.stringify({ text }),
     }),
 
+  // ---- طراحی کامل فضا از توصیف متنی (text-to-room) ----
+  generateRoom: (text: string) =>
+    request<GeneratedRoom>('/api/ai/room', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
   // ---- ویرایش متنی آبجکت انتخاب‌شده ----
   aiEditObject: (object: SceneObject, text: string) =>
     request<{ patch: ObjectPatch }>('/api/ai/edit', {
@@ -315,13 +346,14 @@ export const api = {
       body: JSON.stringify({ object, text }),
     }),
 
-  // ---- پوشه‌ها ----
+  // ---- پوشه‌های مشتری ----
   listFolders: () => request<{ folders: FolderDTO[] }>('/api/folders'),
 
-  createFolder: (name: string) =>
-    request<{ folder: FolderDTO }>('/api/folders', {
+  /** ساخت پوشه مشتری — اگر پوشه‌ای با همان نام موجود باشد همان برمی‌گردد (existed: true) */
+  createFolder: (name: string, phone?: string) =>
+    request<{ folder: FolderDTO; existed?: boolean }>('/api/folders', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(phone ? { phone } : {}) }),
     }),
 
   renameFolder: (id: string, name: string) =>

@@ -49,6 +49,11 @@ export interface SerializedProject {
   clientName: string | null;
   clientPhone: string | null;
   address: string | null;
+  stage: string;
+  dealAt: string | null;
+  contractAmount: number | null;
+  contractPhoto: string | null;
+  invoicePhoto: string | null;
   visitAt: string | null;
   installAt: string | null;
   dueAt: string | null;
@@ -77,6 +82,11 @@ export function serializeProject(
     clientName: p.clientName,
     clientPhone: p.clientPhone,
     address: p.address,
+    stage: p.stage,
+    dealAt: p.dealAt ? p.dealAt.toISOString() : null,
+    contractAmount: p.contractAmount ?? null,
+    contractPhoto: p.contractPhoto,
+    invoicePhoto: p.invoicePhoto,
     visitAt: p.visitAt ? p.visitAt.toISOString() : null,
     installAt: p.installAt ? p.installAt.toISOString() : null,
     dueAt: p.dueAt ? p.dueAt.toISOString() : null,

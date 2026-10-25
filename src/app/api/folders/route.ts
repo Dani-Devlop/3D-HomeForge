@@ -6,12 +6,13 @@ import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/folders — فهرست و ساخت پوشه (هر پوشه = یک خانه/آشپزخانه)
+// /api/folders — فهرست و ساخت پوشه مشتری (هر پوشه = یک مشتری؛ همه پروژه‌های او)
 // ============================================================
 
 interface FolderDTO {
   id: string;
   name: string;
+  phone: string | null;
   createdAt: string;
   projectCount: number;
 }
@@ -20,6 +21,7 @@ function serializeFolder(f: Folder & { _count?: { projects: number } }): FolderD
   return {
     id: f.id,
     name: f.name,
+    phone: f.phone,
     createdAt: f.createdAt.toISOString(),
     projectCount: f._count?.projects ?? 0,
   };
@@ -43,6 +45,7 @@ export async function GET(req: NextRequest) {
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(60),
+  phone: z.string().trim().max(60).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -57,13 +60,25 @@ export async function POST(req: NextRequest) {
     const parsed = createSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'نام پوشه را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
+        { error: 'نام مشتری را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
         { status: 400 },
       );
     }
 
+    // پوشه تکراری با همان نام → همان پوشه موجود برگرردد (پوشه = مشتری)
+    const existing = await db.folder.findFirst({
+      where: { name: parsed.data.name },
+      include: { _count: { select: { projects: true } } },
+    });
+    if (existing) {
+      return NextResponse.json({ folder: serializeFolder(existing), existed: true });
+    }
+
     const folder = await db.folder.create({
-      data: { name: parsed.data.name },
+      data: {
+        name: parsed.data.name,
+        ...(parsed.data.phone ? { phone: parsed.data.phone } : {}),
+      },
       include: { _count: { select: { projects: true } } },
     });
     return NextResponse.json({ folder: serializeFolder(folder) }, { status: 201 });

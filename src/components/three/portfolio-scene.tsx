@@ -7,6 +7,7 @@ import { OrbitControls } from '@react-three/drei';
 import type { RoomSpec, SceneObject } from '@/lib/scene-types';
 import { normalizeOutline, outlineBBox } from '@/lib/polygon';
 import { SceneEnvironment } from './editor-scene';
+import { applyToneMapping } from './scene-quality';
 import { RoomMesh } from './room';
 import { CabinetMesh, type MeshCtx, type RefsMap } from './cabinet';
 import { FloorLampMesh, PendantMesh, PlantMesh, RugMesh } from './decor';
@@ -199,7 +200,10 @@ export default function PortfolioScene({
           dpr={[1, 1.5]}
           camera={{ position: cameraPos, fov: 46 }}
           gl={{ antialias: true }}
-          onCreated={({ gl }) => gl.setClearColor('#d9d2c7')}
+          onCreated={({ gl }) => {
+            gl.setClearColor('#cdc6ba');
+            applyToneMapping(gl);
+          }}
         >
           <SceneEnvironment />
           <OrbitControls

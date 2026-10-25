@@ -17,27 +17,32 @@ import {
   LampCeiling,
   Loader2,
   Lock,
+  Magnet,
   PencilRuler,
   Redo2,
   Send,
+  Sparkles,
   Undo2,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, type PortfolioItemDTO, type ProjectDTO } from '@/lib/api';
 import type { ObjectPatch, SceneObject, CatalogItem, RoomSpec } from '@/lib/scene-types';
 import { ensureObjectIds } from '@/lib/scene-types';
 import { clampPositionToRoom } from '@/lib/polygon';
 import { exportGroupToGLB } from '@/lib/export-glb';
 import {
+  catalogDefaults,
   findFreeSpot,
   uid,
   useEditorStore,
 } from '@/store/editor-store';
+import { isWallSnapType, snapNewObject } from '@/components/three/wall-snap';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -114,13 +119,22 @@ function OwnerLoginInline({ onDone }: { onDone: () => void }) {
   );
 }
 
-export default function EditorView({ projectId }: { projectId: string }) {
+export default function EditorView({ projectId, portfolioId }: { projectId?: string; portfolioId?: string }) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const projectQ = useQuery({
     queryKey: ['project', projectId],
-    queryFn: () => api.getProject(projectId),
+    queryFn: () => api.getProject(projectId!),
+    enabled: !!projectId,
+    retry: 1,
+  });
+
+  // حالت ویرایش مدل نمونه‌کار (/editor/pf/:id) — بارگذاری و ذخیره روی نمونه‌کار
+  const pfQ = useQuery({
+    queryKey: ['portfolio-item', portfolioId],
+    queryFn: () => api.getPortfolioItem(portfolioId!),
+    enabled: !!portfolioId,
     retry: 1,
   });
 
@@ -148,46 +162,59 @@ export default function EditorView({ projectId }: { projectId: string }) {
   const [exporting, setExporting] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [aiEditing, setAiEditing] = useState(false);
+  const [wallSnapEnabled, setWallSnapEnabled] = useState(true);
+  const [textGenOpen, setTextGenOpen] = useState(false);
+  const [textDraft, setTextDraft] = useState('');
+  const [roomBusy, setRoomBusy] = useState(false);
 
-  // بارگذاری پروژه در استور
+  // بارگذاری پروژه یا نمونه‌کار در استور
+  const sourceData = projectId ? projectQ.data?.project : pfQ.data?.item;
   useEffect(() => {
-    if (projectQ.data?.project && !loaded) {
-      const p = projectQ.data.project;
-      const spec =
-        p.roomSpec && 'widthM' in p.roomSpec
-          ? (p.roomSpec as RoomSpec)
-          : roomSpec;
-      const objs: SceneObject[] = ensureObjectIds(
-        p.sceneState && 'objects' in p.sceneState && Array.isArray(p.sceneState.objects)
-          ? (p.sceneState.objects as SceneObject[])
-          : [],
-      );
-      store.getState().loadProject(p.id, p.name, spec, objs);
-      setLoaded(true);
-    }
-  }, [projectQ.data, loaded, store, roomSpec]);
+    if (loaded || !sourceData) return;
+    const spec =
+      sourceData.roomSpec && 'widthM' in sourceData.roomSpec
+        ? (sourceData.roomSpec as RoomSpec)
+        : roomSpec;
+    const objs: SceneObject[] = ensureObjectIds(
+      sourceData.sceneState && 'objects' in sourceData.sceneState && Array.isArray(sourceData.sceneState.objects)
+        ? (sourceData.sceneState.objects as SceneObject[])
+        : [],
+    );
+    const name = projectId ? (sourceData as ProjectDTO).name : (sourceData as PortfolioItemDTO).title;
+    store.getState().loadProject(sourceData.id, name, spec, objs);
+    setLoaded(true);
+  }, [sourceData, projectId, loaded, store, roomSpec]);
 
-  // ---- ذخیره خودکار ----
+  // ---- ذخیره خودکار (پروژه یا نمونه‌کار) ----
   const saveProject = useCallback(
     async (withThumb: boolean) => {
       const s = store.getState();
-      if (!s.projectId) return;
       try {
         setSaving(true);
         let thumbnail: string | null | undefined;
         if (withThumb && glRef.current && sceneRootRef.current) {
           try {
-            thumbnail = glRef.current.domElement.toDataURL('image/jpeg', 0.55);
+            thumbnail = glRef.current.domElement.toDataURL('image/jpeg', portfolioId ? 0.6 : 0.55);
           } catch {
             thumbnail = undefined;
           }
         }
-        await api.patchProject(s.projectId, {
-          name: s.projectName,
-          roomSpec: s.roomSpec,
-          sceneState: { objects: s.objects },
-          ...(thumbnail !== undefined ? { thumbnail } : {}),
-        });
+        if (portfolioId) {
+          // ذخیره روی نمونه‌کار — مدل زنده + تازه‌شدن عکس fallback
+          await api.updatePortfolioItem(portfolioId, {
+            roomSpec: s.roomSpec,
+            sceneState: { objects: s.objects },
+            ...(thumbnail ? { image: thumbnail } : {}),
+          });
+        } else {
+          if (!s.projectId) return;
+          await api.patchProject(s.projectId, {
+            name: s.projectName,
+            roomSpec: s.roomSpec,
+            sceneState: { objects: s.objects },
+            ...(thumbnail !== undefined ? { thumbnail } : {}),
+          });
+        }
         store.getState().markSaved();
       } catch (e) {
         // خطای ذخیره بی‌صدا برای جلوگیری از اسپم
@@ -196,7 +223,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
         setSaving(false);
       }
     },
-    [store]
+    [store, portfolioId],
   );
 
   useEffect(() => {
@@ -213,13 +240,21 @@ export default function EditorView({ projectId }: { projectId: string }) {
   // ---- Drag & Drop از کتابخانه ----
   const handlePlace = useCallback(
     (x: number, z: number) => {
-      const type = pendingDrop.current;
-      if (!type) return;
+      const drop = pendingDrop.current;
+      if (!drop) return;
       pendingDrop.current = null;
-      const [cx, , cz] = clampPositionToRoom(roomSpec, [x, 0, z]);
-      store.getState().addObject(type.type, [cx, 0, cz], type.label);
+      const s = store.getState();
+      const [cx, , cz] = clampPositionToRoom(s.roomSpec, [x, 0, z]);
+      if (isWallSnapType(drop.type)) {
+        // آبجکت دیواری → روی نزدیک‌ترین دیوار می‌نشیند (چسبیده و رو به داخل)
+        const params = catalogDefaults(drop.type, drop.label).params;
+        const snapped = snapNewObject(s.roomSpec, drop.type, cx, cz, params);
+        s.addObject(drop.type, [snapped.x, 0, snapped.z], drop.label, snapped.rotationY);
+      } else {
+        s.addObject(drop.type, [cx, 0, cz], drop.label);
+      }
     },
-    [roomSpec, store]
+    [store],
   );
 
   const pendingDrop = useRef<{ type: SceneObject['type']; label?: string } | null>(null);
@@ -228,12 +263,17 @@ export default function EditorView({ projectId }: { projectId: string }) {
   const addFromCatalog = (item: CatalogItem) => {
     const s = store.getState();
     const [x, z] = findFreeSpot(s.objects, item.type, s.roomSpec);
-    s.addObject(item.type, [x, 0, z], item.label);
+    if (isWallSnapType(item.type)) {
+      const snapped = snapNewObject(s.roomSpec, item.type, x, z, item.defaults);
+      s.addObject(item.type, [snapped.x, 0, snapped.z], item.label, snapped.rotationY);
+    } else {
+      s.addObject(item.type, [x, 0, z], item.label);
+    }
     toast({ title: `${item.label} اضافه شد`, description: 'با کشیدن گیزموت جابه‌جا کنید' });
   };
 
   // ---- تولید مدل با توصیف متنی (text-to-3D) ----
-  const generateFromText = async (text: string) => {
+  const generateFromText = async (text: string): Promise<boolean> => {
     try {
       setGenerating(true);
       const { item } = await api.generateObject(text);
@@ -244,14 +284,49 @@ export default function EditorView({ projectId }: { projectId: string }) {
         title: `«${item.label}» ساخته شد ✓`,
         description: 'مدل پارامتریک به صحنه اضافه شد — با پنل کناری تنظیمش کنید',
       });
+      return true;
     } catch (e) {
       toast({
         title: 'تولید مدل ناموفق بود',
         description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
         variant: 'destructive',
       });
+      return false;
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // ---- طراحی کامل فضا با توصیف متنی (text-to-room) — جایگزینی صحنه ----
+  const generateWholeRoom = async (text: string): Promise<boolean> => {
+    try {
+      setRoomBusy(true);
+      const result = await api.generateRoom(text);
+      store.getState().replaceScene(result.roomSpec, result.objects);
+      toast({
+        title: 'فضای جدید ساخته شد ✓',
+        description: `${result.objects.length} آبجکت در فضا جای‌گذاری شد — با Ctrl+Z به حالت قبل برگردید`,
+      });
+      return true;
+    } catch (e) {
+      toast({
+        title: 'طراحی فضا ناموفق بود',
+        description: e instanceof Error ? e.message : 'دوباره تلاش کنید',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setRoomBusy(false);
+    }
+  };
+
+  const submitTextGen = async (mode: 'piece' | 'room') => {
+    const text = textDraft.trim();
+    if (!text || generating || roomBusy) return;
+    const ok = mode === 'piece' ? await generateFromText(text) : await generateWholeRoom(text);
+    if (ok) {
+      setTextGenOpen(false);
+      setTextDraft('');
     }
   };
 
@@ -441,11 +516,23 @@ export default function EditorView({ projectId }: { projectId: string }) {
       : undefined;
 
   const renameProject = useMutation({
-    mutationFn: (name: string) => api.patchProject(projectId, { name }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['project', projectId] }),
+    mutationFn: async (name: string) => {
+      if (portfolioId) {
+        await api.updatePortfolioItem(portfolioId, { title: name });
+        return;
+      }
+      await api.patchProject(projectId!, { name });
+    },
+    onSuccess: () => {
+      if (portfolioId) qc.invalidateQueries({ queryKey: ['portfolio-item', portfolioId] });
+      else {
+        qc.invalidateQueries({ queryKey: ['project', projectId] });
+        qc.invalidateQueries({ queryKey: ['projects'] });
+      }
+    },
   });
 
-  if (projectQ.isLoading) {
+  if (projectQ.isLoading || pfQ.isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -453,23 +540,27 @@ export default function EditorView({ projectId }: { projectId: string }) {
     );
   }
 
+  const loadError = projectId ? projectQ.error : pfQ.error;
+  const hasLoadError = projectId ? projectQ.isError : pfQ.isError;
+
   // نشست منقضی — کارت ورود مجدد
-  if (projectQ.isError && (projectQ.error as Error & { status?: number }).status === 401) {
+  if (hasLoadError && (loadError as Error & { status?: number }).status === 401) {
     return (
       <OwnerLoginInline
         onDone={() => {
           qc.invalidateQueries({ queryKey: ['project', projectId] });
+          qc.invalidateQueries({ queryKey: ['portfolio-item', portfolioId] });
           qc.invalidateQueries({ queryKey: ['projects'] });
         }}
       />
     );
   }
 
-  if (projectQ.isError) {
+  if (hasLoadError) {
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-lg font-semibold">پروژه پیدا نشد</p>
-        <p className="text-sm text-muted-foreground">{(projectQ.error as Error).message}</p>
+        <p className="text-lg font-semibold">{portfolioId ? 'نمونه‌کار پیدا نشد' : 'پروژه پیدا نشد'}</p>
+        <p className="text-sm text-muted-foreground">{(loadError as Error).message}</p>
         <Button onClick={() => (window.location.hash = '')} variant="outline" className="gap-2">
           <ArrowRight className="h-4 w-4" /> بازگشت به خانه
         </Button>
@@ -500,7 +591,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
             if (name) renameProject.mutate(name);
           }}
           className="h-9 w-44 sm:w-56 font-semibold"
-          aria-label="نام پروژه"
+          aria-label={portfolioId ? 'عنوان نمونه‌کار' : 'نام پروژه'}
         />
 
         <div className="flex items-center gap-1">
@@ -536,6 +627,16 @@ export default function EditorView({ projectId }: { projectId: string }) {
           <Button
             size="icon"
             variant="ghost"
+            onClick={() => setWallSnapEnabled((v) => !v)}
+            title="چسبیدن کابینت به دیوار (با نگه‌داشتن Alt موقتاً آزاد)"
+            aria-label="چسبیدن به دیوار"
+            className={wallSnapEnabled ? 'text-primary' : ''}
+          >
+            <Magnet className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
             onClick={() => setShowGrid((v) => !v)}
             title="شبکه راهنما"
             aria-label="شبکه راهنما"
@@ -560,14 +661,26 @@ export default function EditorView({ projectId }: { projectId: string }) {
         </span>
 
         <div className="ms-auto flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setTextGenOpen(true)}
+            className="gap-1.5"
+            title="ساخت کابینت یا کل فضا با یک جمله"
+          >
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="hidden sm:inline">ساخت با متن</span>
+          </Button>
           <Button size="sm" variant="outline" onClick={exportGLB} disabled={exporting} className="gap-1.5">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">{exporting ? 'در حال ساخت...' : 'خروجی GLB'}</span>
           </Button>
-          <Button size="sm" onClick={() => setShareOpen(true)} className="gap-1.5">
-            <Send className="h-4 w-4" />
-            انتشار
-          </Button>
+          {!portfolioId && (
+            <Button size="sm" onClick={() => setShareOpen(true)} className="gap-1.5">
+              <Send className="h-4 w-4" />
+              انتشار
+            </Button>
+          )}
         </div>
       </header>
 
@@ -632,6 +745,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
             onToggleOpen={(id) => store.getState().toggleOpen(id)}
             onToggleLight={(id) => store.getState().toggleLight(id)}
             onBeginAction={() => store.getState().beginAction()}
+            wallSnapEnabled={wallSnapEnabled}
             onMoved={(id) => {
               const g = refsMap.current.get(id);
               if (g) store.getState().updateObject(id, {
@@ -640,6 +754,8 @@ export default function EditorView({ projectId }: { projectId: string }) {
                   +g.position.y.toFixed(3),
                   +g.position.z.toFixed(3),
                 ],
+                // چرخش هم همگام شود (اسنپ دیوار، چرخش را رو به داخل تنظیم می‌کند)
+                rotationY: +g.rotation.y.toFixed(3),
               });
             }}
             onPlace={handlePlace}
@@ -670,7 +786,7 @@ export default function EditorView({ projectId }: { projectId: string }) {
 
           {/* راهنمای تعامل */}
           <div className="absolute bottom-3 start-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap pointer-events-none max-w-[95%] overflow-hidden text-ellipsis">
-            کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ
+            کلیک: انتخاب • کلیدهای جهت‌نما: حرکت • Q/E: چرخش • Shift+جهت‌نما: قدم بزرگ • دکمه ساخت با متن: کابینت یا کل فضا را با یک جمله بسازید
           </div>
 
           {/* پد حرکت آبجکت انتخاب‌شده (موبایل + دسکتاپ) */}
@@ -716,7 +832,63 @@ export default function EditorView({ projectId }: { projectId: string }) {
         </aside>
       </div>
 
-      <ShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />
+      {projectId ? (
+        <ShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />
+      ) : null}
+
+      {/* دیالوگ ساخت با متن (قطعه یا کل فضا) */}
+      <Dialog open={textGenOpen} onOpenChange={setTextGenOpen}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              ساخت با یک جمله
+            </DialogTitle>
+            <DialogDescription>
+              یک جمله بنویسید؛ مثلا: آشپزخانه ۴ متری مدرن با کابینت سفید و جزیره
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={textDraft}
+            onChange={(e) => setTextDraft(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="مثلاً: کابینت دیواری با درب شیشه‌ای، رنگ گردویی"
+            aria-label="توصیف متنی ساخت"
+            className="bg-card"
+          />
+          <p className="text-[11px] text-muted-foreground leading-5">
+            «کل فضا را طراحی کن»: فضای فعلی جایگزین می‌شود — با Ctrl+Z قابل بازگشت است.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => submitTextGen('piece')}
+              disabled={!textDraft.trim() || generating || roomBusy}
+              className="gap-1.5 h-10"
+            >
+              {generating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              قطعه‌ای بساز
+            </Button>
+            <Button
+              onClick={() => submitTextGen('room')}
+              disabled={!textDraft.trim() || generating || roomBusy}
+              className="gap-1.5 h-10"
+            >
+              {roomBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              کل فضا را طراحی کن
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* دیالوگ ویرایش پلان (وقتی آبجکتی انتخاب است و پنل کناری مشغول است) */}
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>

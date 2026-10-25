@@ -327,3 +327,72 @@ Stage Summary:
 - قرارداد: outline نبود = مستطیل (رفتار قبل ۱۰۰٪ حفظ شد)؛ widthM/depthM همیشه bbox پلان؛ پنجره/درب/آیتم روی دیوار کج با wallIndex (لبه i از نقطه i تا i+1)؛ نام دیوار بدون wallIndex → نزدیک‌ترین لبه به جهت آن
 - فایل‌ها: polygon.ts و room-plan-panel.tsx جدید؛ scene-types/room/editor-store/editor-view/viewer-view/portfolio-scene/reconstruct/page تغییر
 - دمو نگه‌داری‌شده: پروژه و نمونه‌کار «آشپزخانه پنج‌ضلعی — دیوار کج» در لندینگ برای نمایش قابلیت
+
+---
+Task ID: 11-b
+Agent: general-purpose (admin UI)
+Task: فرم کامل پروژه (مشتری/قرارداد/مالی/زمان‌بندی) + تطبیق خودکار پوشه مشتری + بج‌های مرحله/مبلغ/قرارداد روی کارت پروژه + فیلد شماره پوشه + دکمه «ویرایش مدل» نمونه‌کار
+
+Work Log:
+- خواندن worklog، api.ts، crm.ts، format.ts، image-utils.ts، home-view.tsx (کامل) و portfolio-manager.tsx
+- ساخت src/components/home/project-form-dialog.tsx:
+  • ProjectFormDialog جایگزین CrmDialog — بخش‌های «مشتری»، «قرارداد و مالی»، «زمان‌بندی» با گرید ۲ ستونه، hint «همه فیلدها اختیاری هستند»، max-w-lg و اسکرول عمودی
+  • فیلدها: نام پروژه (فقط باName)، نام مشتری، شماره‌های تماس (ltr، maxLength 60)، مکان اجرا، مرحله پیشرفت (Select پنج مرحله‌ای، پیش‌فرض visit)، مبلغ قرارداد (عدد، ltr، پیش‌نمایش formatToman)، تاریخ قرارداد (date ساده ↔ ISO با T12:00:00)، عکس قرارداد و فاکتور (آپلود با fileToResizedDataUrl 1100/0.75 + پیش‌نمایش + حذف)، سه datetime بازدید/اجرا/اتمام
+  • export های قرارداد: ProjectFormSave، ProjectFormInitial، ResolvedCustomerFolder، resolveCustomerFolder(name, phone) — یک فراخوانی api.createFolder که سرور با dedupe نام، پوشه موجود را برمی‌گرداند (existed)
+- home-view.tsx — FolderBar: حذف کامل CrmDialog؛ «پروژه جدید» → ProjectFormDialog؛ در mutationFn تطبیق خودکار پوشه مشتری با resolveCustomerFolder و ارسال همه فیلدهای CRM؛ toast «پروژه در پوشه مشتری «X» ثبت شد» یا «پوشه جدید مشتری ساخته شد»؛ ناوبری به /editor/<id>؛ خطای پوشه‌بندی پروژه را متوقف نمی‌کند
+- home-view.tsx — UploadCard: بخش Collapsible «اطلاعات مشتری و مرحله (اختیاری)» با نام مشتری/شماره تماس (sm:grid-cols-2) و Select مرحله؛ هر دو مسیر reconstruct و startSample پوشه مشتری را resolve/می‌سازند و clientName/clientPhone/stage را به createProject می‌دهند؛ invalidate ['folders'] و toast ساخت/استفاده مجدد پوشه؛ prop folderId برای حالت بدون نام مشتری حفظ شد
+- home-view.tsx — ProjectCard: بج مرحله پیشرفت (کلاس badge/dot از stageInfo، کلیک = باز شدن فرم)، بج‌های outline «مبلغ: …» و «قرارداد: …»، بج‌های قابل‌کلیک «قرارداد 📎» (Paperclip) و «فاکتور» (FileText) با ImagePreviewDialog جدید؛ DropdownMenuSub «مرحله پیشرفت» با ۵ مرحله (Check روی فعلی + نقطه رنگی) → patchProject(stage)؛ ویرایش با ProjectFormDialog («مشخصات پروژه — …») و saveCrm که همه فیلدهای جدید را patch می‌کند
+- home-view.tsx — FolderDialog: فیلد اختیاری «شماره تماس مشتری» (ltr) و onSave(name, phone)؛ ساخت پوشه با api.createFolder(name, phone)؛ تغییر نام مثل قبل فقط نام؛ tooltip شماره روی چیپ پوشه (title)
+- portfolio-manager.tsx: دکمه Rotate3d «ویرایش مدل سه‌بعدی» در ManagerCard (کنار Pencil، disabled وقتی صحنه زنده نیست، title + aria-label) و دکمه «ویرایش این مدل» در ItemDialog کنار پیش‌نمایش صحنه — هر دو window.location.hash = '/editor/pf/<id>'
+- بررسی نهایی: bunx eslint (بدون هیچ warning) و bunx tsc — هر دو برای فایل‌های این تسک پاک؛ خطاهای باقی‌مانده tsc فقط در examples/، skills/ و src/components/editor (فایل عامل دیگر در حال ویرایش)
+
+Stage Summary:
+- فرم واحد و کامل پروژه (مشتری + قرارداد/مالی + زمان‌بندی + عکس قرارداد/فاکتور) در project-form-dialog.tsx جایگزین CrmDialog شد
+- پوشه مشتری به‌صورت خودکار از نام مشتری resolve/ساخته می‌شود (یک فراخوانی createFolder، سرور dedupe می‌کند) در هر سه مسیر: پروژه جدید، بازسازی AI و فضای نمونه
+- کارت پروژه بج‌های مرحله/مبلغ/تاریخ قرارداد/پیوست‌ها + تغییر سریع مرحله از منو را دارد؛ پوشه‌ها شماره تماس دارند؛ نمونه‌کارهای دارای مدل زنده دکمه «ویرایش مدل» به /editor/pf/:id دارند
+---
+Task ID: 12
+Agent: general-purpose (editor)
+Task: اسنپ دیوار (سُرخوردن کابینت روی دیوار حین درگ) + ویرایش مدل نمونه‌کار از ویرایشگر (/editor/pf/:id) + برجسته‌سازی «ساخت با متن» (قطعه و کل فضا) + بازگردانی پنل «نما و بازشوها» (رنگ‌ها/ارتفاع/پنجره و درب)
+
+Work Log:
+- wall-snap.ts (جدید، ریاضی محض بدون وابستگی three تا استور هم ایمپورت کند): WALL_SNAP_TYPES (base/wall/tall/shelf/fridge/stove/washer/dishwasher/microwave/hood/tv) + isWallSnapType؛ WallDragState {edgeIndex,inset,y,halfW}؛ beginWallDrag (نزدیک‌ترین لبه با فاصله نقطه→پاره‌خط و clamp به سر نزدیک‌تر، inset=(d/2+0.02)، halfW=w/2، y قفل)؛ applyWallDrag (پروجکشن خام گیزموت روی خط لبه، محدود |t|<=len/2-halfW-0.05، inset از نرمال داخلی، rotationY=edge.angleY رو به داخل — همان قرارداد EdgeGroup در room.tsx)؛ snapNewObject (دراپ/افزودن روی نزدیک‌ترین لبه؛ پیش‌فرض inset=0.32 و تلویزیون نازک)؛ nearestEdgeIndex عمومی
+- editor-scene: prop جدید wallSnapEnabled؛ SelectionTransform حالا spec/objects/wallSnap می‌گیرد — در mouseDown وضعیت درگ (لبه/inset/y/halfW) از موقعیت همان لحظه گروه قفل می‌شود و در هر onObjectChange موقعیت خام گیزموت با applyWallDrag بازنویسی می‌شود (position.set + rotation.y) → گیزموت عملاً آبجکت را روی دیوار سُر می‌دهد؛ ارتفاع حین سُرخوردن ثابت؛ listener سراسری keydown/keyup برای Alt (ref) — حین نگه‌داشتن Alt اسنپ آن فریم رد می‌شود + blur برای ریست؛ translationSnap 0.05 حفظ شد؛ تغییر گروه از مسیر ref (targetGroupRef) انجام می‌شود تا با قاعده react-hooks/immutability سازگار باشد؛ wallSnapEnabled=false دقیقاً رفتار قبلی
+- editor-store: addObject پارامتر اختیاری rotationY گرفت؛ replaceScene(roomSpec, objects) جدید — beginAction برای undo، ensureObjectIds + clampPositionToRoom تک‌تک، پوشش دفاعی فیلدهای roomSpec خروجی AI، selectedIds خالی؛ findFreeSpot برای WALL_ROW_TYPES وقتی outline سفارشی هست نتیجه را با snapNewObject روی نزدیک‌ترین لبه می‌کشد (رفع افتادن ردیف سخت‌کد بیرون چندضلعی)
+- editor-view: onMoved حالا rotationY را هم از g.rotation.y (۳ رقم گرد) همگام می‌کند تا چرخش اسنپ در استور/ذخیره بماند؛ handlePlace بعد از clamp اگر isWallSnapType → snapNewObject با پارامترهای کاتالوگ و addObject با rotationY؛ addFromCatalog هم همین‌طور (چسبیدن دقیق حتی در مستطیل)؛ دکمه Magnet در تولبار (پیش‌فرض روشن، title «چسبیدن کابینت به دیوار (با نگه‌داشتن Alt موقتاً آزاد)»)
+- page.tsx: Route جدید {view:'editor-pf'; portfolioId} — '/editor/pf/<id>' قبل از '/editor/' پارس می‌شود؛ رندر <EditorView key={'pf-'+id} portfolioId={id} />
+- editor-view حالت نمونه‌کار: props {projectId?, portfolioId?}؛ useQuery ['portfolio-item', id] با api.getPortfolioItem (پاسخ {item} با title/roomSpec/sceneState پارس‌شده)؛ loadProject با id/title؛ ذخیره خودکار ۱۴۰۰ms در حالت نمونه‌کار → api.updatePortfolioItem(id, {roomSpec, sceneState:{objects}}) + تصویر از glRef.toDataURL('image/jpeg', 0.6) برای تازه‌ماندن عکس fallback؛ rename با onBlur → updatePortfolioItem({title}) و invalidate کوئری؛ 401 → همان OwnerLoginInline (هر دو کوئری پوشش داده شد)؛ خطا → «نمونه‌کار پیدا نشد»؛ دکمه انتشار و ShareDialog فقط در حالت پروژه؛ aria-label نام → «عنوان نمونه‌کار»؛ GLB/back/save status بدون تغییر
+- «ساخت با متن»: دکمه Sparkles در تولبار → دیالوگ «ساخت با یک جمله» با Textarea + دو اکشن: «قطعه‌ای بساز» (generateObject مسیر قبلی) و «کل فضا را طراحی کن» (api.generateRoom → store.replaceScene) با Loader2 جدا برای هر کدام، یادداشت «فضای فعلی جایگزین می‌شود — با Ctrl+Z قابل بازگشت»، بستن/پاک‌کردن بعد از موفقیت؛ متن راهنمای پایین صحنه با «دکمه ساخت با متن: کابینت یا کل فضا را با یک جمله بسازید» توسعه یافت
+- room-plan-panel بازنویسی با Tabs (dir rtl، TabsList h-8): تب «پلان» همان ویرایشگر SVG قبلی (بدون تغییر رفتار)؛ تب جدید «نما و بازشوها»: رنگ دیوار/کف/سقف (input color) + اسلایدر ارتفاع اتاق 2.4..3.5 گام 0.05 → setRoomSpec مستقیم از استور؛ لیست پنجره‌ها/درب‌ها با حذف (Trash2)، افزودن «+ پنجره» (back/0/sillY 0.9/1.2×1.2) و «+ درب» (front/0/0.95×2.05)، ویرایش هر آیتم با Select دیوار (پشت/راست/جلو/چپ + «لبه N» برای پلان‌های چندضلعی، wallIndex+wall با هم ست می‌شوند) و Inputهای عددی offsetX/sillY/width/height در ScrollArea؛ چون وضعیت از استور می‌آید در پنل کناری و دیالوگ پلان هر دو کار می‌کند
+- scene-types: WALL_NAME_FA (پشت/جلو/چپ/راست) اضافه شد (فقط export جدید)؛ polygon.ts دست نخورد (هلپر فاصله پاره‌خط محلی در wall-snap پیاده شد)
+- تست ریاضی با bun: سُر خوردن روی دیوار پشت (0,0,-1.38) rot=0، دیوار راست x=1.68 rot=-π/2، قفل‌شدن y کابینت دیواری، فاصله دقیق 0.32 از لبه کج پنج‌ضلعی + rotationY=atan2 داخلی، clamp انتهای لبه به 1.55، تلویزیون inset=0.05 — همه مطابق انتظار
+- eslint (page/editor/wall-snap/editor-scene/store/polygon/scene-types) و tsc بدون خطا در src (فقط ۴ خطای قدیمی examples/ و skills/ خارج از src که مربوط به این تسک نیست)
+
+Stage Summary:
+- قرارداد اسنپ دیوار: درگ انواع دیواری = سُرخوردن روی دیوار (لبه در شروع درگ قفل، y ثابت، آبجکت همیشه flush با inset=d/2+0.02 و رو به داخل)؛ Alt=آزاد موقت؛ دکمه Magnet=خاموش/روشن کل قابلیت؛ خروجی applyWallDrag: {position:[x,y,z], rotationY} — rotationY=edge.angleY (همان کنوانسیون room.tsx)
+- قرارداد مسیر نمونه‌کار: '#/editor/pf/<portfolioId>' → ویرایشگر با load از GET /api/portfolio/:id و ذخیره خودکار PATCH همان آیتم (roomSpec/sceneState/image)؛ انتشار/اشتراک فقط برای پروژه‌هاست؛ عنوان با blur پچ می‌شود
+- APIهای استور: addObject(type, position, label?, rotationY?)؛ replaceScene(roomSpec, objects) (undo-friendly)؛ findFreeSpot با snap لبه در پلان غیرمستطیلی؛ EditorScene prop جدید: wallSnapEnabled (required)
+- فایل‌ها: three/wall-snap.ts (جدید)، three/editor-scene.tsx، editor/editor-view.tsx، editor/room-plan-panel.tsx، store/editor-store.ts، app/page.tsx، lib/scene-types.ts (+WALL_NAME_FA) — home/*، api/*، lib/api.ts، بقیه three/* دست‌نخورده
+---
+Task ID: 13
+Agent: general-purpose (3D realism)
+Task: ارتقای واقع‌گرایی رندر سه‌بعدی — پاسخ به «الان بیشتر شبیه انیمیشنه… حرفه‌ای‌تر مثل 3Dهای دیگر» — بافت پروسیجرال، سایه نرم PCSS، محیط استودیویی PBR، تون‌مپینگ ACES و متریال‌های فیزیکی
+
+Work Log:
+- سه فایل کمکی جدید: three/textures.ts (کارخانه بافت CanvasTexture بدون هیچ فایل تصویری — کف پارکت 512px با تخته‌های 64px و لرزش hue/lightness ±6% و درز تیره و گره چوب و درز عمودی انتهای تخته، گچ دیوار 256px با نویز تک‌پیکسلی ±3% و کمانه ماله + bumpMap خاکستری جدا، گرانیت رویه با ۴۵۰ نقطه و ۳ رگه بزیه، کاشی 4×4 با بند #d9d4c8 برای پشت سینک آینده، رگه چوب عمودی سینوسی برای درب کابینت/مبلمان؛ همه با کش Map بر کلید نوع+رنگ → تغییر رنگ = بافت تازه، گارد SSR «typeof document === 'undefined' → null»، SRGBColorSpace برای map و خطی برای bump، RepeatWrapping و anisotropy 4؛ به‌علاوه cloneWithRepeat برای repeat مستقل هر مش با source مشترک (آپلود GPU یک‌بار) و shadeHex) و three/scene-quality.tsx (SoftShadows size22/samples12/focus0.7 + Environment resolution128/frames1 با ۴ Lightformer استودیویی: پنل سقفی گرم 2.2، دو پنل جانبی سرد 0.6، بازتاب کف گرم 0.3 — فقط environment map، پس‌زمینه دست‌نخورده؛ + applyToneMapping = ACESFilmic با exposure 1.12)
+- هر سه Canvas (editor/viewer/portfolio): onCreated اضافه شد → gl.toneMapping ACESFilmic + exposure 1.12 و setClearColor به '#cdc6ba'؛ preserveDrawingBuffer و antialias و dprها (editor [1,2] با glRef، portfolio [1,1.5]) دست‌نخورده → تامب‌نیل toDataURL سالم می‌ماند
+- SceneEnvironment (مشترک هر سه صحنه): ambient 0.5→0.35، hemisphere 0.35→0.3، directional سایه‌انداز 0.85 حذف شد و جایگزین fill بدون سایه 0.5 گرم + ریم 0.15؛ SceneQuality داخل همین کامپوننت → هر سه صحنه خودکار PCSS+محیط دارند
+- قرارداد سایه: دقیقاً «یک نور سایه‌انداز در هر صحنه» = خورشید RoomMesh — room.tsx خورشید castShadow گرفت با shadow-mapSize 2048، bias -0.0004، normalBias 0.02 و قاب دوربین سایه ±8؛ castShadow از pointLight لوستر (decor.tsx) حذف شد (قبلاً نور دومِ سایه‌انداز بود)
+- room.tsx: کف = پارکت پروسیجرال با repeat (bbox/1.2m) و roughness 0.85→0.55 و envMapIntensity 0.6 (fallback رنگی در SSR)؛ دیوارها = گچ پروسیجرال به‌ازای هر لبه با repeat (len/1.5, h/1.5) + bumpMap با bumpScale 0.015 و roughness 0.9؛ قرنیز roughness 0.5 و envMapIntensity 0.4؛ شیشه پنجره: استاندارد شفاف opacity 0.3 + roughness 0.05 + metalness 0 + envMapIntensity 1.2 + emissive #b8d9ea با شدت 0.35 — عمداً transmission物理ی نرفتم تا شیشه در هیچ شرایطی سیاه نشود (باگ B کاربر)؛ قاب/میله/طاقچه roughness 0.5
+- cabinet.tsx: درب/کشو = meshPhysical با رگه چوب + clearcoat 0.55 و clearcoatRoughness 0.35 و roughness 0.4 و envMapIntensity 0.7؛ قاب دور شیشه هم رگه‌دار شد؛ شیشه درب کابینت = استاندارد شفاف 0.28 + envMapIntensity 1.3 + emissive #a8c8d8 خیلی ملایم 0.12 (هرگز سیاه)؛ بدنه = رگه چوب تیره‌شده (shadeHex -18%) با roughness 0.55؛ رویه = گرانیت صیقلی roughness 0.25 و envMapIntensity 0.9؛ قفسه‌ها رگه‌دار؛ دستگیره‌ها استیل #c9c9cf با metalness 0.95 و roughness 0.28 و envMapIntensity 1.4 (HANDLE_STEEL مشترک)؛ RoundedBox عمداً اعمال نشد تا منطق لولا/انیمیشن دست نخورد
+- appliance.tsx: یخچال استیل واقعی (بدنه 0.7/0.3 env 1.2، درب‌ها کمی روشن‌تر 0.28/0.7 env 1.25)؛ HingedDoor پارامتر metalness/roughness گرفت؛ اجاق 0.6/0.35 و صفحه شیشه‌ای roughness 0.15؛ هود 0.6/0.35؛ لباسشویی/ظرفشویی 0.5/0.35؛ همه دستگیره‌های STEEL → STEEL_MAT (0.9/0.25/env 1.3)
+- furniture.tsx: تلویزیون روشن = emissive #cfe6f5 با شدت 1.6 و بیزل 0.3/0.4؛ مبل/تخت پارچه‌ای‌تر (roughness 0.95)؛ میز و صندلی رگه چوب گرفتن (roughness 0.5، env 0.5)
+- decor.tsx: فرش مات کامل (roughness 1)، گلدان 0.6، کاسه لوستر metalness 0.4
+- کارایی: بافت فقط یک‌بار به‌ازای هر رنگ تولید و کش می‌شود؛ کلون‌ها source مشترک دارند؛ ContactShadows عمداً اضافه نشد (سایه دوبل + هزینه)؛ Environment frames=1 ارزان؛ SoftShadows پچ یک‌باره شیدر
+- تست: bun -e با استاب document — تولید هر ۵ نوع بافت، کش یکسان (a===b)، SRGB برای map و خطی برای bump، کلون repeat صحیح و source مشترک، گارد SSR null — همه سبز؛ bunx eslint روی هر ۱۰ فایل = صفر مشکل؛ bunx tsc = فقط ۴ خطای قدیمی examples/ و skills/ خارج از src
+
+Stage Summary:
+- صحنه‌ها از «فلت/انیمیشنی» به حس رندر حرفه‌ای رفتند: سایه نرم PCSS از خورشید جهت‌دار هر اتاق + بازتاب‌های استودیویی روی فلز/شیشه/رویه + تون‌مپینگ فیلمیک + بافت‌های کاملاً پروسیجرال (پارکت، گچ، گرانیت، رگه چوب) بدون هیچ asset خارجی
+- قراردادها: فقط یک نور سایه‌انداز در هر صحنه (خورشید room.tsx)؛ SceneQuality داخل SceneEnvironment است و هر سه Canvas خودکار می‌گیرند؛ بافت‌ها client-only با گارد SSR و fallback رنگی؛ رنگ‌ها ورودی بافت‌اند پس تغییر رنگ از پنل = بافت تازه از کش
+- فایل‌ها: three/textures.ts (جدید)، three/scene-quality.tsx (جدید)، three/editor-scene.tsx (فقط SceneEnvironment + onCreated — منطق درگ/اسنپ تسک ۱۲ دست نخورد)، three/viewer-scene.tsx و three/portfolio-scene.tsx (فقط onCreated)، three/room.tsx، three/cabinet.tsx، three/appliance.tsx، three/furniture.tsx، three/decor.tsx — هیچ فایل خارج از سه فایل‌های مجاز تغییر نکرد
+- tileTexture (کاشی 4×4) آماده استفاده برای پشت‌سینک آینده است (هنوز جایی رندر نمی‌شود چون backsplash سطح اتاق منطق عمومی ندارد)

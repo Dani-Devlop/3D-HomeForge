@@ -200,16 +200,30 @@ function ItemDialog({
                     {scene.sourceName}
                   </Badge>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="absolute top-2 end-2 h-7 text-[11px] gap-1"
-                  onClick={() => setScene(null)}
-                  aria-label="حذف مدل سه‌بعدی"
-                >
-                  <X className="h-3 w-3" /> حذف مدل
-                </Button>
+                <div className="absolute top-2 end-2 flex gap-1.5">
+                  {initial && hasLiveScene(initial.sceneState) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 text-[11px] gap-1"
+                      onClick={() => (window.location.hash = `/editor/pf/${initial.id}`)}
+                      title="ویرایش مدل سه‌بعدی در ویرایشگر"
+                    >
+                      <Rotate3d className="h-3 w-3" /> ویرایش این مدل
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 text-[11px] gap-1"
+                    onClick={() => setScene(null)}
+                    aria-label="حذف مدل سه‌بعدی"
+                  >
+                    <X className="h-3 w-3" /> حذف مدل
+                  </Button>
+                </div>
               </div>
             ) : (
               <p className="text-[10px] text-muted-foreground leading-relaxed">
@@ -504,6 +518,17 @@ function ManagerCard({
             </Button>
           </div>
           <div className="flex items-center gap-0.5">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={iconBtn}
+              onClick={() => (window.location.hash = `/editor/pf/${item.id}`)}
+              disabled={!live}
+              title="ویرایش مدل سه‌بعدی در ویرایشگر"
+              aria-label={`ویرایش مدل سه‌بعدی ${item.title}`}
+            >
+              <Rotate3d className="h-4 w-4" />
+            </Button>
             <Button size="icon" variant="ghost" className={iconBtn} onClick={() => onEdit(item)} aria-label={`ویرایش ${item.title}`}>
               <Pencil className="h-4 w-4" />
             </Button>

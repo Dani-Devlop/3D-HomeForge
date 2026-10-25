@@ -5,8 +5,17 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import type { SceneObject } from '@/lib/scene-types';
+import { shadeHex, stoneCountertopTexture, woodGrainTexture } from './textures';
 
 export type RefsMap = Map<string, THREE.Group>;
+
+/** استیل دستگیره‌ها — بازتاب قوی محیط برای حس فلز واقعی */
+const HANDLE_STEEL = {
+  color: '#c9c9cf',
+  metalness: 0.95,
+  roughness: 0.28,
+  envMapIntensity: 1.4,
+} as const;
 
 export interface MeshCtx {
   obj: SceneObject;
@@ -65,6 +74,33 @@ function HingedDoor({
   });
   const hover = useCursor(true);
 
+  // رگه چوب درب — تولید یک‌بار به‌ازای هر رنگ (کش ماژول textures)
+  const doorTex = useMemo(() => woodGrainTexture(color), [color]);
+  const woodMat = doorTex ? (
+    <meshPhysicalMaterial
+      map={doorTex}
+      color="#ffffff"
+      roughness={0.4}
+      clearcoat={0.55}
+      clearcoatRoughness={0.35}
+      envMapIntensity={0.7}
+    />
+  ) : (
+    <meshPhysicalMaterial
+      color={color}
+      roughness={0.4}
+      clearcoat={0.55}
+      clearcoatRoughness={0.35}
+      envMapIntensity={0.7}
+    />
+  );
+  // قاب باریک دور درب شیشه‌ای — همان رگه
+  const frameMat = doorTex ? (
+    <meshStandardMaterial map={doorTex} color="#ffffff" roughness={0.5} envMapIntensity={0.6} />
+  ) : (
+    <meshStandardMaterial color={color} roughness={0.5} envMapIntensity={0.6} />
+  );
+
   const handleEl =
     handle === 'bar' ? (
       <mesh
@@ -72,12 +108,12 @@ function HingedDoor({
         castShadow
       >
         <boxGeometry args={[0.025, Math.min(0.16, height * 0.4), 0.025]} />
-        <meshStandardMaterial color="#c8b89a" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial {...HANDLE_STEEL} />
       </mesh>
     ) : handle === 'knob' ? (
       <mesh position={[-side * (width - 0.05), 0, 0.035]} castShadow>
         <sphereGeometry args={[0.022, 16, 16]} />
-        <meshStandardMaterial color="#c8b89a" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial {...HANDLE_STEEL} />
       </mesh>
     ) : null;
 
@@ -98,35 +134,38 @@ function HingedDoor({
             document.body.style.cursor = 'auto';
           }}
         >
-          {/* شیشه شفاف با تینت روشن آبی-سبز */}
+          {/* شیشه شفاف روشن با درخشش خیلی ملایم — هرگز سیاه */}
           <mesh castShadow>
             <boxGeometry args={[width, height, 0.014]} />
-            <meshPhysicalMaterial
+            <meshStandardMaterial
               color="#cdeaf2"
+              emissive="#a8c8d8"
+              emissiveIntensity={0.12}
               transparent
-              opacity={0.26}
-              roughness={0.06}
-              metalness={0.05}
+              opacity={0.28}
+              roughness={0.08}
+              metalness={0}
+              envMapIntensity={1.3}
               side={THREE.DoubleSide}
             />
           </mesh>
           {/* قاب باریک دور شیشه — بالا و پایین */}
           <mesh position={[0, height / 2 - T / 2, 0]} castShadow>
             <boxGeometry args={[width, T, D]} />
-            <meshStandardMaterial color={color} roughness={0.65} />
+            {frameMat}
           </mesh>
           <mesh position={[0, -height / 2 + T / 2, 0]} castShadow>
             <boxGeometry args={[width, T, D]} />
-            <meshStandardMaterial color={color} roughness={0.65} />
+            {frameMat}
           </mesh>
           {/* قاب باریک دور شیشه — چپ و راست */}
           <mesh position={[-width / 2 + T / 2, 0, 0]} castShadow>
             <boxGeometry args={[T, height - T * 2, D]} />
-            <meshStandardMaterial color={color} roughness={0.65} />
+            {frameMat}
           </mesh>
           <mesh position={[width / 2 - T / 2, 0, 0]} castShadow>
             <boxGeometry args={[T, height - T * 2, D]} />
-            <meshStandardMaterial color={color} roughness={0.65} />
+            {frameMat}
           </mesh>
         </group>
       ) : (
@@ -140,7 +179,7 @@ function HingedDoor({
           }}
         >
           <boxGeometry args={[width, height, 0.028]} />
-          <meshStandardMaterial color={color} roughness={0.65} />
+          {woodMat}
         </mesh>
       )}
       {handleEl}
@@ -177,16 +216,24 @@ function Drawer({
     );
   });
   const hover = useCursor(true);
+  const drawerTex = useMemo(() => woodGrainTexture(color), [color]);
   return (
     <group ref={group} position={[0, y, zBase]}>
       <mesh castShadow onClick={onClick} onPointerOver={hover} onPointerOut={() => (document.body.style.cursor = 'auto')}>
         <boxGeometry args={[width, height, 0.032]} />
-        <meshStandardMaterial color={color} roughness={0.65} />
+        <meshPhysicalMaterial
+          map={drawerTex ?? undefined}
+          color={drawerTex ? '#ffffff' : color}
+          roughness={0.4}
+          clearcoat={0.55}
+          clearcoatRoughness={0.35}
+          envMapIntensity={0.7}
+        />
       </mesh>
       {handle === 'bar' && (
         <mesh position={[0, 0, 0.03]} castShadow>
           <boxGeometry args={[Math.min(0.2, width * 0.4), 0.022, 0.022]} />
-          <meshStandardMaterial color="#c8b89a" metalness={0.7} roughness={0.3} />
+          <meshStandardMaterial {...HANDLE_STEEL} />
         </mesh>
       )}
     </group>
@@ -226,6 +273,11 @@ export function CabinetMesh(ctx: MeshCtx) {
     return Array.from({ length: n }, (_, i) => ((i + 1) * h) / (n + 1));
   }, [isShelf, h]);
 
+  // بافت‌ها — بدنه کمی تیره‌تر از درب‌ها، رویه سنگ صیقلی (کش ماژول textures)
+  const bodyTex = useMemo(() => woodGrainTexture(shadeHex(bodyColor, -0.18)), [bodyColor]);
+  const counterTex = useMemo(() => stoneCountertopTexture(counterColor), [counterColor]);
+  const shelfTex = useMemo(() => woodGrainTexture(doorColor), [doorColor]);
+
   const toggle = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     if (canInteract) ctx.onToggleOpen?.(obj.id);
@@ -243,10 +295,15 @@ export function CabinetMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={selectHandler}
     >
-      {/* بدنه */}
+      {/* بدنه — رگه چوب تیره‌تر */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} />
+        <meshStandardMaterial
+          map={bodyTex ?? undefined}
+          color={bodyTex ? '#ffffff' : bodyColor}
+          roughness={0.55}
+          envMapIntensity={0.5}
+        />
         {selected && <Edges scale={1.02} color="#f59e0b" />}
       </mesh>
 
@@ -269,15 +326,26 @@ export function CabinetMesh(ctx: MeshCtx) {
         shelves.map((y, i) => (
           <mesh key={i} position={[0, y, 0.01]} castShadow>
             <boxGeometry args={[w * 0.92, 0.03, d * 0.9]} />
-            <meshStandardMaterial color={doorColor} roughness={0.7} />
+            <meshStandardMaterial
+              map={shelfTex ?? undefined}
+              color={shelfTex ? '#ffffff' : doorColor}
+              roughness={0.55}
+              envMapIntensity={0.5}
+            />
           </mesh>
         ))}
 
-      {/* رویه سنگی/چوبی */}
+      {/* رویه سنگی/چوبی — سنگ صیقلی با بازتاب محیط */}
       {hasCounter && (
         <mesh position={[0, h + 0.02, 0]} castShadow receiveShadow>
           <boxGeometry args={[w + 0.05, 0.04, d + 0.05]} />
-          <meshStandardMaterial color={counterColor} roughness={0.35} metalness={0.1} />
+          <meshStandardMaterial
+            map={counterTex ?? undefined}
+            color={counterTex ? '#ffffff' : counterColor}
+            roughness={0.25}
+            metalness={0.05}
+            envMapIntensity={0.9}
+          />
         </mesh>
       )}
 

@@ -16,12 +16,17 @@ model Project {
   sceneState  String      @default("{}") // JSON: آبجکت‌های صحنه (کابینت/دکور/چراغ)
   thumbnail   String? // تصویر بندانگشتی صحنه (dataURL)
   isPublic    Boolean     @default(false) // عمومی (نمونه‌کار) یا خصوصی (فقط با لینک)
-  folderId    String? // هر خانه/آشپزخانه در یک پوشه اختصاصی
+  folderId    String? // پوشه مشتری — همه پروژه‌های یک مشتری در یک پوشه
   folder      Folder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
   // CRM — مشخصات مشتری و زمان‌بندی پروژه (مدیریت فقط توسط مدیر)
   clientName  String? // نام مشتری
   clientPhone String? // شماره تماس مشتری
-  address     String? // آدرس محل اجرا
+  address     String? // مکان اجرا (آدرس محل کار)
+  stage       String      @default("visit") // visit | design | build | install | delivered
+  dealAt      DateTime? // تاریخ قرارداد
+  contractAmount Float? // مبلغ قرارداد (تومان)
+  contractPhoto  String? // عکس قرارداد (dataURL — اختیاری)
+  invoicePhoto   String? // عکس فاکتور (dataURL — اختیاری)
   visitAt     DateTime? // زمان بازدید
   installAt   DateTime? // زمان اجرا و پیاده‌سازی
   dueAt       DateTime? // زمان اتمام
@@ -30,10 +35,11 @@ model Project {
   shareLinks  ShareLink[]
 }
 
-// پوشه: هر پروژه (هر خانه/آشپزخانه) در یک پوشه اختصاصی قرار می‌گیرد
+// پوشه مشتری: همه پروژه‌های یک مشتری (قبلی یا فعلی) در یک پوشه نگه‌داری می‌شود
 model Folder {
   id        String    @id @default(cuid())
-  name      String
+  name      String // نام مشتری
+  phone     String? // شماره تماس مشتری (اختیاری)
   createdAt DateTime  @default(now())
   projects  Project[]
 }

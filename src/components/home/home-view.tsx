@@ -7,10 +7,12 @@ import {
   Boxes,
   CalendarClock,
   Camera,
+  Check,
   CheckCircle2,
   ChevronDown,
   Contact,
   FilePlus2,
+  FileText,
   FolderInput,
   FolderPlus,
   Folder as FolderIcon,
@@ -23,6 +25,7 @@ import {
   LogOut,
   MapPin,
   MoreVertical,
+  Paperclip,
   Pencil,
   Phone,
   Ruler,
@@ -39,9 +42,10 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { api, type FolderDTO, type ProjectDTO, type ProjectCrmFields } from '@/lib/api';
+import { api, type FolderDTO, type ProjectDTO } from '@/lib/api';
+import { PROJECT_STAGES, formatToman, stageInfo, type ProjectStage } from '@/lib/crm';
 import { fileToResizedDataUrl, videoToFrames } from '@/lib/image-utils';
-import { formatFaDate, relativeFa, isoToLocalInput, localInputToIso } from '@/lib/format';
+import { formatFaDate, relativeFa } from '@/lib/format';
 import { SAMPLE_ROOM_SPEC, SAMPLE_SCENE } from '@/lib/sample-room';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -49,8 +53,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import SiteLanding, { SiteFooter } from './site-landing';
 import { PortfolioManager } from './portfolio-manager';
+import {
+  ProjectFormDialog,
+  resolveCustomerFolder,
+  type ProjectFormSave,
+} from './project-form-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,103 +103,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShareDialog } from '@/components/editor/share-dialog';
 
 // ============================================================
-// CRM — دیالوگ مشترک مشتری و زمان‌بندی
+// پیش‌نمایش تصویر (عکس قرارداد/فاکتور پروژه)
 // ============================================================
-interface CrmSave extends ProjectCrmFields {
-  name?: string;
-}
-
-function CrmDialog({
+function ImagePreviewDialog({
+  url,
   title,
-  initial,
-  withName,
-  saving,
-  onSave,
-  onCancel,
+  onClose,
 }: {
+  url: string;
   title: string;
-  initial: {
-    name?: string;
-    clientName?: string | null;
-    clientPhone?: string | null;
-    address?: string | null;
-    visitAt?: string | null;
-    installAt?: string | null;
-    dueAt?: string | null;
-  };
-  withName?: boolean;
-  saving: boolean;
-  onSave: (v: CrmSave) => void;
-  onCancel: () => void;
+  onClose: () => void;
 }) {
-  const [name, setName] = useState(initial.name ?? '');
-  const [clientName, setClientName] = useState(initial.clientName ?? '');
-  const [clientPhone, setClientPhone] = useState(initial.clientPhone ?? '');
-  const [address, setAddress] = useState(initial.address ?? '');
-  const [visitAt, setVisitAt] = useState(isoToLocalInput(initial.visitAt));
-  const [installAt, setInstallAt] = useState(isoToLocalInput(initial.installAt));
-  const [dueAt, setDueAt] = useState(isoToLocalInput(initial.dueAt));
-
-  const submit = () =>
-    onSave({
-      ...(withName ? { name } : {}),
-      clientName,
-      clientPhone,
-      address,
-      visitAt: localInputToIso(visitAt),
-      installAt: localInputToIso(installAt),
-      dueAt: localInputToIso(dueAt),
-    });
-
   return (
-    <Dialog open onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent dir="rtl" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          {withName && (
-            <div className="space-y-1">
-              <Label className="text-xs">نام پروژه</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً: آشپزخانه آقای رضایی" maxLength={80} autoFocus />
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">نام مشتری</Label>
-              <Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="مثلاً: آقای محمدی" maxLength={80} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">شماره تماس</Label>
-              <Input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} dir="ltr" className="text-start" placeholder="0912…" maxLength={30} />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">آدرس</Label>
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="نشانی محل اجرا" maxLength={300} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">زمان بازدید</Label>
-              <Input type="datetime-local" value={visitAt} onChange={(e) => setVisitAt(e.target.value)} className="h-9 text-xs" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">زمان اجرا و پیاده‌سازی</Label>
-              <Input type="datetime-local" value={installAt} onChange={(e) => setInstallAt(e.target.value)} className="h-9 text-xs" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">زمان اتمام</Label>
-              <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} className="h-9 text-xs" />
-            </div>
-          </div>
-          <p className="text-[10px] text-muted-foreground">فیلدهای خالی نادیده گرفته می‌شوند — همه اطلاعات اختیاری است.</p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>انصراف</Button>
-          <Button onClick={submit} disabled={saving || (withName && !name.trim())}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
-          </Button>
-        </DialogFooter>
+        <img
+          src={url}
+          alt={title}
+          className="w-full max-h-[65vh] object-contain rounded-lg border bg-muted"
+        />
       </DialogContent>
     </Dialog>
   );
@@ -499,9 +445,39 @@ function UploadCard({ folderId }: { folderId: string | null }) {
   const [videoKey, setVideoKey] = useState<string | null>(null);
   const [floorPlan, setFloorPlan] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [stage, setStage] = useState<ProjectStage>('visit');
+  const [crmOpen, setCrmOpen] = useState(false);
   const [recSteps, setRecSteps] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ step: number; percent: number; message: string } | null>(null);
   const stepsRef = useRef<string[]>([]);
+
+  /** پوشه مشتری را بر اساس نام پیدا/می‌سازد؛ بدون نام مشتری از پوشه انتخاب‌شده استفاده می‌شود */
+  const resolveCustomer = async (): Promise<{
+    folderId: string | null;
+    folder: { name: string; created: boolean } | null;
+  }> => {
+    if (!clientName.trim()) return { folderId, folder: null };
+    try {
+      const r = await resolveCustomerFolder(clientName, clientPhone);
+      if (!r.id) return { folderId, folder: null };
+      return { folderId: r.id, folder: { name: clientName.trim(), created: !r.existed } };
+    } catch {
+      // خطای پوشه‌بندی نباید ساخت پروژه را متوقف کند
+      toast({ title: 'پوشه‌بندی مشتری ناموفق بود', variant: 'destructive' });
+      return { folderId, folder: null };
+    }
+  };
+
+  const folderToast = (folder: { name: string; created: boolean } | null) => {
+    if (!folder) return;
+    if (folder.created) {
+      toast({ title: 'پوشه جدید مشتری ساخته شد', description: `پوشه «${folder.name}»` });
+    } else {
+      toast({ title: `پروژه در پوشه مشتری «${folder.name}» ثبت شد` });
+    }
+  };
 
   const buildSteps = (hasPlan: boolean) => {
     const steps = ['ارسال تصاویر به موتور هوش مصنوعی...'];
@@ -611,20 +587,26 @@ function UploadCard({ folderId }: { folderId: string | null }) {
     onSuccess: async (res) => {
       // گام آخر فقط بعد از موفقیت کامل می‌شود — هرگز قبل از آن گیر نمی‌کند
       setProgress({ step: stepsRef.current.length - 1, percent: 100, message: '' });
+      const { folderId: resolvedFolderId, folder } = await resolveCustomer();
       const created = await api.createProject({
         name: name.trim() || 'پروژه بازسازی‌شده',
         roomType: res.roomType,
         roomSpec: res.roomSpec,
         sceneState: { objects: res.objects },
-        folderId,
+        folderId: resolvedFolderId,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        stage,
       });
       qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['folders'] });
       toast({
         title: 'مدل سه‌بعدی ساخته شد ✓',
         description: res.objects.length
           ? `${res.objects.length.toLocaleString('fa-IR')} قطعه تجهیزات/کابینت موجود شناسایی شد`
           : res.description || undefined,
       });
+      folderToast(folder);
       window.location.hash = `/editor/${created.project.id}`;
     },
     onError: (e: Error) => {
@@ -639,16 +621,24 @@ function UploadCard({ folderId }: { folderId: string | null }) {
   });
 
   const startSample = useMutation({
-    mutationFn: () =>
-      api.createProject({
+    mutationFn: async () => {
+      const { folderId: resolvedFolderId, folder } = await resolveCustomer();
+      const res = await api.createProject({
         name: name.trim() || 'آشپزخانه نمونه',
         roomType: 'kitchen',
         roomSpec: SAMPLE_ROOM_SPEC,
         sceneState: SAMPLE_SCENE,
-        folderId,
-      }),
-    onSuccess: (res) => {
+        folderId: resolvedFolderId,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        stage,
+      });
+      return { res, folder };
+    },
+    onSuccess: ({ res, folder }) => {
       qc.invalidateQueries({ queryKey: ['projects'] });
+      qc.invalidateQueries({ queryKey: ['folders'] });
+      folderToast(folder);
       window.location.hash = `/editor/${res.project.id}`;
     },
     onError: (e: Error) =>
@@ -831,6 +821,66 @@ function UploadCard({ folderId }: { folderId: string | null }) {
           maxLength={80}
         />
 
+        {/* مشتری و مرحله — اختیاری؛ برای پوشه‌بندی خودکار مشتری */}
+        <Collapsible
+          open={crmOpen}
+          onOpenChange={setCrmOpen}
+          className="rounded-xl border bg-muted/20"
+        >
+          <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-medium rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+            <Contact className="h-4 w-4 text-primary" />
+            اطلاعات مشتری و مرحله (اختیاری)
+            <ChevronDown
+              className={`h-4 w-4 ms-auto text-muted-foreground transition-transform ${crmOpen ? 'rotate-180' : ''}`}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="space-y-3 px-3 pb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">نام مشتری (برای پوشه)</Label>
+                  <Input
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="مثلاً: آقای محمدی"
+                    maxLength={80}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">شماره تماس</Label>
+                  <Input
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    dir="ltr"
+                    className="text-start h-9 text-xs"
+                    placeholder="0912…"
+                    maxLength={60}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">مرحله پیشرفت</Label>
+                <Select value={stage} onValueChange={(v) => setStage(v as ProjectStage)} dir="rtl">
+                  <SelectTrigger className="w-full h-9 text-xs" aria-label="مرحله پیشرفت پروژه">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_STAGES.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                اگر پوشه‌ای با نام این مشتری باشد پروژه به همان پوشه اضافه می‌شود؛ وگرنه پوشه جدید ساخته می‌شود.
+              </p>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="flex flex-col sm:flex-row gap-2">
           <Button
             className="flex-1 gap-2 h-11"
@@ -880,11 +930,12 @@ function FolderDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  initial?: { id?: string; name?: string };
-  onSave: (name: string) => void;
+  initial?: { id?: string; name?: string; phone?: string | null };
+  onSave: (name: string, phone: string) => void;
   saving: boolean;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -892,19 +943,38 @@ function FolderDialog({
         <DialogHeader>
           <DialogTitle>{initial?.id ? 'تغییر نام پوشه' : 'پوشه جدید'}</DialogTitle>
         </DialogHeader>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="مثلاً: خانه آقای رضایی"
-          maxLength={60}
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && name.trim()) onSave(name.trim());
-          }}
-        />
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">نام پوشه (مشتری)</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="مثلاً: خانه آقای رضایی"
+              maxLength={60}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && name.trim()) onSave(name.trim(), phone.trim());
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">شماره تماس مشتری (اختیاری)</Label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              dir="ltr"
+              className="text-start"
+              placeholder="0912…"
+              maxLength={60}
+            />
+          </div>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>انصراف</Button>
-          <Button onClick={() => name.trim() && onSave(name.trim())} disabled={!name.trim() || saving}>
+          <Button
+            onClick={() => name.trim() && onSave(name.trim(), phone.trim())}
+            disabled={!name.trim() || saving}
+          >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
           </Button>
         </DialogFooter>
@@ -930,11 +1000,12 @@ function FolderBar({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [dlgOpen, setDlgOpen] = useState(false);
-  const [editing, setEditing] = useState<{ id?: string; name?: string } | undefined>();
+  const [editing, setEditing] = useState<{ id?: string; name?: string; phone?: string | null } | undefined>();
   const [newOpen, setNewOpen] = useState(false);
 
   const createFolder = useMutation({
-    mutationFn: (name: string) => api.createFolder(name),
+    mutationFn: ({ name, phone }: { name: string; phone?: string }) =>
+      api.createFolder(name, phone || undefined),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['folders'] });
       setDlgOpen(false);
@@ -974,26 +1045,64 @@ function FolderBar({
     }`;
 
   const newProject = useMutation({
-    mutationFn: (crm: CrmSave) =>
-      api.createProject({
+    mutationFn: async (crm: ProjectFormSave) => {
+      // تطبیق خودکار پوشه مشتری — اگر پوشه‌ای با نام مشتری باشد همان استفاده می‌شود،
+      // وگرنه سرور پوشه جدید می‌سازد (createFolder پوشه هم‌نام را برمی‌گرداند)
+      let folderId = currentFolderId;
+      let folder: { name: string; created: boolean } | null = null;
+      const customerName = crm.clientName?.trim() ?? '';
+      if (customerName) {
+        try {
+          const r = await resolveCustomerFolder(customerName, crm.clientPhone ?? '');
+          if (r.id) {
+            folderId = r.id;
+            folder = { name: customerName, created: !r.existed };
+          }
+        } catch {
+          // خطای پوشه‌بندی نباید ساخت پروژه را متوقف کند
+          toast({
+            title: 'پوشه‌بندی مشتری ناموفق بود',
+            description: 'پروژه در پوشه فعلی ثبت می‌شود',
+            variant: 'destructive',
+          });
+        }
+      }
+      const res = await api.createProject({
         name: crm.name?.trim() || 'پروژه جدید',
         roomSpec: {
           widthM: 4, depthM: 3.4, heightM: 2.8,
           wallColor: '#ece7dd', floorColor: '#a97c50', ceilingColor: '#fafafa',
           windows: [], doorways: [],
         },
-        folderId: currentFolderId,
-        clientName: crm.clientName,
-        clientPhone: crm.clientPhone,
-        address: crm.address,
-        visitAt: crm.visitAt,
-        installAt: crm.installAt,
-        dueAt: crm.dueAt,
-      }),
-    onSuccess: (res) => {
+        folderId,
+        clientName: crm.clientName ?? '',
+        clientPhone: crm.clientPhone ?? '',
+        address: crm.address ?? '',
+        stage: crm.stage,
+        dealAt: crm.dealAt ?? null,
+        contractAmount: crm.contractAmount ?? null,
+        contractPhoto: crm.contractPhoto ?? '',
+        invoicePhoto: crm.invoicePhoto ?? '',
+        visitAt: crm.visitAt ?? null,
+        installAt: crm.installAt ?? null,
+        dueAt: crm.dueAt ?? null,
+      });
+      return { project: res.project, folder };
+    },
+    onSuccess: ({ project, folder }) => {
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['folders'] });
-      window.location.hash = `/editor/${res.project.id}`;
+      if (folder) {
+        if (folder.created) {
+          toast({
+            title: 'پوشه جدید مشتری ساخته شد',
+            description: `پروژه در پوشه «${folder.name}» ثبت شد`,
+          });
+        } else {
+          toast({ title: `پروژه در پوشه مشتری «${folder.name}» ثبت شد` });
+        }
+      }
+      window.location.hash = `/editor/${project.id}`;
     },
     onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
   });
@@ -1011,6 +1120,7 @@ function FolderBar({
           <button
             type="button"
             className={`${chip(selected.kind === 'folder' && selected.id === f.id)} rounded-s-full`}
+            title={`${f.name}${f.phone ? ` — ${f.phone}` : ''}`}
             onClick={() => onSelect({ kind: 'folder', id: f.id })}
           >
             <FolderIcon className="h-3.5 w-3.5" />
@@ -1030,7 +1140,12 @@ function FolderBar({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => { setEditing({ id: f.id, name: f.name }); setDlgOpen(true); }}>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditing({ id: f.id, name: f.name, phone: f.phone ?? '' });
+                  setDlgOpen(true);
+                }}
+              >
                 <Pencil className="h-3.5 w-3.5" /> تغییر نام
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -1067,14 +1182,16 @@ function FolderBar({
           onOpenChange={setDlgOpen}
           initial={editing}
           saving={createFolder.isPending || renameFolder.isPending}
-          onSave={(name) =>
-            editing?.id ? renameFolder.mutate({ id: editing.id, name }) : createFolder.mutate(name)
+          onSave={(name, phone) =>
+            editing?.id
+              ? renameFolder.mutate({ id: editing.id, name })
+              : createFolder.mutate({ name, phone })
           }
         />
       )}
 
       {newOpen && (
-        <CrmDialog
+        <ProjectFormDialog
           title="پروژه جدید"
           initial={{}}
           withName
@@ -1104,6 +1221,14 @@ function ProjectCard({
   const [shareOpen, setShareOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [crmOpen, setCrmOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<{ url: string; title: string } | null>(null);
+
+  // فیلدهای قرارداد/مالی — کپی محلی برای نمایش بج‌ها
+  const contractAmount = project.contractAmount ?? null;
+  const dealAt = project.dealAt ?? null;
+  const contractPhoto = project.contractPhoto ?? '';
+  const invoicePhoto = project.invoicePhoto ?? '';
+  const st = stageInfo(project.stage);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['projects'] });
@@ -1138,11 +1263,16 @@ function ProjectCard({
   });
 
   const saveCrm = useMutation({
-    mutationFn: (crm: CrmSave) =>
+    mutationFn: (crm: ProjectFormSave) =>
       api.patchProject(project.id, {
         clientName: crm.clientName ?? '',
         clientPhone: crm.clientPhone ?? '',
         address: crm.address ?? '',
+        stage: crm.stage,
+        dealAt: crm.dealAt ?? null,
+        contractAmount: crm.contractAmount ?? null,
+        contractPhoto: crm.contractPhoto ?? '',
+        invoicePhoto: crm.invoicePhoto ?? '',
         visitAt: crm.visitAt ?? null,
         installAt: crm.installAt ?? null,
         dueAt: crm.dueAt ?? null,
@@ -1150,9 +1280,18 @@ function ProjectCard({
     onSuccess: () => {
       invalidate();
       setCrmOpen(false);
-      toast({ title: 'اطلاعات مشتری ذخیره شد ✓' });
+      toast({ title: 'اطلاعات پروژه ذخیره شد ✓' });
     },
     onError: (e: Error) => toast({ title: 'خطا در ذخیره', description: e.message, variant: 'destructive' }),
+  });
+
+  const patchStage = useMutation({
+    mutationFn: (stage: ProjectStage) => api.patchProject(project.id, { stage }),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: 'مرحله پیشرفت به‌روزرسانی شد' });
+    },
+    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
   });
 
   return (
@@ -1218,8 +1357,31 @@ function ProjectCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={() => setCrmOpen(true)}>
-                <Contact className="h-3.5 w-3.5" /> اطلاعات مشتری و زمان‌بندی…
+                <Contact className="h-3.5 w-3.5" /> مشخصات پروژه…
               </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="gap-2">
+                  <CalendarClock className="h-3.5 w-3.5" /> مرحله پیشرفت
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                  {PROJECT_STAGES.map((s) => (
+                    <DropdownMenuItem key={s.id} onClick={() => patchStage.mutate(s.id)}>
+                      {s.id === (project.stage ?? 'visit') ? (
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: s.dot }}
+                            aria-hidden
+                          />
+                        </span>
+                      )}
+                      {s.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuItem onClick={() => togglePublic.mutate()}>
                 {project.isPublic ? (
                   <>
@@ -1261,23 +1423,89 @@ function ProjectCard({
           </DropdownMenu>
         </div>
 
-        {/* بج‌های CRM */}
-        {(project.clientName || project.clientPhone || project.address) && (
+        {/* بج‌های CRM — مرحله + مشتری */}
+        <div className="flex flex-wrap gap-1">
+          <Badge
+            asChild
+            className={`${st.badge} text-[10px] h-5 px-1.5 gap-1.5 font-normal cursor-pointer`}
+          >
+            <button
+              type="button"
+              onClick={() => setCrmOpen(true)}
+              aria-label={`ویرایش مشخصات و مرحله ${project.name}`}
+              title="ویرایش مشخصات پروژه"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: st.dot }}
+                aria-hidden
+              />
+              {st.label}
+            </button>
+          </Badge>
+          {project.clientName && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
+              <User className="h-2.5 w-2.5" /> {project.clientName}
+            </Badge>
+          )}
+          {project.clientPhone && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal font-mono" dir="ltr">
+              <Phone className="h-2.5 w-2.5" /> {project.clientPhone}
+            </Badge>
+          )}
+          {project.address && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal max-w-full">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate max-w-[150px]">{project.address}</span>
+            </Badge>
+          )}
+        </div>
+
+        {/* قرارداد و مالی */}
+        {(contractAmount !== null || dealAt || contractPhoto || invoicePhoto) && (
           <div className="flex flex-wrap gap-1">
-            {project.clientName && (
+            {contractAmount !== null && (
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal tabular-nums">
+                مبلغ: {formatToman(contractAmount)}
+              </Badge>
+            )}
+            {dealAt && (
               <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
-                <User className="h-2.5 w-2.5" /> {project.clientName}
+                قرارداد: {formatFaDate(dealAt)}
               </Badge>
             )}
-            {project.clientPhone && (
-              <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal font-mono" dir="ltr">
-                <Phone className="h-2.5 w-2.5" /> {project.clientPhone}
+            {contractPhoto && (
+              <Badge
+                asChild
+                variant="outline"
+                className="text-[10px] h-5 px-1.5 gap-1 font-normal cursor-pointer"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPhotoPreview({ url: contractPhoto, title: `عکس قرارداد — ${project.name}` })
+                  }
+                  aria-label="نمایش عکس قرارداد"
+                >
+                  <Paperclip className="h-2.5 w-2.5" /> قرارداد 📎
+                </button>
               </Badge>
             )}
-            {project.address && (
-              <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal max-w-full">
-                <MapPin className="h-2.5 w-2.5 shrink-0" />
-                <span className="truncate max-w-[150px]">{project.address}</span>
+            {invoicePhoto && (
+              <Badge
+                asChild
+                variant="outline"
+                className="text-[10px] h-5 px-1.5 gap-1 font-normal cursor-pointer"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPhotoPreview({ url: invoicePhoto, title: `فاکتور — ${project.name}` })
+                  }
+                  aria-label="نمایش فاکتور"
+                >
+                  <FileText className="h-2.5 w-2.5" /> فاکتور
+                </button>
               </Badge>
             )}
           </div>
@@ -1322,12 +1550,20 @@ function ProjectCard({
       <ShareDialog projectId={project.id} open={shareOpen} onOpenChange={setShareOpen} />
 
       {crmOpen && (
-        <CrmDialog
-          title={`مشتری و زمان‌بندی — ${project.name}`}
+        <ProjectFormDialog
+          title={`مشخصات پروژه — ${project.name}`}
           initial={project}
           saving={saveCrm.isPending}
           onSave={(crm) => saveCrm.mutate(crm)}
           onCancel={() => setCrmOpen(false)}
+        />
+      )}
+
+      {photoPreview && (
+        <ImagePreviewDialog
+          url={photoPreview.url}
+          title={photoPreview.title}
+          onClose={() => setPhotoPreview(null)}
         />
       )}
 

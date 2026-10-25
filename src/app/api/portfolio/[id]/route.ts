@@ -10,9 +10,34 @@ import {
 } from '@/app/api/_lib/portfolio';
 
 // ============================================================
+// GET    /api/portfolio/[id] → یک نمونه‌کار (فقط مدیر — برای ویرایشگر مدل)
 // PATCH  /api/portfolio/[id] → ویرایش نمونه‌کار (فقط مدیر)
 // DELETE /api/portfolio/[id] → حذف نمونه‌کار (فقط مدیر)
 // ============================================================
+
+/** GET — خواندن یک نمونه‌کار برای ویرایش مدل سه‌بعدی در ویرایشگر */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  if (!(await getOwner(req))) {
+    return NextResponse.json(
+      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { status: 401 },
+    );
+  }
+  try {
+    const { id } = await params;
+    const item = await db.portfolioItem.findUnique({ where: { id } });
+    if (!item) {
+      return NextResponse.json({ error: 'نمونه‌کار یافت نشد' }, { status: 404 });
+    }
+    return NextResponse.json({ item: serializePortfolioItem(item) });
+  } catch (err) {
+    console.error('GET /api/portfolio/[id] failed:', err);
+    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+  }
+}
 
 const MAX_IMAGE_CHARS = 6_000_000;
 

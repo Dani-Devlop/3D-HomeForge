@@ -3,10 +3,12 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireOwner } from '@/lib/auth';
 import { serializeProject, readJsonBody, toDate } from '@/app/api/_lib/serialize';
+import { isProjectStage } from '@/lib/crm';
 
 // ============================================================
 // /api/projects/[id] — خواندن، ویرایش و حذف یک پروژه (فقط مدیر)
-// PATCH شامل فیلدهای CRM: clientName/clientPhone/address/visitAt/installAt/dueAt
+// PATCH شامل فیلدهای CRM: clientName/clientPhone/address/stage/dealAt/
+// contractAmount/contractPhoto/invoicePhoto/visitAt/installAt/dueAt
 // ============================================================
 
 const projectCount = {
@@ -26,8 +28,23 @@ const patchSchema = z.object({
   folderId: z.string().min(1).nullable().optional(),
   // CRM
   clientName: z.string().max(80).optional(),
-  clientPhone: z.string().max(30).optional(),
+  clientPhone: z.string().max(60).optional(),
   address: z.string().max(300).optional(),
+  stage: z.string().refine(isProjectStage, 'مرحله پروژه نامعتبر است').optional(),
+  dealAt: z.string().nullable().optional(),
+  contractAmount: z.number().min(0).max(1e12).nullable().optional(),
+  contractPhoto: z
+    .string()
+    .max(4_000_000)
+    .refine((v) => v === '' || v.startsWith('data:image/'), 'عکس قرارداد باید dataURL تصویر باشد')
+    .nullable()
+    .optional(),
+  invoicePhoto: z
+    .string()
+    .max(4_000_000)
+    .refine((v) => v === '' || v.startsWith('data:image/'), 'فاکتور باید dataURL تصویر باشد')
+    .nullable()
+    .optional(),
   visitAt: z.string().nullable().optional(),
   installAt: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
@@ -78,7 +95,9 @@ export async function PATCH(
     }
     const {
       name, roomType, roomSpec, sceneState, thumbnail, isPublic, folderId,
-      clientName, clientPhone, address, visitAt, installAt, dueAt,
+      clientName, clientPhone, address, stage, dealAt,
+      contractAmount, contractPhoto, invoicePhoto,
+      visitAt, installAt, dueAt,
     } = parsed.data;
 
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });
@@ -110,6 +129,15 @@ export async function PATCH(
         ...(clientName !== undefined ? { clientName: toNullIfEmpty(clientName) } : {}),
         ...(clientPhone !== undefined ? { clientPhone: toNullIfEmpty(clientPhone) } : {}),
         ...(address !== undefined ? { address: toNullIfEmpty(address) } : {}),
+        ...(stage !== undefined ? { stage } : {}),
+        ...(dealAt !== undefined ? { dealAt: toDate(dealAt) } : {}),
+        ...(contractAmount !== undefined ? { contractAmount } : {}),
+        ...(contractPhoto !== undefined
+          ? { contractPhoto: !contractPhoto ? null : contractPhoto }
+          : {}),
+        ...(invoicePhoto !== undefined
+          ? { invoicePhoto: !invoicePhoto ? null : invoicePhoto }
+          : {}),
         // رشته خالی/نامعتبر → null (پاک‌کردن تاریخ)
         ...(visitAt !== undefined ? { visitAt: toDate(visitAt) } : {}),
         ...(installAt !== undefined ? { installAt: toDate(installAt) } : {}),
