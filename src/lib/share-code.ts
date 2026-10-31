@@ -1,15 +1,15 @@
 // ============================================================
-// کد کوتاه لینک اشتراکی — URL کوتاه و خوانا برای مشتری
-// حروف/اعداد بدون ابهام (بدون 0/O، 1/l/I) — طول ۷
+// Short code for share links — a short, readable URL for clients
+// Unambiguous letters/digits (no 0/O, 1/l/I) — length 7
 // ============================================================
 
 import crypto from 'crypto';
 
-// حذف کاراکترهای گیج‌کننده از الفبا
+// Ambiguous characters removed from the alphabet
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const SHORT_CODE_LENGTH = 7;
 
-/** یک کد کوتاه تصادفی تولید می‌کند */
+/** Generates a random short code */
 export function generateShortCode(length = SHORT_CODE_LENGTH): string {
   const bytes = crypto.randomBytes(length);
   let code = '';
@@ -20,7 +20,7 @@ export function generateShortCode(length = SHORT_CODE_LENGTH): string {
 }
 
 /**
- * ورودی resolve: توکن کامل امضاشده (شامل نقطه) یا کد کوتاه
+ * resolve input: a full signed token (including the dot) or a short code
  */
 export function isFullToken(value: string): boolean {
   return value.includes('.');

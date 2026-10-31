@@ -23,7 +23,7 @@ const isCabinet = (t: SceneObject['type']) =>
 const isLight = (t: SceneObject['type']) => t === 'pendant' || t === 'floor-lamp';
 const isAppliance = (t: SceneObject['type']) =>
   ['fridge', 'stove', 'hood'].includes(t);
-// انواع با درب شیشه‌ای (شیشه شفاف — هرگز تیره نیست)
+// Types with a glass door option (clear glass — never tinted)
 const GLASS_TYPES: readonly SceneObject['type'][] = ['base', 'wall', 'tall', 'island', 'shelf', 'dishwasher'];
 
 function ColorField({
@@ -56,7 +56,7 @@ function DimSlider({
   max,
   step,
   onChange,
-  unit = 'متر',
+  unit = 'm',
 }: {
   label: string;
   value: number;
@@ -119,27 +119,27 @@ export function PropertiesPanel({
       <div className="p-3 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold">{obj.label ?? 'آبجکت'}</p>
-            <p className="text-[11px] text-muted-foreground">شناسه: {obj.id}</p>
+            <p className="text-sm font-semibold">{obj.label ?? 'Object'}</p>
+            <p className="text-[11px] text-muted-foreground">ID: {obj.id}</p>
           </div>
           <div className="flex gap-1">
-            <Button size="icon" variant="ghost" onClick={onRotate} title="چرخش ۹۰ درجه" aria-label="چرخش">
+            <Button size="icon" variant="ghost" onClick={onRotate} title="Rotate 90°" aria-label="Rotate">
               <RotateCw className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={onDuplicate} title="تکثیر" aria-label="تکثیر">
+            <Button size="icon" variant="ghost" onClick={onDuplicate} title="Duplicate" aria-label="Duplicate">
               <Copy className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" onClick={onDelete} title="حذف" aria-label="حذف" className="text-destructive hover:text-destructive">
+            <Button size="icon" variant="ghost" onClick={onDelete} title="Delete" aria-label="Delete" className="text-destructive hover:text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* ---- ویرایش متنی با هوش مصنوعی ---- */}
+        {/* ---- AI text editing ---- */}
         <div className="rounded-xl border bg-accent/30 p-3 space-y-2">
           <div className="flex items-center gap-1.5">
             <Sparkles className="h-4 w-4 text-primary" />
-            <p className="text-xs font-bold">تغییر با یک جمله</p>
+            <p className="text-xs font-bold">Change with one sentence</p>
           </div>
           <div className="flex gap-1.5">
             <Input
@@ -151,9 +151,9 @@ export function PropertiesPanel({
                   submitAi();
                 }
               }}
-              placeholder="مثلاً: ۲۰ سانت بالاتر ببر / رنگش را خاکستری کن"
+              placeholder="e.g. move it 20 cm up / make it gray"
               className="h-9 text-xs bg-card"
-              aria-label="دستور متنی تغییر آبجکت"
+              aria-label="Text command to edit the object"
               maxLength={300}
             />
             <Button
@@ -161,7 +161,7 @@ export function PropertiesPanel({
               className="h-9 w-9 shrink-0"
               onClick={submitAi}
               disabled={!aiText.trim() || aiEditing}
-              aria-label="اعمال تغییر متنی"
+              aria-label="Apply text change"
             >
               {aiEditing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
@@ -172,58 +172,58 @@ export function PropertiesPanel({
 
         {isCabinet(obj.type) && (
           <div className="space-y-4">
-            <p className="text-xs font-medium text-primary">ابعاد پارامتریک</p>
-            <DimSlider label="عرض" value={p.w ?? 0.8} min={0.3} max={3} step={0.05} onChange={(v) => onUpdateParams({ w: v })} />
-            <DimSlider label="ارتفاع" value={p.h ?? 0.85} min={0.3} max={2.4} step={0.05} onChange={(v) => onUpdateParams({ h: v })} />
-            <DimSlider label="عمق" value={p.d ?? 0.6} min={0.25} max={1.2} step={0.05} onChange={(v) => onUpdateParams({ d: v })} />
+            <p className="text-xs font-medium text-primary">Parametric dimensions</p>
+            <DimSlider label="Width" value={p.w ?? 0.8} min={0.3} max={3} step={0.05} onChange={(v) => onUpdateParams({ w: v })} />
+            <DimSlider label="Height" value={p.h ?? 0.85} min={0.3} max={2.4} step={0.05} onChange={(v) => onUpdateParams({ h: v })} />
+            <DimSlider label="Depth" value={p.d ?? 0.6} min={0.25} max={1.2} step={0.05} onChange={(v) => onUpdateParams({ d: v })} />
             {obj.type === 'wall' && (
-              <DimSlider label="ارتفاع نصب" value={p.mountY ?? 1.5} min={0.8} max={2.3} step={0.05} onChange={(v) => onUpdateParams({ mountY: v })} />
+              <DimSlider label="Mount height" value={p.mountY ?? 1.5} min={0.8} max={2.3} step={0.05} onChange={(v) => onUpdateParams({ mountY: v })} />
             )}
 
             <Separator />
 
-            <p className="text-xs font-medium text-primary">درب و کشو</p>
+            <p className="text-xs font-medium text-primary">Doors & drawers</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <Label className="text-xs">تعداد درب</Label>
+                <Label className="text-xs">Doors</Label>
                 <Select
                   value={String(p.doors ?? 0)}
                   onValueChange={(v) => onUpdateParams({ doors: parseInt(v, 10) })}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">بدون درب</SelectItem>
-                    <SelectItem value="1">۱ درب</SelectItem>
-                    <SelectItem value="2">۲ درب</SelectItem>
+                    <SelectItem value="0">No doors</SelectItem>
+                    <SelectItem value="1">1 door</SelectItem>
+                    <SelectItem value="2">2 doors</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">تعداد کشو</Label>
+                <Label className="text-xs">Drawers</Label>
                 <Select
                   value={String(p.drawers ?? 0)}
                   onValueChange={(v) => onUpdateParams({ drawers: parseInt(v, 10) })}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">بدون کشو</SelectItem>
-                    <SelectItem value="1">۱ کشو</SelectItem>
-                    <SelectItem value="2">۲ کشو</SelectItem>
-                    <SelectItem value="3">۳ کشو</SelectItem>
+                    <SelectItem value="0">No drawers</SelectItem>
+                    <SelectItem value="1">1 drawer</SelectItem>
+                    <SelectItem value="2">2 drawers</SelectItem>
+                    <SelectItem value="3">3 drawers</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">نوع دستگیره</Label>
+                <Label className="text-xs">Handle type</Label>
                 <Select
                   value={p.handles ?? 'bar'}
                   onValueChange={(v) => onUpdateParams({ handles: v as 'bar' | 'knob' | 'none' })}
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bar">میله‌ای</SelectItem>
-                    <SelectItem value="knob">دکمه‌ای</SelectItem>
-                    <SelectItem value="none">بدون دستگیره</SelectItem>
+                    <SelectItem value="bar">Bar</SelectItem>
+                    <SelectItem value="knob">Knob</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -231,36 +231,36 @@ export function PropertiesPanel({
 
             <Separator />
 
-            <p className="text-xs font-medium text-primary">رنگ‌ها</p>
-            <ColorField label="بدنه" value={p.bodyColor ?? '#6b4f3a'} onChange={(v) => onUpdateParams({ bodyColor: v })} />
-            <ColorField label="درب/کشو" value={p.doorColor ?? '#7d5f45'} onChange={(v) => onUpdateParams({ doorColor: v })} />
+            <p className="text-xs font-medium text-primary">Colors</p>
+            <ColorField label="Body" value={p.bodyColor ?? '#6b4f3a'} onChange={(v) => onUpdateParams({ bodyColor: v })} />
+            <ColorField label="Door/drawer" value={p.doorColor ?? '#7d5f45'} onChange={(v) => onUpdateParams({ doorColor: v })} />
             {(obj.type === 'base' || obj.type === 'island') && (
-              <ColorField label="رویه" value={p.countertopColor ?? '#d8d3c8'} onChange={(v) => onUpdateParams({ countertopColor: v })} />
+              <ColorField label="Countertop" value={p.countertopColor ?? '#d8d3c8'} onChange={(v) => onUpdateParams({ countertopColor: v })} />
             )}
           </div>
         )}
 
-        {/* ---- درب شیشه‌ای (کابینت‌ها + ظرفشویی، فقط وقتی درب دارد) ---- */}
+        {/* ---- Glass door (cabinets + dishwasher, only when it has doors) ---- */}
         {GLASS_TYPES.includes(obj.type) && (p.doors ?? 0) > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">درب شیشه‌ای</Label>
+              <Label className="text-xs">Glass door</Label>
               <Switch
                 checked={!!p.glass}
                 onCheckedChange={(v) => onUpdateParams({ glass: v })}
-                aria-label="درب شیشه‌ای"
+                aria-label="Glass door"
               />
             </div>
-            <p className="text-[10px] text-muted-foreground">شیشه شفاف روشن — مناسب ویترین</p>
+            <p className="text-[10px] text-muted-foreground">Clear transparent glass — great for display cabinets</p>
           </div>
         )}
 
-        {/* ---- لوازم موجود: یخچال / اجاق / هود ---- */}
+        {/* ---- Appliances: fridge / stove / hood ---- */}
         {isAppliance(obj.type) && (
           <div className="space-y-4">
-            <p className="text-xs font-medium text-primary">مشخصات لوازم</p>
+            <p className="text-xs font-medium text-primary">Appliance specs</p>
             <DimSlider
-              label="عرض"
+              label="Width"
               value={p.w ?? 0.7}
               min={0.3}
               max={1.2}
@@ -269,7 +269,7 @@ export function PropertiesPanel({
             />
             {obj.type === 'hood' ? (
               <DimSlider
-                label="ارتفاع نصب"
+                label="Mount height"
                 value={p.mountY ?? 1.62}
                 min={1.3}
                 max={2.1}
@@ -278,7 +278,7 @@ export function PropertiesPanel({
               />
             ) : (
               <DimSlider
-                label="ارتفاع"
+                label="Height"
                 value={p.h ?? (obj.type === 'fridge' ? 1.8 : 0.9)}
                 min={0.5}
                 max={2.1}
@@ -287,7 +287,7 @@ export function PropertiesPanel({
               />
             )}
             <DimSlider
-              label="عمق"
+              label="Depth"
               value={p.d ?? 0.6}
               min={0.3}
               max={0.9}
@@ -295,12 +295,12 @@ export function PropertiesPanel({
               onChange={(v) => onUpdateParams({ d: v })}
             />
             <div className="flex items-center justify-between">
-              <Label className="text-xs">{obj.type === 'stove' ? 'شعله‌ها روشن باشد؟' : 'چراغ روشن باشد؟'}</Label>
-              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="روشنایی لوازم" />
+              <Label className="text-xs">{obj.type === 'stove' ? 'Flames on?' : 'Light on?'}</Label>
+              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="Appliance on/off" />
             </div>
             {obj.type === 'hood' && (
               <DimSlider
-                label="شدت نور"
+                label="Light intensity"
                 value={p.intensity ?? 0.9}
                 min={0.1}
                 max={2.5}
@@ -310,10 +310,10 @@ export function PropertiesPanel({
               />
             )}
             <Separator />
-            <p className="text-xs font-medium text-primary">رنگ‌ها</p>
-            <ColorField label="بدنه" value={p.bodyColor ?? '#b9bec6'} onChange={(v) => onUpdateParams({ bodyColor: v })} />
+            <p className="text-xs font-medium text-primary">Colors</p>
+            <ColorField label="Body" value={p.bodyColor ?? '#b9bec6'} onChange={(v) => onUpdateParams({ bodyColor: v })} />
             {obj.type !== 'hood' && (
-              <ColorField label="درب" value={p.doorColor ?? p.bodyColor ?? '#cdd2d9'} onChange={(v) => onUpdateParams({ doorColor: v })} />
+              <ColorField label="Door" value={p.doorColor ?? p.bodyColor ?? '#cdd2d9'} onChange={(v) => onUpdateParams({ doorColor: v })} />
             )}
           </div>
         )}
@@ -321,11 +321,11 @@ export function PropertiesPanel({
         {isLight(obj.type) && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">روشن / خاموش</Label>
-              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="روشنایی" />
+              <Label className="text-xs">On / Off</Label>
+              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="Light on/off" />
             </div>
             <DimSlider
-              label="شدت نور"
+              label="Light intensity"
               value={p.intensity ?? 1.4}
               min={0.1}
               max={3}
@@ -333,16 +333,16 @@ export function PropertiesPanel({
               unit=""
               onChange={(v) => onUpdateParams({ intensity: v })}
             />
-            <ColorField label="رنگ چراغ" value={p.color ?? '#f59e0b'} onChange={(v) => onUpdateParams({ color: v })} />
+            <ColorField label="Light color" value={p.color ?? '#f59e0b'} onChange={(v) => onUpdateParams({ color: v })} />
           </div>
         )}
 
-        {/* ---- تلویزیون: ارتفاع نصب + روشن/خاموش صفحه ---- */}
+        {/* ---- TV: mount height + screen on/off ---- */}
         {obj.type === 'tv' && (
           <div className="space-y-4">
-            <p className="text-xs font-medium text-primary">نصب روی دیوار</p>
+            <p className="text-xs font-medium text-primary">Wall mount</p>
             <DimSlider
-              label="ارتفاع نصب"
+              label="Mount height"
               value={p.mountY ?? 1.4}
               min={0.4}
               max={2.2}
@@ -350,18 +350,18 @@ export function PropertiesPanel({
               onChange={(v) => onUpdateParams({ mountY: v })}
             />
             <div className="flex items-center justify-between">
-              <Label className="text-xs">صفحه روشن باشد؟</Label>
-              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="روشنایی صفحه تلویزیون" />
+              <Label className="text-xs">Screen on?</Label>
+              <Switch checked={!!obj.on} onCheckedChange={(v) => onUpdate({ on: v })} aria-label="TV screen on/off" />
             </div>
           </div>
         )}
 
-        {/* ---- مایکروویو: ارتفاع از کف ---- */}
+        {/* ---- Microwave: height from floor ---- */}
         {obj.type === 'microwave' && (
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-primary">جانمایی</p>
+            <p className="text-xs font-medium text-primary">Placement</p>
             <DimSlider
-              label="ارتفاع از کف"
+              label="Height from floor"
               value={p.mountY ?? 0.9}
               min={0.5}
               max={1.4}
@@ -373,9 +373,9 @@ export function PropertiesPanel({
 
         {(obj.type === 'plant' || obj.type === 'rug') && (
           <div className="space-y-4">
-            <ColorField label="رنگ" value={p.color ?? '#2e7d32'} onChange={(v) => onUpdateParams({ color: v })} />
+            <ColorField label="Color" value={p.color ?? '#2e7d32'} onChange={(v) => onUpdateParams({ color: v })} />
             <DimSlider
-              label="مقیاس"
+              label="Scale"
               value={p.scale ?? 1}
               min={0.5}
               max={2.5}

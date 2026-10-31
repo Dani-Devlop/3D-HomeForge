@@ -2,10 +2,10 @@ import type { Project } from '@prisma/client';
 import type { NextRequest } from 'next/server';
 
 // ============================================================
-// هلپرهای مشترک سریالایز پاسخ‌های API
+// Shared helpers for serializing API responses
 // ============================================================
 
-/** خواندن امن بدنه JSON درخواست؛ بدنه غیرمعتبر → { ok: false } */
+/** Safely reads the request JSON body; invalid body → { ok: false } */
 export async function readJsonBody(
   req: NextRequest,
 ): Promise<{ ok: true; data: unknown } | { ok: false }> {
@@ -16,7 +16,7 @@ export async function readJsonBody(
   }
 }
 
-/** تلاش برای JSON.parse مقادیر رشته‌ای؛ در صورت خطا یا نبود رشته، fallback برمی‌گردد */
+/** Attempts JSON.parse on string values; on error or non-string returns the fallback */
 export function parseJsonSafe(value: string | unknown, fallback: unknown): unknown {
   if (typeof value !== 'string') {
     return value === undefined || value === null ? fallback : value;
@@ -28,7 +28,7 @@ export function parseJsonSafe(value: string | unknown, fallback: unknown): unkno
   }
 }
 
-/** تبدیل امن رشته تاریخ به Date؛ خالی/نامعتبر → null (برای فیلدهای CRM پروژه) */
+/** Safely converts a date string to Date; empty/invalid → null (for project CRM fields) */
 export function toDate(s?: string | null): Date | null {
   if (!s) return null;
   const d = new Date(s);
@@ -45,7 +45,7 @@ export interface SerializedProject {
   isPublic: boolean;
   folderId: string | null;
   folderName: string | null;
-  // CRM — مشخصات مشتری و زمان‌بندی (ISO یا null)
+  // CRM — client details and schedule (ISO or null)
   clientName: string | null;
   clientPhone: string | null;
   address: string | null;
@@ -62,7 +62,7 @@ export interface SerializedProject {
   shareCount?: number;
 }
 
-/** پروژه را به آبجکت ساده قابل JSON.stringify تبدیل می‌کند (roomSpec/sceneState پارس‌شده) */
+/** Converts a project into a plain JSON-serializable object (roomSpec/sceneState parsed) */
 export function serializeProject(
   p: Project & {
     _count?: { shareLinks: number };

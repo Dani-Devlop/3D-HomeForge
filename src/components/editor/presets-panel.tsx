@@ -26,7 +26,7 @@ export function PresetsPanel({
 
   const save = useMutation({
     mutationFn: () => {
-      // آفست نسبی نسبت به اولین آبجکت انتخابی
+      // Relative offsets from the first selected object
       const base = selectedObjects[0].position;
       const data = selectedObjects.map((o) => ({
         ...o,
@@ -36,15 +36,15 @@ export function PresetsPanel({
           +(o.position[2] - base[2]).toFixed(3),
         ] as [number, number, number],
       }));
-      return api.createPreset({ name: name.trim() || 'پریست بدون نام', data });
+      return api.createPreset({ name: name.trim() || 'Untitled preset', data });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['presets'] });
       setName('');
-      toast({ title: 'پریست ذخیره شد ✓', description: 'در پروژه‌های بعدی قابل استفاده است' });
+      toast({ title: 'Preset saved ✓', description: 'Reusable in your future projects' });
     },
     onError: (e: Error) =>
-      toast({ title: 'خطا در ذخیره پریست', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Failed to save preset', description: e.message, variant: 'destructive' }),
   });
 
   const del = useMutation({
@@ -56,56 +56,56 @@ export function PresetsPanel({
     <ScrollArea className="h-full">
       <div className="p-3 space-y-4">
         <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
-          <p className="text-xs font-medium">ذخیره ترکیب انتخاب‌شده به‌عنوان پریست</p>
+          <p className="text-xs font-medium">Save the current selection as a preset</p>
           {selectedObjects.length > 0 ? (
             <>
               <p className="text-[11px] text-muted-foreground">
-                {selectedObjects.length} آبجکت انتخاب شده — با Shift+کلیک چندتایی انتخاب کنید
+                {selectedObjects.length} objects selected — Shift+click to select multiple
               </p>
               <div className="flex gap-2">
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="نام پریست (مثلاً یونیت کامل)"
+                  placeholder="Preset name (e.g. full unit)"
                   className="h-9 text-xs"
                   maxLength={50}
                 />
                 <Button size="sm" className="h-9 gap-1 shrink-0" onClick={() => save.mutate()} disabled={save.isPending}>
                   <Save className="h-3.5 w-3.5" />
-                  ذخیره
+                  Save
                 </Button>
               </div>
             </>
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              ابتدا یک یا چند کابینت را در صحنه انتخاب کنید (کلیک + Shift برای چندتایی)
+              Select one or more cabinets in the scene first (click + Shift for multiple)
             </p>
           )}
         </div>
 
         <div className="space-y-2">
-          <Badge variant="secondary" className="text-xs">پریست‌های ذخیره‌شده</Badge>
+          <Badge variant="secondary" className="text-xs">Saved presets</Badge>
           {presetsQ.isLoading ? (
-            <p className="text-xs text-muted-foreground py-2">در حال بارگذاری...</p>
+            <p className="text-xs text-muted-foreground py-2">Loading...</p>
           ) : presetsQ.data?.presets?.length ? (
             presetsQ.data.presets.map((preset) => (
               <div key={preset.id} className="flex items-center gap-2 rounded-lg border bg-card p-2.5">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{preset.name}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {preset.data.length} آبجکت • {new Date(preset.createdAt).toLocaleDateString('fa-IR')}
+                    {preset.data.length} objects • {new Date(preset.createdAt).toLocaleDateString('en-US')}
                   </p>
                 </div>
                 <Button size="sm" variant="outline" className="h-8 gap-1 shrink-0" onClick={() => onInsert(preset.data)}>
                   <Plus className="h-3.5 w-3.5" />
-                  افزودن
+                  Add
                 </Button>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
                   onClick={() => del.mutate(preset.id)}
-                  aria-label={`حذف پریست ${preset.name}`}
+                  aria-label={`Delete preset ${preset.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -113,7 +113,7 @@ export function PresetsPanel({
             ))
           ) : (
             <p className="text-xs text-muted-foreground text-center py-3">
-              هنوز پریستی ذخیره نشده
+              No presets saved yet
             </p>
           )}
         </div>

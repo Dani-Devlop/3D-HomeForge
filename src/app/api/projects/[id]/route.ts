@@ -6,8 +6,8 @@ import { serializeProject, readJsonBody, toDate } from '@/app/api/_lib/serialize
 import { isProjectStage } from '@/lib/crm';
 
 // ============================================================
-// /api/projects/[id] — خواندن، ویرایش و حذف یک پروژه (فقط مدیر)
-// PATCH شامل فیلدهای CRM: clientName/clientPhone/address/stage/dealAt/
+// /api/projects/[id] — read, edit and delete one project (admin only)
+// PATCH includes the CRM fields: clientName/clientPhone/address/stage/dealAt/
 // contractAmount/contractPhoto/invoicePhoto/visitAt/installAt/dueAt
 // ============================================================
 
@@ -30,19 +30,19 @@ const patchSchema = z.object({
   clientName: z.string().max(80).optional(),
   clientPhone: z.string().max(60).optional(),
   address: z.string().max(300).optional(),
-  stage: z.string().refine(isProjectStage, 'مرحله پروژه نامعتبر است').optional(),
+  stage: z.string().refine(isProjectStage, 'Invalid project stage').optional(),
   dealAt: z.string().nullable().optional(),
   contractAmount: z.number().min(0).max(1e12).nullable().optional(),
   contractPhoto: z
     .string()
     .max(4_000_000)
-    .refine((v) => v === '' || v.startsWith('data:image/'), 'عکس قرارداد باید dataURL تصویر باشد')
+    .refine((v) => v === '' || v.startsWith('data:image/'), 'Contract photo must be an image dataURL')
     .nullable()
     .optional(),
   invoicePhoto: z
     .string()
     .max(4_000_000)
-    .refine((v) => v === '' || v.startsWith('data:image/'), 'فاکتور باید dataURL تصویر باشد')
+    .refine((v) => v === '' || v.startsWith('data:image/'), 'Invoice photo must be an image dataURL')
     .nullable()
     .optional(),
   visitAt: z.string().nullable().optional(),
@@ -50,7 +50,7 @@ const patchSchema = z.object({
   dueAt: z.string().nullable().optional(),
 });
 
-/** رشته خالی → null (پاک‌کردن فیلد) */
+/** Empty string → null (clears the field) */
 const toNullIfEmpty = (s: string): string | null => (s === '' ? null : s);
 
 export async function GET(
@@ -64,12 +64,12 @@ export async function GET(
     const { id } = await params;
     const project = await db.project.findUnique({ where: { id }, include: projectCount });
     if (!project) {
-      return NextResponse.json({ error: 'پروژه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     return NextResponse.json({ project: serializeProject(project) });
   } catch (err) {
     console.error('GET /api/projects/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -84,12 +84,12 @@ export async function PATCH(
     const { id } = await params;
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = patchSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'داده ارسالی نامعتبر است' },
+        { error: 'Invalid request data' },
         { status: 400 },
       );
     }
@@ -102,17 +102,17 @@ export async function PATCH(
 
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'پروژه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // null یعنی جداکردن از پوشه؛ مقدار غیرتهی باید موجود باشد
+    // null means detaching from the folder; a non-null value must exist
     if (folderId) {
       const folder = await db.folder.findUnique({
         where: { id: folderId },
         select: { id: true },
       });
       if (!folder) {
-        return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 400 });
+        return NextResponse.json({ error: 'Folder not found' }, { status: 400 });
       }
     }
 
@@ -138,7 +138,7 @@ export async function PATCH(
         ...(invoicePhoto !== undefined
           ? { invoicePhoto: !invoicePhoto ? null : invoicePhoto }
           : {}),
-        // رشته خالی/نامعتبر → null (پاک‌کردن تاریخ)
+        // Empty/invalid string → null (clears the date)
         ...(visitAt !== undefined ? { visitAt: toDate(visitAt) } : {}),
         ...(installAt !== undefined ? { installAt: toDate(installAt) } : {}),
         ...(dueAt !== undefined ? { dueAt: toDate(dueAt) } : {}),
@@ -148,7 +148,7 @@ export async function PATCH(
     return NextResponse.json({ project: serializeProject(project) });
   } catch (err) {
     console.error('PATCH /api/projects/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -163,12 +163,12 @@ export async function DELETE(
     const { id } = await params;
     const existing = await db.project.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'پروژه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
     await db.project.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/projects/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

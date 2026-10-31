@@ -13,7 +13,7 @@ type Route =
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#/, '');
-  // ⚠️ باید قبل از '/editor/' چک شود (پیشوند مشترک)
+  // ⚠️ must be checked before '/editor/' (shared prefix)
   if (h.startsWith('/editor/pf/')) {
     const portfolioId = h.slice('/editor/pf/'.length);
     if (portfolioId) return { view: 'editor-pf', portfolioId };
@@ -31,10 +31,10 @@ function parseHash(): Route {
 
 function FullScreenLoading() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">در حال بارگذاری...</p>
+        <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     </div>
   );

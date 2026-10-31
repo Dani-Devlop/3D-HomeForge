@@ -10,19 +10,19 @@ import {
 } from '@/app/api/_lib/portfolio';
 
 // ============================================================
-// GET    /api/portfolio/[id] → یک نمونه‌کار (فقط مدیر — برای ویرایشگر مدل)
-// PATCH  /api/portfolio/[id] → ویرایش نمونه‌کار (فقط مدیر)
-// DELETE /api/portfolio/[id] → حذف نمونه‌کار (فقط مدیر)
+// GET    /api/portfolio/[id] → one portfolio item (admin only — for the model editor)
+// PATCH  /api/portfolio/[id] → edit a portfolio item (admin only)
+// DELETE /api/portfolio/[id] → delete a portfolio item (admin only)
 // ============================================================
 
-/** GET — خواندن یک نمونه‌کار برای ویرایش مدل سه‌بعدی در ویرایشگر */
+/** GET — read one portfolio item to edit its 3D model in the editor */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   if (!(await getOwner(req))) {
     return NextResponse.json(
-      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { error: 'You must be signed in as the admin for this operation' },
       { status: 401 },
     );
   }
@@ -30,12 +30,12 @@ export async function GET(
     const { id } = await params;
     const item = await db.portfolioItem.findUnique({ where: { id } });
     if (!item) {
-      return NextResponse.json({ error: 'نمونه‌کار یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Portfolio item not found' }, { status: 404 });
     }
     return NextResponse.json({ item: serializePortfolioItem(item) });
   } catch (err) {
     console.error('GET /api/portfolio/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -54,7 +54,7 @@ const patchSchema = z.object({
     .max(MAX_IMAGE_CHARS)
     .refine(
       (v) => v === '' || v.startsWith('data:image/') || v.startsWith('/'),
-      'تصویر باید dataURL یا مسیر عمومی باشد',
+      'Image must be a dataURL or a public path',
     )
     .optional(),
   roomSpec: looseObject.optional(),
@@ -71,7 +71,7 @@ export async function PATCH(
 ) {
   if (!(await getOwner(req))) {
     return NextResponse.json(
-      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { error: 'You must be signed in as the admin for this operation' },
       { status: 401 },
     );
   }
@@ -79,26 +79,26 @@ export async function PATCH(
     const { id } = await params;
     const existing = await db.portfolioItem.findUnique({ where: { id } });
     if (!existing) {
-      return NextResponse.json({ error: 'نمونه‌کار یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Portfolio item not found' }, { status: 404 });
     }
 
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = patchSchema.safeParse(body.data);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'اطلاعات ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
     }
 
-    // بعد از اعمال پچ باید حداقل تصویر یا مدل سه‌بعدی زنده باقی بماند
+    // After applying the patch at least an image or a live 3D model must remain
     const nextImage = parsed.data.image ?? existing.image;
     const nextScene = parsed.data.sceneState
       ? { objects: parsed.data.sceneState.objects ?? [] }
       : parseExistingScene(existing.sceneState);
     if (nextImage.length < 8 && !hasSceneObjects(nextScene)) {
       return NextResponse.json(
-        { error: 'حداقل تصویر یا مدل سه‌بعدی زنده لازم است' },
+        { error: 'At least an image or a live 3D model is required' },
         { status: 400 },
       );
     }
@@ -114,7 +114,7 @@ export async function PATCH(
     return NextResponse.json({ item: serializePortfolioItem(item) });
   } catch (err) {
     console.error('PATCH /api/portfolio/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -136,7 +136,7 @@ export async function DELETE(
 ) {
   if (!(await getOwner(req))) {
     return NextResponse.json(
-      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { error: 'You must be signed in as the admin for this operation' },
       { status: 401 },
     );
   }
@@ -144,12 +144,12 @@ export async function DELETE(
     const { id } = await params;
     const existing = await db.portfolioItem.findUnique({ where: { id } });
     if (!existing) {
-      return NextResponse.json({ error: 'نمونه‌کار یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Portfolio item not found' }, { status: 404 });
     }
     await db.portfolioItem.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/portfolio/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

@@ -12,13 +12,13 @@ import {
 } from './textures';
 
 // ============================================================
-// اتاق بازسازی‌شده — نسخه چندضلعی
-// پلان اتاق = outline (۳ تا ۱۲ گوشه، دیوار کج پشتیبانی می‌شود)
-// بدون outline → مستطیل مرجع widthM×depthM (رفتار نسخه قبل)
-// دیوارها فقط از داخل دیده می‌شوند (افکت dollhouse حفظ می‌شود)
+// Reconstructed room — polygon version
+// Room plan = outline (3 to 12 corners, slanted walls supported)
+// Without outline → reference rectangle widthM×depthM (previous behavior)
+// Walls are visible only from inside (dollhouse effect preserved)
 // ============================================================
 
-/** قاب ساده دور یک بازشو (پنجره/درب) */
+/** Simple frame around an opening (window/door) */
 function Frame({
   width,
   height,
@@ -35,17 +35,17 @@ function Frame({
   const mat = <meshStandardMaterial color={color} roughness={0.5} />;
   return (
     <group>
-      {/* بالا */}
+      {/* Top */}
       <mesh position={[0, height / 2 + thickness / 2, 0]} castShadow>
         <boxGeometry args={[width + thickness * 2, thickness, depth]} />
         {mat}
       </mesh>
-      {/* پایین */}
+      {/* Bottom */}
       <mesh position={[0, -height / 2 - thickness / 2, 0]}>
         <boxGeometry args={[width + thickness * 2, thickness, depth]} />
         {mat}
       </mesh>
-      {/* چپ و راست */}
+      {/* Left and right */}
       <mesh position={[-width / 2 - thickness / 2, 0, 0]}>
         <boxGeometry args={[thickness, height + thickness * 2, depth]} />
         {mat}
@@ -58,7 +58,7 @@ function Frame({
   );
 }
 
-/** جهت مرجع هر دیوار نامی — برای یافتن نزدیک‌ترین لبه در پلان چندضلعی */
+/** Reference direction for each named wall — to find the nearest edge in a polygon plan */
 const WALL_DIR: Record<string, [number, number]> = {
   back: [0, -1],
   front: [0, 1],
@@ -66,7 +66,7 @@ const WALL_DIR: Record<string, [number, number]> = {
   right: [1, 0],
 };
 
-/** اندیس لبه متناظر با یک بازشو — wallIndex (چندضلعی) یا نزدیک‌ترین لبه به جهت نام دیوار */
+/** Edge index matching an opening — wallIndex (polygon) or the nearest edge to the named wall direction */
 function edgeIndexOf(
   opening: { wall?: string; wallIndex?: number },
   edges: EdgeFrame[]
@@ -80,7 +80,7 @@ function edgeIndexOf(
     return Math.min(opening.wallIndex, n - 1);
   }
   const dir = WALL_DIR[opening.wall ?? 'back'] ?? WALL_DIR.back;
-  // نزدیک‌ترین لبه به جهت نام دیوار — برای مستطیل همان لبه خودش، برای چندضلعی منطقی‌ترین
+  // Nearest edge to the named wall direction — the exact edge for a rectangle, the most sensible for a polygon
   let bestIdx = 0;
   let bestDot = -Infinity;
   edges.forEach((e, i) => {
@@ -93,14 +93,14 @@ function edgeIndexOf(
   return bestIdx;
 }
 
-/** clamp آفست در راستای لبه تا بازشو داخل لبه بماند */
+/** Clamp the offset along the edge so the opening stays within the edge */
 function clampEdgeOffset(offsetX: number, edge: EdgeFrame, openingWidth: number): number {
   const maxAbs = edge.len / 2 - openingWidth / 2 - 0.05;
   if (maxAbs <= 0) return 0;
   return Math.min(maxAbs, Math.max(-maxAbs, offsetX));
 }
 
-/** گروه جهت‌دار روی یک لبه — محور +z محلی رو به داخل اتاق */
+/** Oriented group on an edge — the local +z axis faces into the room */
 function EdgeGroup({
   edge,
   offsetAlong = 0,
@@ -130,7 +130,7 @@ function WindowCutout({ spec, edge }: { spec: WindowSpec; edge: EdgeFrame }) {
   return (
     <EdgeGroup edge={edge} offsetAlong={offsetAlong}>
       <group position={[0, cy, 0]}>
-        {/* شیشه — شفاف روشن با درخشش ملایم؛ هرگز تیره/سیاه رندر نمی‌شود */}
+        {/* Glass — bright transparent with a soft glow; never renders dark/black */}
         <mesh position={[0, 0, 0.005]}>
           <planeGeometry args={[spec.width, spec.height]} />
           <meshStandardMaterial
@@ -144,14 +144,14 @@ function WindowCutout({ spec, edge }: { spec: WindowSpec; edge: EdgeFrame }) {
             envMapIntensity={1.2}
           />
         </mesh>
-        {/* قاب */}
+        {/* Frame */}
         <Frame width={spec.width} height={spec.height} />
-        {/* میله عمودی وسط */}
+        {/* Center vertical mullion */}
         <mesh position={[0, 0, 0.01]}>
           <boxGeometry args={[0.04, spec.height, 0.03]} />
           <meshStandardMaterial color="#f5f2ec" roughness={0.5} />
         </mesh>
-        {/* طاقچه پایین */}
+        {/* Bottom sill */}
         <mesh position={[0, -spec.height / 2 - 0.03, 0.05]} castShadow>
           <boxGeometry args={[spec.width + 0.14, 0.05, 0.14]} />
           <meshStandardMaterial color="#efeae0" roughness={0.5} envMapIntensity={0.4} />
@@ -166,7 +166,7 @@ function DoorwayCutout({ spec, edge }: { spec: DoorwaySpec; edge: EdgeFrame }) {
   return (
     <EdgeGroup edge={edge} offsetAlong={offsetAlong}>
       <group position={[0, spec.height / 2, 0]}>
-        {/* دهانه تیره */}
+        {/* Dark opening */}
         <mesh position={[0, 0, 0.002]}>
           <planeGeometry args={[spec.width, spec.height]} />
           <meshStandardMaterial color="#3c342e" roughness={0.9} />
@@ -177,10 +177,10 @@ function DoorwayCutout({ spec, edge }: { spec: DoorwaySpec; edge: EdgeFrame }) {
   );
 }
 
-/** شکل THREE از نقاط پلان — flipZ برای تطبیق جهت + تضمین winding CCW (نرمال +z) */
+/** THREE shape from plan points — flipZ for orientation + CCW winding guaranteed (+z normal) */
 function shapeFromOutline(pts: OutlinePoint[], flipZ: boolean): THREE.Shape {
   const points = pts.map(([x, z]) => new THREE.Vector2(x, flipZ ? -z : z));
-  // ShapeGeometry فقط برای کانتور CCW نرمال +z می‌دهد — در غیر این صورت برعکس کنیم
+  // ShapeGeometry only yields a +z normal for a CCW contour — reverse it otherwise
   if (THREE.ShapeUtils.area(points) < 0) points.reverse();
   const shape = new THREE.Shape();
   points.forEach((p, i) => {
@@ -191,7 +191,7 @@ function shapeFromOutline(pts: OutlinePoint[], flipZ: boolean): THREE.Shape {
   return shape;
 }
 
-/** اتاق چندضلعی: کف + دیوار لبه‌به‌لبه + سقف + بازشوها + نور جهت‌دار از پنجره اصلی */
+/** Polygon room: floor + edge-by-edge walls + ceiling + openings + directional light from the main window */
 export function RoomMesh({ spec }: { spec: RoomSpec }) {
   const outline = useMemo<OutlinePoint[]>(() => getRoomOutline(spec), [spec]);
   const edges = useMemo<EdgeFrame[]>(
@@ -203,7 +203,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
   const floorShape = useMemo(() => shapeFromOutline(outline, true), [outline]);
   const ceilShape = useMemo(() => shapeFromOutline(outline, false), [outline]);
 
-  // پنجره اصلی = بزرگ‌ترین پنجره — نور خورشید از بیرون همان لبه می‌تابد
+  // Primary window = the largest window — sunlight shines from outside along that edge
   const primaryEdge = useMemo<EdgeFrame | null>(() => {
     if (!spec.windows.length) return null;
     let best = spec.windows[0];
@@ -214,7 +214,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
   }, [spec.windows, edges]);
 
   const sunPos = useMemo<[number, number, number]>(() => {
-    if (!primaryEdge) return [2, h * 0.9, 2.5]; // بدون پنجره — نور خنثی
+    if (!primaryEdge) return [2, h * 0.9, 2.5]; // No window — neutral light
     const reach = Math.max(3, Math.hypot(outlineBBoxSafe(outline).w, outlineBBoxSafe(outline).d) * 0.75);
     return [
       primaryEdge.cx + primaryEdge.outX * reach,
@@ -223,16 +223,16 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
     ];
   }, [primaryEdge, h, outline]);
 
-  // بافت‌ها — تولید یک‌بار در ماژول textures (کش بر اساس رنگ)؛ null = SSR/Fallback رنگی
+  // Textures — generated once in the textures module (cache keyed by color); null = SSR/color fallback
   const bbox = useMemo(() => outlineBBoxSafe(outline), [outline]);
   const floorTex = useMemo(() => {
     const t = woodFloorTexture(spec.floorColor);
     if (!t) return null;
-    // تخته‌های پارکت ~۱.۲ متر
+    // Parquet planks ~1.2 m
     return cloneWithRepeat(t, Math.max(1, bbox.w / 1.2), Math.max(1, bbox.d / 1.2));
   }, [spec.floorColor, bbox.w, bbox.d]);
 
-  // هر دیوار repeat خودش را نیاز دارد — کلون با source مشترک (ارزان روی GPU)
+  // Each wall needs its own repeat — clone with a shared source (cheap on the GPU)
   const wallTex = useMemo(
     () =>
       edges.map((edge) => {
@@ -248,7 +248,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
 
   return (
     <group>
-      {/* نور جهت‌دار طبیعی — از سمت پنجره اصلی به مرکز اتاق (تنها نور سایه‌انداز صحنه) */}
+      {/* Natural directional light — from the main window toward the room center (the scene's only shadow-casting light) */}
       <directionalLight
         position={sunPos}
         intensity={primaryEdge ? 1.15 : 0.85}
@@ -263,7 +263,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
         shadow-camera-bottom={-8}
       />
 
-      {/* کف چندضلعی — پارکت پروسیجرال (نقشه رنگ را حمل می‌کند؛ رنگ سفید) */}
+      {/* Polygon floor — procedural parquet (carries the color map; white color) */}
       <mesh rotation-x={-Math.PI / 2} position-y={0} receiveShadow>
         <shapeGeometry args={[floorShape]} />
         {floorTex ? (
@@ -273,13 +273,13 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
         )}
       </mesh>
 
-      {/* سقف — فقط از داخل دیده می‌شود */}
+      {/* Ceiling — visible only from inside */}
       <mesh rotation-x={Math.PI / 2} position-y={h}>
         <shapeGeometry args={[ceilShape]} />
         <meshStandardMaterial color={spec.ceilingColor} roughness={0.95} />
       </mesh>
 
-      {/* دیوارها — گچ پروسیجرال با bump ملایم؛ هر لبه repeat خودش */}
+      {/* Walls — procedural plaster with a subtle bump; each edge has its own repeat */}
       {edges.map((edge, i) => (
         <mesh
           key={`wall-${i}`}
@@ -299,7 +299,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
         </mesh>
       ))}
 
-      {/* قرنیز — دنبال‌کننده لبه‌ها */}
+      {/* Skirting board — follows the edges */}
       {edges.map((edge, i) => (
         <mesh
           key={`skirt-${i}`}
@@ -329,7 +329,7 @@ export function RoomMesh({ spec }: { spec: RoomSpec }) {
   );
 }
 
-/** bbox بدون وابستگی حلقه‌ای — همین فایل */
+/** bbox without a circular dependency — local to this file */
 function outlineBBoxSafe(pts: OutlinePoint[]): { w: number; d: number } {
   let minX = Infinity;
   let maxX = -Infinity;

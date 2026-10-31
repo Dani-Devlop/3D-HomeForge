@@ -20,17 +20,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import ViewerScene from '@/components/three/viewer-scene';
 import { MovePad } from '@/components/editor/move-pad';
 
 const ROLE_LABEL: Record<ShareRole, string> = {
-  viewer: 'نمایشگر',
-  modifier: 'ویرایشگر',
+  viewer: 'Viewer',
+  modifier: 'Editor',
 };
 
-// ---------- پرده ورود مهمان ----------
+// ---------- Guest entry gate ----------
 function GuestGate({
   onJoin,
   loading,
@@ -44,33 +45,33 @@ function GuestGate({
     if (n.length >= 1) onJoin(n);
   };
   return (
-    <div className="fixed inset-0 z-50 bg-stone-100/95 backdrop-blur flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
       <Card className="w-full max-w-sm shadow-xl">
         <CardContent className="p-6 space-y-4 text-center">
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <Eye className="h-7 w-7 text-primary" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-lg font-bold">خوش آمدید!</h2>
+            <h2 className="text-lg font-bold">Welcome!</h2>
             <p className="text-sm text-muted-foreground">
-              برای بازدید از طرح سه‌بعدی، لطفاً نام خود را وارد کنید
+              Enter your name to view the 3D design
             </p>
           </div>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="مثلاً: خانم احمدی"
+            placeholder="e.g. Jane Smith"
             maxLength={30}
             autoFocus
             className="h-11 text-center"
-            aria-label="نام شما"
+            aria-label="Your name"
           />
           <Button className="w-full h-11" onClick={submit} disabled={!name.trim() || loading}>
-            {loading ? 'در حال ورود...' : 'ورود به فضای سه‌بعدی'}
+            {loading ? 'Joining…' : 'Join'}
           </Button>
           <p className="text-[11px] text-muted-foreground">
-            بدون نیاز به ثبت‌نام یا ایمیل — فقط نام شما نمایش داده می‌شود
+            No sign-up or email needed — only your name is shown
           </p>
         </CardContent>
       </Card>
@@ -78,7 +79,7 @@ function GuestGate({
   );
 }
 
-// ---------- نمای اصلی مشتری ----------
+// ---------- Main client view ----------
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function ViewerView({ token }: { token: string }) {
@@ -102,7 +103,7 @@ export default function ViewerView({ token }: { token: string }) {
 
   const touch = () => setDirtyTick((t) => t + 1);
 
-  // بعد از resolve: مقداردهی اولیه
+  // After resolve: initial setup
   useEffect(() => {
     if (!resolveQ.data || guest) return;
     const p = resolveQ.data.project;
@@ -114,7 +115,7 @@ export default function ViewerView({ token }: { token: string }) {
     setObjects(objs);
     setRole(resolveQ.data.link.role);
 
-    // مهمان ذخیره‌شده قبلی
+    // Previously saved guest
     try {
       const saved = sessionStorage.getItem(`c3d-guest:${token}`);
       if (saved) {
@@ -134,15 +135,15 @@ export default function ViewerView({ token }: { token: string }) {
       setGuest(res.guest);
       setRole(res.guest.role);
       sessionStorage.setItem(`c3d-guest:${token}`, JSON.stringify(res.guest));
-      toast({ title: `خوش آمدید ${res.guest.name}!`, description: 'روی درب‌ها کلیک کنید تا باز شوند' });
+      toast({ title: `Welcome ${res.guest.name}!`, description: 'Click the doors to open them' });
     } catch (e) {
-      toast({ title: 'ورود ناموفق', description: (e as Error).message, variant: 'destructive' });
+      toast({ title: 'Join failed', description: (e as Error).message, variant: 'destructive' });
     } finally {
       setJoining(false);
     }
   };
 
-  // پایش نقش — تغییر دسترسی بلافاصله اعمال می‌شود
+  // Role polling — access changes take effect immediately
   useEffect(() => {
     if (!guest) return;
     const t = setInterval(async () => {
@@ -151,12 +152,12 @@ export default function ViewerView({ token }: { token: string }) {
         if (res.guest.role !== role) {
           setRole(res.guest.role);
           toast({
-            title: 'دسترسی شما به‌روزرسانی شد',
-            description: `اکنون ${ROLE_LABEL[res.guest.role]} هستید`,
+            title: 'Your access has been updated',
+            description: `You now have ${ROLE_LABEL[res.guest.role]} access`,
           });
         }
       } catch {
-        // مهمان ممکن است حذف شده باشد — بی‌صدا
+        // Guest may have been removed — ignore silently
       }
     }, 4000);
     return () => clearInterval(t);
@@ -174,7 +175,7 @@ export default function ViewerView({ token }: { token: string }) {
     touch();
   };
 
-  // ---- ذخیره خودکار مهمان ویرایشگر (۱.۲ ثانیه بعد از آخرین تغییر) ----
+  // ---- Editor guest autosave (1.2s after the last change) ----
   const firstDirtyRef = useRef(true);
   useEffect(() => {
     if (firstDirtyRef.current) {
@@ -188,39 +189,39 @@ export default function ViewerView({ token }: { token: string }) {
         await api.saveAsGuest({ token, guestId: guest.id, sceneState: { objects } });
         setSaveState('saved');
       } catch {
-        setSaveState('error'); // بی‌صدا — فقط نشانگر کوتاه
+        setSaveState('error'); // silent — brief indicator only
       }
     }, 1200);
     return () => clearTimeout(t);
   }, [dirtyTick, guest, role, token, objects, resolveQ.data]);
 
-  // بازگشت نشانگر ذخیره به حالت عادی
+  // Return the save indicator to idle
   useEffect(() => {
     if (saveState !== 'saved' && saveState !== 'error') return;
     const t = setTimeout(() => setSaveState('idle'), 3000);
     return () => clearTimeout(t);
   }, [saveState]);
 
-  // ---------- حالت‌های خطا ----------
+  // ---------- Error states ----------
   if (resolveQ.isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <p className="text-sm text-muted-foreground animate-pulse">در حال باز کردن لینک...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-sm text-muted-foreground animate-pulse">Opening link...</p>
       </div>
     );
   }
 
   if (resolveQ.isError || !resolveQ.data || !roomSpec || !('widthM' in roomSpec)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <Card className="max-w-sm w-full text-center">
           <CardContent className="p-8 space-y-3">
             <Link2Off className="h-10 w-10 mx-auto text-destructive/60" />
-            <p className="font-semibold">لینک نامعتبر است</p>
+            <p className="font-semibold">Invalid link</p>
             <p className="text-sm text-muted-foreground">
-              {(resolveQ.error as Error)?.message || 'این لینک منقضی شده یا غیرفعال شده است.'}
+              {(resolveQ.error as Error)?.message || 'This link has expired or has been deactivated.'}
             </p>
-            <p className="text-xs text-muted-foreground">برای دریافت لینک جدید با کابینت‌ساز تماس بگیرید.</p>
+            <p className="text-xs text-muted-foreground">Contact the designer to get a new link.</p>
           </CardContent>
         </Card>
       </div>
@@ -236,7 +237,7 @@ export default function ViewerView({ token }: { token: string }) {
     d: [number, number, number]
   ): [number, number, number] => {
     if (!spec) return pos;
-    // داخل چندضلع پلان (دیوار کج) محدود می‌شود — y جداگانه
+    // Constrained to the floor-plan polygon (slanted walls) — y handled separately
     const [cx, , cz] = clampPositionToRoom(spec, [
       pos[0] + d[0],
       0,
@@ -246,12 +247,12 @@ export default function ViewerView({ token }: { token: string }) {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-stone-100 overflow-hidden">
-      {/* نوار بالا */}
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Top bar */}
       <header className="shrink-0 bg-card border-b px-3 py-2 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
           <p className="font-bold text-sm truncate">{resolveQ.data.project.name}</p>
-          <Badge variant="secondary" className="text-[10px]">نمای سه‌بعدی</Badge>
+          <Badge variant="secondary" className="text-[10px]">3D View</Badge>
         </div>
 
         {guest && (
@@ -272,20 +273,21 @@ export default function ViewerView({ token }: { token: string }) {
         )}
 
         <div className="ms-auto flex items-center gap-2">
+          <ThemeToggle />
           {guest && role === 'modifier' && (
             <span className="text-[11px] text-muted-foreground flex items-center gap-1" aria-live="polite">
               {saveState === 'saving' ? (
                 <>
-                  <Loader2 className="h-3 w-3 animate-spin" /> در حال ذخیره...
+                  <Loader2 className="h-3 w-3 animate-spin" /> Saving…
                 </>
               ) : saveState === 'saved' ? (
                 <>
-                  <Check className="h-3 w-3 text-emerald-600" /> ذخیره شد ✓
+                  <Check className="h-3 w-3 text-emerald-600" /> Saved ✓
                 </>
               ) : saveState === 'error' ? (
-                <span className="text-destructive">ذخیره ناموفق</span>
+                <span className="text-destructive">Save failed</span>
               ) : dirtyTick > 0 ? (
-                'تغییرات ذخیره‌نشده'
+                'Unsaved changes'
               ) : null}
             </span>
           )}
@@ -294,15 +296,15 @@ export default function ViewerView({ token }: { token: string }) {
             variant="ghost"
             className="gap-1.5 text-xs"
             onClick={() => setCameraKey((k) => k + 1)}
-            aria-label="بازنشانی نما"
+            aria-label="Reset view"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">بازنشانی نما</span>
+            <span className="hidden sm:inline">Reset view</span>
           </Button>
         </div>
       </header>
 
-      {/* صحنه */}
+      {/* Scene */}
       <main className="relative flex-1 min-h-0">
         <ViewerScene
           roomSpec={roomSpec}
@@ -318,7 +320,7 @@ export default function ViewerView({ token }: { token: string }) {
           }
           onBeginAction={() => {}}
           onMoved={(id) => {
-            // موقعیت از گیزموت (گروه سه‌بعدی) → state تا ذخیره شود
+            // Position from gizmo (THREE group) → state so it gets saved
             const g = refsMap.current.get(id) as THREE.Group | undefined;
             if (g) {
               patchObject(id, {
@@ -335,7 +337,7 @@ export default function ViewerView({ token }: { token: string }) {
           cameraKey={cameraKey}
         />
 
-        {/* کنترل چراغ‌ها */}
+        {/* Light controls */}
         {lights.length > 0 && (
           <div className="absolute top-3 start-3 flex flex-wrap gap-2 max-w-[75%]">
             {lights.map((l) => (
@@ -345,14 +347,14 @@ export default function ViewerView({ token }: { token: string }) {
               >
                 <LampCeiling className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-medium">
-                  {l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}
+                  {l.label ?? (l.type === 'pendant' ? 'Pendant light' : 'Floor lamp')}
                 </span>
                 <Switch
                   checked={!!l.on}
                   onCheckedChange={() =>
                     patchObject(l.id, { on: !objects.find((o) => o.id === l.id)?.on })
                   }
-                  aria-label={`روشن/خاموش ${l.label ?? (l.type === 'pendant' ? 'چراغ آویز' : 'چراغ ایستاده')}`}
+                  aria-label={`Toggle ${l.label ?? (l.type === 'pendant' ? 'pendant light' : 'floor lamp')}`}
                   className="scale-90"
                 />
               </div>
@@ -360,7 +362,7 @@ export default function ViewerView({ token }: { token: string }) {
           </div>
         )}
 
-        {/* پد حرکت برای مهمان ویرایشگر */}
+        {/* Move pad for editor guests */}
         {canMove && selected && (
           <MovePad
             storageKey={`c3d-movepad-viewer:${token}`}
@@ -371,15 +373,15 @@ export default function ViewerView({ token }: { token: string }) {
           />
         )}
 
-        {/* راهنما */}
+        {/* Help hint */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-card/95 shadow border px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs text-muted-foreground text-center pointer-events-none max-w-[94%]">
           {canMove ? (
             <span>
-              کلیک روی کابینت: انتخاب • دکمه‌های حرکت یا درگ گیزموت: جابه‌جایی • ذخیره خودکار
+              Click a cabinet: select • Move buttons or drag the gizmo: move • Autosave on
             </span>
           ) : (
             <span>
-              کلیک روی درب‌ها: باز/بسته • درگ: چرخش نما • اسکرول: زوم
+              Click doors: open/close • Drag: rotate view • Scroll: zoom
             </span>
           )}
         </div>

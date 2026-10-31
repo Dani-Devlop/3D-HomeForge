@@ -5,8 +5,8 @@ import { verifyShareToken, type SharePayload } from '@/lib/share-token';
 import { isFullToken } from '@/lib/share-code';
 
 // ============================================================
-// اعتبارسنجی مشترک توکن/کد لینک اشتراکی (برای resolve و ورود مهمان)
-// توکن کامل: payload.signature — کد کوتاه: ۷ کاراکتر بدون نقطه
+// Shared validation of the share-link token/code (for resolve and guest sign-in)
+// Full token: payload.signature — short code: 7 characters without a dot
 // ============================================================
 
 export type ShareTokenCheck =
@@ -15,13 +15,13 @@ export type ShareTokenCheck =
 
 const invalidResponse = () =>
   NextResponse.json(
-    { ok: false, error: 'لینک نامعتبر یا منقضی است' },
+    { ok: false, error: 'Invalid or expired link' },
     { status: 403 },
   );
 
 /**
- * توکن امضاشده یا کد کوتاه را اعتبارسنجی می‌کند، ردیف ShareLink را می‌خواند
- * و فعال/منقضی‌نبودن را چک می‌کند. در صورت ناموفق بودن، پاسخ 403 آماده برمی‌گرداند.
+ * Validates a signed token or short code, reads the ShareLink row
+ * and checks that it is active and not expired. On failure returns a ready 403 response.
  */
 export async function checkShareToken(tokenOrCode: unknown): Promise<ShareTokenCheck> {
   if (typeof tokenOrCode !== 'string' || !tokenOrCode) {
@@ -32,13 +32,13 @@ export async function checkShareToken(tokenOrCode: unknown): Promise<ShareTokenC
   let link: ShareLink | null = null;
 
   if (isFullToken(value)) {
-    // مسیر قدیمی — توکن کامل امضاشده
+    // Legacy path — full signed token
     const payload = verifyShareToken(value);
     if (!payload) return { ok: false, response: invalidResponse() };
     link = await db.shareLink.findUnique({ where: { id: payload.lid } });
-    if (link && link.token !== value) link = null; // توکن باید دقیقاً همان توکن ذخیره‌شده باشد
+    if (link && link.token !== value) link = null; // The token must exactly match the stored token
   } else {
-    // کد کوتاه — ردیف لینک مستقیماً پیدا می‌شود و توکن ذخیره‌شده امضاسنجی می‌شود
+    // Short code — the link row is found directly and the stored token is signature-verified
     const byCode = await db.shareLink.findUnique({ where: { shortCode: value } });
     if (!byCode) return { ok: false, response: invalidResponse() };
     const payload = verifyShareToken(byCode.token);
@@ -48,18 +48,18 @@ export async function checkShareToken(tokenOrCode: unknown): Promise<ShareTokenC
 
   if (!link || !link.active) return { ok: false, response: invalidResponse() };
 
-  // انقضای ذخیره‌شده در دیتابیس هم مستقلاً چک می‌شود
+  // The expiry stored in the database is checked independently as well
   if (link.expiresAt.getTime() < Date.now()) {
     return {
       ok: false,
       response: NextResponse.json(
-        { ok: false, error: 'لینک منقضی شده است' },
+        { ok: false, error: 'Link has expired' },
         { status: 403 },
       ),
     };
   }
 
-  // توکن ذخیره‌شده در ردیف همیشه امضای سالم دارد — payload از آن بازخوانی می‌شود
+  // The token stored in the row always has a valid signature — the payload is re-read from it
   const payload: SharePayload = verifyShareToken(link.token) ?? {
     lid: link.id,
     pid: link.projectId,

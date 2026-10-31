@@ -1,8 +1,8 @@
 'use client';
 
 // ============================================================
-// لوازم خانگی سه‌بعدی — یخچال، اجاق گاز، هود
-// الگوها اقتباس‌شده از cabinet.tsx (MeshCtx/HingedDoor/Edges) و decor.tsx (نور)
+// 3D home appliances — refrigerator, stove, range hood
+// Patterns adapted from cabinet.tsx (MeshCtx/HingedDoor/Edges) and decor.tsx (light)
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,11 +11,11 @@ import { useFrame } from '@react-three/fiber';
 import { Edges } from '@react-three/drei';
 import type { MeshCtx } from './cabinet';
 
-const OPEN_ANGLE = 1.75; // زاویه باز شدن درب (رادیان) — مطابق کابینت
-const STEEL = '#d9dde2'; // رنگ دستگیره‌های استیل
-/** استیل براق با بازتاب محیط — فلز واقعی به‌جای پلاستیک */
+const OPEN_ANGLE = 1.75; // Door opening angle (radians) — matches the cabinet
+const STEEL = '#d9dde2'; // Steel handle color
+/** Polished steel with environment reflection — real metal instead of plastic */
 const STEEL_MAT = { color: STEEL, metalness: 0.9, roughness: 0.25, envMapIntensity: 1.3 } as const;
-const EDGE = '#f59e0b'; // رنگ لبه‌های حالت انتخاب
+const EDGE = '#f59e0b'; // Selection edge color
 
 const hoverCursor = (e: { stopPropagation: () => void }) => {
   e.stopPropagation();
@@ -25,11 +25,11 @@ const unhover = () => {
   document.body.style.cursor = 'auto';
 };
 
-/** درب لولادار با انیمیشن نرم (الگوی Mesh States — اقتباس از cabinet.tsx) */
+/** Hinged door with smooth animation (Mesh States pattern — adapted from cabinet.tsx) */
 function HingedDoor({
   width,
   height,
-  side, // -1 = لولا چپ، +1 = لولا راست
+  side, // -1 = hinge left, +1 = hinge right
   open,
   color,
   zBase,
@@ -46,10 +46,10 @@ function HingedDoor({
   open: boolean;
   color: string;
   zBase: number;
-  hingeX: number; // فاصله لولا از مرکز دستگاه (≈ w/2)
-  yCenter: number; // ارتفاع مرکز درب از مبدأ دستگاه
+  hingeX: number; // hinge distance from the appliance center (≈ w/2)
+  yCenter: number; // door center height from the appliance origin
   onClick: (e: { stopPropagation: () => void }) => void;
-  children?: ReactNode; // اضافه‌های روی درب (پنجره/دستگیره) — مختصات نسبت به مرکز درب
+  children?: ReactNode; // extras on the door (window/handle) — coordinates relative to the door center
   metalness?: number;
   roughness?: number;
 }) {
@@ -79,7 +79,7 @@ function HingedDoor({
   );
 }
 
-/** یخچال ایستاده — جلو رو به +Z */
+/** Upright refrigerator — front facing +Z */
 export function FridgeMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -98,7 +98,7 @@ export function FridgeMesh(ctx: MeshCtx) {
     onSelect(obj.id, !!e.shiftKey);
   };
 
-  // چیدمان جلو: درب اصلی پایین (~۷۲٪) + درب فریزر ثابت بالا + درز تیره بین آن‌ها
+  // Front layout: main door at the bottom (~72%) + fixed freezer door on top + dark seam between them
   const freezerH = h * 0.26;
   const mainH = h - freezerH - 0.06;
   const mainW = w - 0.02;
@@ -115,31 +115,31 @@ export function FridgeMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* بدنه استیل */}
+      {/* Steel body */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.3} metalness={0.7} envMapIntensity={1.2} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* درب فریزر (ثابت — باز نمی‌شود) — کمی روشن‌تر از بدنه */}
+      {/* Freezer door (fixed — does not open) — slightly lighter than the body */}
       <mesh position={[0, freezerY, d / 2 + 0.015]} castShadow>
         <boxGeometry args={[w - 0.04, freezerH, 0.03]} />
         <meshStandardMaterial color={doorColor} roughness={0.28} metalness={0.7} envMapIntensity={1.25} />
       </mesh>
-      {/* دستگیره افقی فریزر */}
+      {/* Horizontal freezer handle */}
       <mesh position={[0, freezerY - freezerH / 2 + 0.07, d / 2 + 0.045]} castShadow>
         <boxGeometry args={[0.3, 0.026, 0.026]} />
         <meshStandardMaterial {...STEEL_MAT} />
       </mesh>
 
-      {/* درز تیره بین دو درب */}
+      {/* Dark seam between the two doors */}
       <mesh position={[0, seamY, d / 2 + 0.004]}>
         <boxGeometry args={[w - 0.02, 0.012, 0.008]} />
         <meshStandardMaterial color="#2a2c30" roughness={0.6} />
       </mesh>
 
-      {/* درب اصلی لولادار (لولا راست، بازشو به سمت چپ) */}
+      {/* Main hinged door (right hinge, opens to the left) */}
       <HingedDoor
         width={mainW}
         height={mainH}
@@ -153,7 +153,7 @@ export function FridgeMesh(ctx: MeshCtx) {
         metalness={0.7}
         roughness={0.28}
       >
-        {/* دستگیره عمودی کنار لبه بازشو */}
+        {/* Vertical handle near the opening edge */}
         <mesh position={[-mainW / 2 + 0.07, 0, 0.03]} castShadow>
           <boxGeometry args={[0.026, Math.min(0.55, mainH * 0.45), 0.026]} />
           <meshStandardMaterial {...STEEL_MAT} />
@@ -163,7 +163,7 @@ export function FridgeMesh(ctx: MeshCtx) {
   );
 }
 
-/** اجاق گاز (فر + صفحه) — جلو رو به +Z */
+/** Stove/oven (oven + cooktop) — front facing +Z */
 export function StoveMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect, onToggleLight } = ctx;
   const p = obj.params;
@@ -188,7 +188,7 @@ export function StoveMesh(ctx: MeshCtx) {
     onSelect(obj.id, !!e.shiftKey);
   };
 
-  // شبکه ۲×۲ شعله‌پخش‌کن‌ها روی صفحه
+  // 2×2 grid of burners on the cooktop
   const burners: Array<[number, number]> = [
     [-w / 4, -d / 4],
     [w / 4, -d / 4],
@@ -208,20 +208,20 @@ export function StoveMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* بدنه */}
+      {/* Body */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.35} metalness={0.6} envMapIntensity={1} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* صفحه گاز تیره براق (شیشه‌ای) */}
+      {/* Dark glossy cooktop (glass-like) */}
       <mesh position={[0, h + 0.01, 0]} castShadow>
         <boxGeometry args={[w + 0.02, 0.02, d + 0.02]} />
         <meshStandardMaterial color={topColor} roughness={0.15} metalness={0.6} envMapIntensity={1.1} />
       </mesh>
 
-      {/* پنل پشتی (کلیک = روشن/خاموش شعله‌ها) */}
+      {/* Back panel (click = toggle flames) */}
       <mesh
         position={[0, h + 0.04, -d / 2 + 0.012]}
         castShadow
@@ -233,7 +233,7 @@ export function StoveMesh(ctx: MeshCtx) {
         <meshStandardMaterial color={bodyColor} roughness={0.35} metalness={0.6} envMapIntensity={1} />
       </mesh>
 
-      {/* شعله‌پخش‌کن‌ها (کلیک = روشن/خاموش شعله‌ها) */}
+      {/* Burners (click = toggle flames) */}
       {burners.map(([bx, bz], i) => (
         <mesh
           key={`burner-${i}`}
@@ -248,7 +248,7 @@ export function StoveMesh(ctx: MeshCtx) {
         </mesh>
       ))}
 
-      {/* حلقه‌های شعله هنگام روشن بودن */}
+      {/* Flame rings while on */}
       {on &&
         burners.map(([bx, bz], i) => (
           <mesh key={`flame-${i}`} position={[bx, h + 0.034, bz]} rotation-x={Math.PI / 2}>
@@ -266,7 +266,7 @@ export function StoveMesh(ctx: MeshCtx) {
         />
       )}
 
-      {/* درب فر لولادار (لولا چپ) با پنجره تیره */}
+      {/* Oven hinged door (left hinge) with a dark window */}
       <HingedDoor
         width={w - 0.02}
         height={doorH}
@@ -278,19 +278,19 @@ export function StoveMesh(ctx: MeshCtx) {
         yCenter={doorY}
         onClick={toggleOpen}
       >
-        {/* پنجره شیشه‌ای تیره (~۶۰٪ سطح درب) */}
+        {/* Dark glass window (~60% of the door surface) */}
         <mesh position={[0, 0, 0.02]}>
           <boxGeometry args={[(w - 0.02) * 0.6, doorH * 0.6, 0.01]} />
           <meshStandardMaterial color="#14161a" roughness={0.1} metalness={0.3} />
         </mesh>
-        {/* دستگیره افقی بالای درب */}
+        {/* Horizontal handle at the top of the door */}
         <mesh position={[0, doorH / 2 - 0.06, 0.03]} castShadow>
           <boxGeometry args={[Math.min(0.36, (w - 0.02) * 0.5), 0.024, 0.024]} />
           <meshStandardMaterial {...STEEL_MAT} />
         </mesh>
       </HingedDoor>
 
-      {/* نوار کنترل و ولوم‌ها */}
+      {/* Control strip and knobs */}
       <mesh position={[0, h - 0.05, d / 2 + 0.009]}>
         <boxGeometry args={[w - 0.04, 0.1, 0.018]} />
         <meshStandardMaterial color="#2e3138" roughness={0.4} metalness={0.5} envMapIntensity={1} />
@@ -305,7 +305,7 @@ export function StoveMesh(ctx: MeshCtx) {
   );
 }
 
-/** هود دیواری — مبدأ گروه روی نقطه نصب (position.y = mountY) */
+/** Wall-mounted range hood — group origin at the mount point (position.y = mountY) */
 export function HoodMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect, onToggleLight } = ctx;
   const p = obj.params;
@@ -334,7 +334,7 @@ export function HoodMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* کلاهک اصلی — روی نقطه نصب می‌نشیند (کلیک = چراغ) */}
+      {/* Main canopy — sits on the mount point (click = light) */}
       <mesh
         position={[0, h / 2, 0]}
         castShadow
@@ -348,14 +348,14 @@ export function HoodMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* دودکش بالای کلاهک تا سمت سقف */}
+      {/* Chimney above the canopy extending toward the ceiling */}
       <mesh position={[0, h + 0.25, 0]} castShadow>
         <boxGeometry args={[w * 0.45, 0.5, d * 0.45]} />
         <meshStandardMaterial color={bodyColor} roughness={0.35} metalness={0.6} envMapIntensity={1.1} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* نوار نور زیر کلاهک (کلیک = چراغ) */}
+      {/* Light strip under the canopy (click = light) */}
       <mesh
         position={[0, -0.008, 0]}
         onClick={toggleLight}
@@ -383,7 +383,7 @@ export function HoodMesh(ctx: MeshCtx) {
   );
 }
 
-/** ماشین لباسشویی — درب گرد لولادار با شیشه تیره براق (هرگز کاملاً سیاه نیست) */
+/** Washing machine — round hinged door with dark glossy glass (never fully black) */
 export function WasherMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -401,9 +401,9 @@ export function WasherMesh(ctx: MeshCtx) {
     onSelect(obj.id, !!e.shiftKey);
   };
 
-  const doorR = 0.21; // شعاع درب گرد
-  const doorY = h * 0.44; // مرکز درب
-  const openAngle = -1.1; // باز شدن درب به بیرون (لولا چپ)
+  const doorR = 0.21; // Round door radius
+  const doorY = h * 0.44; // Door center
+  const openAngle = -1.1; // Door opens outward (left hinge)
   const hingeX = w / 2 - 0.035;
   const doorGroup = useRef<THREE.Group>(null);
   useFrame((_, delta) => {
@@ -422,43 +422,43 @@ export function WasherMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* بدنه */}
+      {/* Body */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.35} metalness={0.5} envMapIntensity={1} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* پنل کنترل بالای دستگاه (کمی فرورفته) */}
+      {/* Control panel on top of the unit (slightly recessed) */}
       <mesh position={[0, h - 0.055, d / 2 - 0.004]}>
         <boxGeometry args={[w - 0.05, 0.075, 0.012]} />
         <meshStandardMaterial color="#d7dae0" roughness={0.45} metalness={0.2} />
       </mesh>
-      {/* ولوم برنامه‌ها */}
+      {/* Program knob */}
       <mesh position={[w / 2 - 0.1, h - 0.055, d / 2 + 0.01]} rotation-x={Math.PI / 2}>
         <cylinderGeometry args={[0.028, 0.028, 0.02, 20]} />
         <meshStandardMaterial color="#b8bcc4" roughness={0.35} metalness={0.5} />
       </mesh>
-      {/* دو دکمه کوچک */}
+      {/* Two small buttons */}
       {[-0.16, -0.08].map((bx, i) => (
         <mesh key={`btn-${i}`} position={[bx, h - 0.055, d / 2 + 0.008]}>
           <boxGeometry args={[0.05, 0.02, 0.008]} />
           <meshStandardMaterial color="#aeb3bb" roughness={0.4} metalness={0.3} />
         </mesh>
       ))}
-      {/* نمایشگر کوچک */}
+      {/* Small display */}
       <mesh position={[0.02, h - 0.055, d / 2 + 0.009]}>
         <boxGeometry args={[0.1, 0.028, 0.006]} />
         <meshStandardMaterial color="#2a2e33" emissive="#7ee0a0" emissiveIntensity={0.5} roughness={0.3} />
       </mesh>
 
-      {/* دیگ داخلی — کمی فرورفته و ثابت (از پشت شیشه دیده می‌شود) */}
+      {/* Inner drum — slightly recessed and fixed (visible through the glass) */}
       <mesh position={[0, doorY, d / 2 + 0.004]} rotation-x={Math.PI / 2}>
         <cylinderGeometry args={[0.15, 0.15, 0.012, 28]} />
         <meshStandardMaterial color="#8b939c" roughness={0.4} metalness={0.5} envMapIntensity={1} />
       </mesh>
 
-      {/* درب گرد لولادار (لولا چپ) — حلقه بیرونی + شیشه تیره براق */}
+      {/* Round hinged door (left hinge) — outer ring + dark glossy glass */}
       <group ref={doorGroup} position={[-hingeX, doorY, d / 2 + 0.02]}>
         <mesh
           position={[doorR + 0.045, 0, 0.012]}
@@ -470,7 +470,7 @@ export function WasherMesh(ctx: MeshCtx) {
           <torusGeometry args={[doorR, 0.022, 14, 40]} />
           <meshStandardMaterial color="#c9ccd2" roughness={0.25} metalness={0.7} envMapIntensity={1.2} />
         </mesh>
-        {/* شیشه درب — تینت تیره براق، شفاف (نه سیاه خالص) */}
+        {/* Door glass — dark glossy tint, transparent (not pure black) */}
         <mesh
           position={[doorR + 0.045, 0, 0]}
           rotation-x={Math.PI / 2}
@@ -493,7 +493,7 @@ export function WasherMesh(ctx: MeshCtx) {
   );
 }
 
-/** ماشین ظرفشویی — درب تمام‌صفحه لولادار با دستگیره افقی */
+/** Dishwasher — full-panel hinged door with a horizontal handle */
 export function DishwasherMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -523,20 +523,20 @@ export function DishwasherMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* بدنه */}
+      {/* Body */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.35} metalness={0.5} envMapIntensity={1} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* نوار کنترل باریک بالای درب */}
+      {/* Narrow control strip above the door */}
       <mesh position={[0, h - 0.026, d / 2 + 0.008]} castShadow>
         <boxGeometry args={[w - 0.06, 0.042, 0.014]} />
         <meshStandardMaterial color="#9aa0a8" roughness={0.4} metalness={0.35} />
       </mesh>
 
-      {/* درب لولادار (لولا چپ) با دستگیره افقی نزدیک لبه بالا */}
+      {/* Hinged door (left hinge) with a horizontal handle near the top edge */}
       <HingedDoor
         width={w - 0.02}
         height={doorH}
@@ -557,7 +557,7 @@ export function DishwasherMesh(ctx: MeshCtx) {
   );
 }
 
-/** مایکروویو رومیزی — پنجره شیشه‌ای روشن + ستون کنترل؛ درب کامل باز می‌شود */
+/** Countertop microwave — bright glass window + control column; door opens fully */
 export function MicrowaveMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -575,7 +575,7 @@ export function MicrowaveMesh(ctx: MeshCtx) {
     onSelect(obj.id, !!e.shiftKey);
   };
 
-  const doorW = w * 0.62; // درب = ۶۵٪ عرض جلو (بدون احتساب لبه)
+  const doorW = w * 0.62; // Door = 65% of the front width (excluding the edge)
   const doorH = h - 0.04;
 
   return (
@@ -587,14 +587,14 @@ export function MicrowaveMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* بدنه — کف روی نقطه نصب (position.y = mountY) */}
+      {/* Body — bottom on the mount point (position.y = mountY) */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.4} metalness={0.5} envMapIntensity={1} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* درب چپ لولادار (لولا چپ) با پنجره شیشه‌ای روشن */}
+      {/* Left hinged door (left hinge) with a bright glass window */}
       <HingedDoor
         width={doorW}
         height={doorH}
@@ -606,12 +606,12 @@ export function MicrowaveMesh(ctx: MeshCtx) {
         yCenter={h / 2}
         onClick={toggleOpen}
       >
-        {/* قاب تیره پنجره */}
+        {/* Dark window frame */}
         <mesh position={[0, 0, 0.014]} onClick={toggleOpen} onPointerOver={hoverCursor} onPointerOut={unhover}>
           <boxGeometry args={[w * 0.4, h * 0.66, 0.007]} />
           <meshStandardMaterial color="#1d2025" roughness={0.4} metalness={0.3} />
         </mesh>
-        {/* شیشه پنجره — سبز-آبی روشن و شفاف (هرگز سیاه) */}
+        {/* Window glass — bright blue-green and transparent (never black) */}
         <mesh position={[0, 0, 0.019]} onClick={toggleOpen} onPointerOver={hoverCursor} onPointerOut={unhover}>
           <boxGeometry args={[w * 0.34, h * 0.55, 0.008]} />
           <meshStandardMaterial
@@ -622,33 +622,33 @@ export function MicrowaveMesh(ctx: MeshCtx) {
             metalness={0.1}
           />
         </mesh>
-        {/* دستگیره عمودی لبه بازشو (سمت ستون کنترل) */}
+        {/* Vertical handle at the opening edge (control column side) */}
         <mesh position={[doorW / 2 - 0.02, 0, 0.032]} castShadow>
           <boxGeometry args={[0.02, doorH - 0.06, 0.026]} />
           <meshStandardMaterial {...STEEL_MAT} />
         </mesh>
       </HingedDoor>
 
-      {/* ستون کنترل راست (کلیک = انتخاب) */}
+      {/* Right control column (click = select) */}
       <group
         position={[w / 2 - w * 0.175, h / 2, d / 2 + 0.012]}
         onClick={select}
         onPointerOver={hoverCursor}
         onPointerOut={unhover}
       >
-        {/* نمایشگر کوچک سبز */}
+        {/* Small green display */}
         <mesh position={[0, h * 0.28, 0.002]}>
           <boxGeometry args={[w * 0.15, 0.03, 0.006]} />
           <meshStandardMaterial color="#181b1f" emissive="#7ee0a0" emissiveIntensity={0.8} roughness={0.3} />
         </mesh>
-        {/* دو ولوم */}
+        {/* Two knobs */}
         {[-w * 0.09, w * 0.09].map((kx, i) => (
           <mesh key={`knob-${i}`} position={[kx, -h * 0.08, 0.004]} rotation-x={Math.PI / 2}>
             <cylinderGeometry args={[0.02, 0.02, 0.014, 18]} />
             <meshStandardMaterial {...STEEL_MAT} />
           </mesh>
         ))}
-        {/* سه دکمه کوچک */}
+        {/* Three small buttons */}
         {[-w * 0.09, 0, w * 0.09].map((bx, i) => (
           <mesh key={`btn-${i}`} position={[bx, -h * 0.28, 0.002]}>
             <boxGeometry args={[0.032, 0.02, 0.006]} />

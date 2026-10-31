@@ -1,9 +1,9 @@
 'use client';
 
 // ============================================================
-// پد حرکت شناور — جابه‌جایی/چرخش آبجکت انتخاب‌شده با دکمه (موبایل + دسکتاپ)
-// جهت‌ها حسی است: «جلو» = -z (به سمت دیوار پشت)، «عقب» = +z، «چپ» = -x، «راست» = +x
-// v2: قابل جمع‌شدن + قابل جابه‌جایی با دستگیره + فیکس وسط‌چین + راهنمای کیبورد فقط دسکتاپ
+// Floating move pad — move/rotate the selected object with buttons (mobile + desktop)
+// Directions are feel-based: "forward" = -z (toward the back wall), "back" = +z, "left" = -x, "right" = +x
+// v2: collapsible + draggable by handle + centering fix + keyboard hints on desktop only
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,20 +29,20 @@ export interface MovePadProps {
   onDelete?: () => void;
   onDuplicate?: () => void;
   title?: string;
-  /** کلید ذخیره وضعیت (باز/بسته و موقعیت) در sessionStorage */
+  /** sessionStorage key for persisting state (collapsed + position) */
   storageKey?: string;
 }
 
 interface PadPos {
-  /** فاصله از چپ ویوئوپورت (px) — null = وسط */
+  /** Distance from the left edge of the viewport (px) — null = centered */
   x: number | null;
-  /** فاصله از پایین ویوئوپورت (px) — null = پیش‌فرض */
+  /** Distance from the bottom of the viewport (px) — null = default */
   y: number | null;
 }
 
 const DEFAULT_POS: PadPos = { x: null, y: null };
 
-/** دکمه با نگه‌داشتن → تکرار خودکار (اول فوری، سپس هر ۱۳۰ms) */
+/** Hold-to-repeat button (fires immediately, then every 130ms) */
 function HoldButton({
   className,
   label,
@@ -99,7 +99,7 @@ function HoldButton({
   );
 }
 
-/** خواندن امن از sessionStorage (کلاینت‌only است — داخل dynamic ssr:false) */
+/** Safe sessionStorage read (client-only — inside dynamic ssr:false) */
 function readSaved(key: string): { collapsed: boolean; pos: PadPos } {
   try {
     const raw = sessionStorage.getItem(key);
@@ -116,11 +116,11 @@ function readSaved(key: string): { collapsed: boolean; pos: PadPos } {
 }
 
 /**
- * پد شناور جابه‌جایی — موبایل‌پسند:
- *  - دستگیره بالای پد برای جابه‌جایی هرجای صفحه (تا دیگر روی صحنه/گیزموت نیفتد)
- *  - دکمه جمع‌کردن → فقط یک دکمه گرد کوچک می‌ماند
- *  - وسط‌چین واقعی (left-1/2 فیزیکی، مستقل از RTL)
- *  - راهنمای کیبورد فقط روی دستگاه‌های ماوس‌دار رندر می‌شود
+ * Floating move pad — mobile friendly:
+ *  - handle at the top to drag the pad anywhere on screen (so it stops covering the scene/gizmo)
+ *  - collapse button → leaves only a small round button
+ *  - true centering (physical left-1/2, RTL-independent)
+ *  - keyboard hints render only on mouse-capable devices
  */
 export function MovePad({
   onNudge,
@@ -147,13 +147,13 @@ export function MovePad({
     [storageKey],
   );
 
-  // ---- درگ پد با دستگیره ----
+  // ---- Drag the pad by its handle ----
   const onHandleDown = (e: React.PointerEvent) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     const rect = rootRef.current?.getBoundingClientRect();
     const padW = rect?.width ?? 160;
-    // تبدیل به مختصات left/bottom نسبی
+    // Convert to relative left/bottom coordinates
     const left = rect?.left ?? 0;
     const bottomFromViewport = window.innerHeight - (rect?.bottom ?? 0);
     setPos((prev) => {
@@ -169,7 +169,7 @@ export function MovePad({
     if (!dragging || !dragRef.current) return;
     const { px, py, ox, oy } = dragRef.current;
     const dx = e.clientX - px;
-    const dy = -(e.clientY - py); // پایین مثبت
+    const dy = -(e.clientY - py); // bottom is positive
     const padW = rootRef.current?.offsetWidth ?? 160;
     const padH = rootRef.current?.offsetHeight ?? 200;
     const nx = Math.min(Math.max(ox + dx, 4), Math.max(window.innerWidth - padW - 4, 4));
@@ -196,16 +196,16 @@ export function MovePad({
     });
   };
 
-  // موقعیت: پیش‌فرض وسط پایین — بعد از درگ، مختصات دقیق
+  // Position: defaults to bottom-center — exact coordinates after dragging
   const positionStyle: React.CSSProperties | undefined =
     pos.x !== null && pos.y !== null ? { left: pos.x, bottom: pos.y } : undefined;
 
-  // ---- حالت جمع‌شده: یک دکمه گرد ----
+  // ---- Collapsed state: a single round button ----
   if (collapsed) {
     return (
       <div
         ref={rootRef}
-        dir="rtl"
+        dir="ltr"
         className={cn(
           'absolute z-30 pointer-events-auto',
           pos.x !== null && pos.y !== null ? '' : 'bottom-20 left-1/2 -translate-x-1/2'
@@ -215,8 +215,8 @@ export function MovePad({
         <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label={title ?? 'باز کردن پد جابه‌جایی'}
-          title={title ?? 'باز کردن پد جابه‌جایی'}
+          aria-label={title ?? 'Open move pad'}
+          title={title ?? 'Open move pad'}
           className="h-12 w-12 rounded-full bg-card/95 backdrop-blur shadow-xl border flex items-center justify-center text-primary active:scale-95 transition-transform touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <Move3d className="h-5 w-5" />
@@ -228,9 +228,9 @@ export function MovePad({
   return (
     <div
       ref={rootRef}
-      dir="rtl"
+      dir="ltr"
       role="group"
-      aria-label={title ?? 'پد جابه‌جایی آبجکت انتخاب‌شده'}
+      aria-label={title ?? 'Move pad for the selected object'}
       className={cn(
         'absolute z-30 rounded-2xl bg-card/95 backdrop-blur shadow-xl border p-1.5 pointer-events-auto',
         dragging && 'shadow-2xl ring-2 ring-primary/30 transition-none',
@@ -239,7 +239,7 @@ export function MovePad({
       style={positionStyle}
     >
       <div className="flex flex-col items-center gap-1">
-        {/* دستگیره درگ + جمع‌کردن */}
+        {/* Drag handle + collapse */}
         <div
           className="flex items-center gap-1 w-full px-1 cursor-grab active:cursor-grabbing touch-none select-none"
           onPointerDown={onHandleDown}
@@ -247,90 +247,90 @@ export function MovePad({
           onPointerUp={onHandleUp}
           onPointerCancel={onHandleUp}
           role="separator"
-          aria-label="جابه‌جایی پد"
+          aria-label="Move pad"
         >
           <GripHorizontal className={cn('h-4 w-4 mx-auto text-muted-foreground/70', dragging && 'text-primary')} />
           <button
             type="button"
             onClick={toggleCollapsed}
             onPointerDown={(e) => e.stopPropagation()}
-            aria-label="جمع کردن پد"
-            title="جمع کردن پد"
+            aria-label="Collapse pad"
+            title="Collapse pad"
             className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-accent/60 shrink-0 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           >
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
 
-        {/* ردیف چرخش */}
+        {/* Rotation row */}
         <div className="flex items-center gap-1">
-          <HoldButton label="چرخش به چپ (۴۵ درجه)" onHold={() => onRotate(-Math.PI / 4)} className="text-amber-700">
+          <HoldButton label="Rotate left (45°)" onHold={() => onRotate(-Math.PI / 4)} className="text-amber-700">
             <RotateCcw className="h-4.5 w-4.5" />
           </HoldButton>
-          <span className="text-[10px] text-muted-foreground font-medium min-w-12 text-center">چرخش ۴۵°</span>
-          <HoldButton label="چرخش به راست (۴۵ درجه)" onHold={() => onRotate(Math.PI / 4)} className="text-amber-700">
+          <span className="text-[10px] text-muted-foreground font-medium min-w-12 text-center">Rotate 45°</span>
+          <HoldButton label="Rotate right (45°)" onHold={() => onRotate(Math.PI / 4)} className="text-amber-700">
             <RotateCw className="h-4.5 w-4.5" />
           </HoldButton>
         </div>
 
         <div className="flex items-start gap-1">
-          {/* ستون ارتفاع */}
+          {/* Height column */}
           <div className="flex flex-col gap-1">
-            <HoldButton label="بالا بردن (ارتفاع)" onHold={() => onNudge([0, 0.05, 0])} className="text-primary">
+            <HoldButton label="Raise (height)" onHold={() => onNudge([0, 0.05, 0])} className="text-primary">
               <ChevronsUp className="h-4.5 w-4.5" />
             </HoldButton>
-            <span className="text-[9px] text-muted-foreground text-center leading-none">بالا</span>
-            <HoldButton label="پایین آوردن (ارتفاع)" onHold={() => onNudge([0, -0.05, 0])} className="text-primary">
+            <span className="text-[9px] text-muted-foreground text-center leading-none">Up</span>
+            <HoldButton label="Lower (height)" onHold={() => onNudge([0, -0.05, 0])} className="text-primary">
               <ChevronsDown className="h-4.5 w-4.5" />
             </HoldButton>
-            <span className="text-[9px] text-muted-foreground text-center leading-none">پایین</span>
+            <span className="text-[9px] text-muted-foreground text-center leading-none">Down</span>
           </div>
 
-          {/* چهار جهت */}
+          {/* Four directions */}
           <div className="grid grid-cols-3 gap-1">
             <span />
             <div className="flex flex-col items-center">
-              <HoldButton label="جلو (به سمت دیوار پشت)" onHold={() => onNudge([0, 0, -0.05])}>
+              <HoldButton label="Forward (toward the back wall)" onHold={() => onNudge([0, 0, -0.05])}>
                 <ChevronUp className="h-5 w-5" />
               </HoldButton>
-              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">جلو</span>
+              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">Forward</span>
             </div>
             <span />
             <div className="flex flex-col items-center">
-              <HoldButton label="چپ" onHold={() => onNudge([-0.05, 0, 0])}>
+              <HoldButton label="Left" onHold={() => onNudge([-0.05, 0, 0])}>
                 <ChevronLeft className="h-5 w-5" />
               </HoldButton>
-              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">چپ</span>
+              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">Left</span>
             </div>
             <span />
             <div className="flex flex-col items-center">
-              <HoldButton label="راست" onHold={() => onNudge([0.05, 0, 0])}>
+              <HoldButton label="Right" onHold={() => onNudge([0.05, 0, 0])}>
                 <ChevronRight className="h-5 w-5" />
               </HoldButton>
-              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">راست</span>
+              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">Right</span>
             </div>
             <span />
             <div className="flex flex-col items-center">
-              <HoldButton label="عقب (به سمت بیرون)" onHold={() => onNudge([0, 0, 0.05])}>
+              <HoldButton label="Back (toward you)" onHold={() => onNudge([0, 0, 0.05])}>
                 <ChevronDown className="h-5 w-5" />
               </HoldButton>
-              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">عقب</span>
+              <span className="text-[9px] text-muted-foreground leading-none mt-0.5">Back</span>
             </div>
             <span />
           </div>
         </div>
 
-        {/* تکثیر/حذف (اختیاری) */}
+        {/* Duplicate/Delete (optional) */}
         {(onDuplicate || onDelete) && (
           <div className="flex items-center gap-1 pt-0.5 border-t w-full justify-center">
             {onDuplicate && (
-              <HoldButton label="تکثیر آبجکت" onHold={onDuplicate} className="mt-1">
+              <HoldButton label="Duplicate object" onHold={onDuplicate} className="mt-1">
                 <Copy className="h-4 w-4" />
               </HoldButton>
             )}
             {onDelete && (
               <HoldButton
-                label="حذف آبجکت"
+                label="Delete object"
                 onHold={onDelete}
                 className="mt-1 text-destructive hover:bg-destructive/10"
               >
@@ -340,9 +340,9 @@ export function MovePad({
           </div>
         )}
 
-        {/* راهنمای کیبورد — فقط دسکتاپ (ماوس/ترک‌پد) */}
+        {/* Keyboard hints — desktop only (mouse/trackpad) */}
         <p className="hidden [@media(hover:hover)_and_(pointer:fine)]:block text-[10px] text-muted-foreground text-center leading-snug pt-0.5">
-          کیبورد: کلیدهای جهت‌نما = حرکت • Shift = قدم بزرگ • PageUp/PageDown = ارتفاع • Q/E = چرخش
+          Keyboard: arrow keys = move • Shift = larger step • PageUp/PageDown = height • Q/E = rotate
         </p>
       </div>
     </div>

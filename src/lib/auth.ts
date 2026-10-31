@@ -4,21 +4,21 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 // ============================================================
-// احراز هویت مدیر (مالک برنامه)
-// - رمز مدیر (هش sha256) و کلید امضای نشست در جدول Setting ذخیره می‌شوند.
-// - توکن نشست: `${expMs}.${hmacSHA256(expMs, session_key)}` — سبک و فشرده
-// - کوکی httpOnly با نام c3d_admin
-// رمز پیش‌فرض اولیه: admin1234 (با اولین چک seed می‌شود)
+// Admin (app owner) authentication
+// - The admin password (sha256 hash) and the session signing key are stored in the Setting table.
+// - Session token: `${expMs}.${hmacSHA256(expMs, session_key)}` — lightweight and compact
+// - httpOnly cookie named c3d_admin
+// Initial default password: admin1234 (seeded on first check)
 // ============================================================
 
 export const OWNER_COOKIE = 'c3d_admin';
 
 const SESSION_DAYS = 30;
 const SESSION_MAX_AGE_SEC = SESSION_DAYS * 24 * 60 * 60;
-// رمز پیش‌فرض موقت طبق درخواست کاربر: admin (تا تغییر از پنل مدیریت)
+// Temporary default password per user request: admin (until changed from the admin panel)
 const DEFAULT_PASSWORD = 'admin';
 
-// ---------------- هلپرهای جدول Setting ----------------
+// ---------------- Setting table helpers ----------------
 
 async function getSetting(key: string): Promise<string | null> {
   const row = await db.setting.findUnique({ where: { key } });
@@ -36,7 +36,7 @@ async function setSetting(key: string, value: string): Promise<void> {
 export const sha256 = (s: string): string =>
   crypto.createHash('sha256').update(s).digest('hex');
 
-/** seed یک‌باره و idempotent: هش رمز پیش‌فرض + کلید نشست تصادفی ۴۸ کاراکتری */
+/** One-time idempotent seed: default password hash + random 48-char session key */
 export async function ensureAdminSettings(): Promise<void> {
   if ((await getSetting('admin_pass')) === null) {
     await setSetting('admin_pass', sha256(DEFAULT_PASSWORD));
@@ -49,11 +49,11 @@ export async function ensureAdminSettings(): Promise<void> {
 async function getSessionKey(): Promise<string> {
   await ensureAdminSettings();
   const key = await getSetting('session_key');
-  // عملاً ensure همیشه می‌سازد؛ این فقط برای تایپ است
+  // In practice ensure always creates it; this is only for typing
   return key ?? crypto.randomBytes(24).toString('hex');
 }
 
-// ---------------- رمز مدیر ----------------
+// ---------------- Admin password ----------------
 
 export async function verifyPassword(pw: string): Promise<boolean> {
   await ensureAdminSettings();
@@ -65,16 +65,16 @@ export async function verifyPassword(pw: string): Promise<boolean> {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/** تعویض رمز — حداقل ۴ کاراکتر؛ false یعنی رمز کوتاه است */
+/** Change password — minimum 4 chars; false means the password is too short */
 export async function setPassword(pw: string): Promise<boolean> {
   if (pw.length < 4) return false;
   await setSetting('admin_pass', sha256(pw));
   return true;
 }
 
-// ---------------- نشست (HMAC) ----------------
+// ---------------- Session (HMAC) ----------------
 
-/** ساخت توکن نشست: `${expMs}.${hmac(expMs)}` */
+/** Create a session token: `${expMs}.${hmac(expMs)}` */
 export async function createSession(days = SESSION_DAYS): Promise<{ token: string; maxAgeSec: number }> {
   const key = await getSessionKey();
   const exp = Date.now() + days * 24 * 60 * 60 * 1000;
@@ -83,7 +83,7 @@ export async function createSession(days = SESSION_DAYS): Promise<{ token: strin
   return { token: `${expStr}.${sig}`, maxAgeSec: SESSION_MAX_AGE_SEC };
 }
 
-/** امضاسنجی + بررسی انقضای توکن نشست */
+/** Verify the signature + expiry of a session token */
 export async function verifySessionToken(token: string | null | undefined): Promise<boolean> {
   if (!token) return false;
   const dot = token.indexOf('.');
@@ -99,17 +99,17 @@ export async function verifySessionToken(token: string | null | undefined): Prom
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// ---------------- گارد مالک ----------------
+// ---------------- Owner guard ----------------
 
 export async function getOwner(req: NextRequest): Promise<boolean> {
   return verifySessionToken(req.cookies.get(OWNER_COOKIE)?.value);
 }
 
-/** null یعنی مجاز؛ در غیر این صورت پاسخ ۴۰۱ آماده برای return */
+/** null means allowed; otherwise a ready-to-return 401 response */
 export async function requireOwner(req: NextRequest): Promise<NextResponse | null> {
   if (await getOwner(req)) return null;
   return NextResponse.json(
-    { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+    { error: 'You must be signed in as an admin for this action' },
     { status: 401 },
   );
 }

@@ -10,13 +10,13 @@ import {
 } from '@/app/api/_lib/portfolio';
 
 // ============================================================
-// نمونه‌کارها (صفحه عمومی لندینگ) — تصویر یا مدل سه‌بعدی زنده
-// GET  /api/portfolio          → فقط موارد visible (عمومی، مرتب بر sortOrder سپس newest)
-// GET  /api/portfolio?all=1    → همه موارد (فقط مدیر)
-// POST /api/portfolio          → ساخت مورد جدید (فقط مدیر)
+// Portfolio items (public landing page) — image or live 3D model
+// GET  /api/portfolio          → visible items only (public, ordered by sortOrder then newest)
+// GET  /api/portfolio?all=1    → all items (admin only)
+// POST /api/portfolio          → create a new item (admin only)
 // ============================================================
 
-const MAX_IMAGE_CHARS = 6_000_000; // ~4.5MB باینری در dataURL
+const MAX_IMAGE_CHARS = 6_000_000; // ~4.5MB binary in the dataURL
 
 const CATEGORIES = ['kitchen', 'bedroom', 'living', 'office', 'other'] as const;
 
@@ -32,7 +32,7 @@ const itemSchema = z
       .max(MAX_IMAGE_CHARS)
       .refine(
         (v) => v === '' || v.startsWith('data:image/') || v.startsWith('/'),
-        'تصویر باید dataURL یا مسیر عمومی باشد',
+        'Image must be a dataURL or a public path',
       )
       .optional()
       .default(''),
@@ -45,7 +45,7 @@ const itemSchema = z
   })
   .refine(
     (v) => v.image.length >= 8 || hasSceneObjects(v.sceneState),
-    { message: 'تصویر یا مدل سه‌بعدی زنده الزامی است' },
+    { message: 'An image or a live 3D model is required' },
   );
 
 export async function GET(req: NextRequest) {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     const all = req.nextUrl.searchParams.get('all') === '1';
     if (all && !(await getOwner(req))) {
       return NextResponse.json(
-        { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+        { error: 'You must be signed in as the admin for this operation' },
         { status: 401 },
       );
     }
@@ -64,30 +64,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items: items.map(serializePortfolioItem) });
   } catch (err) {
     console.error('GET /api/portfolio failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   if (!(await getOwner(req))) {
     return NextResponse.json(
-      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { error: 'You must be signed in as the admin for this operation' },
       { status: 401 },
     );
   }
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = itemSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'اطلاعات نمونه‌کار کامل نیست (عنوان + تصویر یا مدل سه‌بعدی الزامی است)' },
+        { error: 'Portfolio item info is incomplete (title + image or 3D model required)' },
         { status: 400 },
       );
     }
-    // ترتیب پیش‌فرض: انتهای لیست
+    // Default order: end of the list
     const last = await db.portfolioItem.aggregate({ _max: { sortOrder: true } });
     const sortOrder = parsed.data.sortOrder ?? (last._max.sortOrder ?? 0) + 1;
 
@@ -106,6 +106,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ item: serializePortfolioItem(item) }, { status: 201 });
   } catch (err) {
     console.error('POST /api/portfolio failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

@@ -1,20 +1,20 @@
 import type { RoomSpec } from './scene-types';
 
 // ============================================================
-// هندسه چندضلعی اتاق — پشتیبانی از دیوارهای کج و گوشه‌های غیر۴گانه
-// مشترک بین API (بازسازی) و کلاینت (ویرایشگر/نمایشگر/نمونه‌کار)
+// Room polygon geometry — supports slanted walls and non-rectangular corners
+// Shared between the API (reconstruction) and the client (editor/viewer/portfolio)
 //
-// قرارداد مختصات:
-//  - هر نقطه [x, z] بر حسب متر، مرکز اتاق مبدأ
-//  - x مثبت = راست، z مثبت = جلو (سمت دوربین پیش‌فرض)
-//  - ترتیب نقاط طوری نرمال می‌شود که مساحت علامت‌دار (در صفحه x,z) مثبت باشد
-//  - لبه i = پاره‌خط از نقطه i تا نقطه (i+1) mod n
-//  - مستطیل مرجع: لبه ۰=back (z-)، ۱=right (x+)، ۲=front (z+)، ۳=left (x-)
+// Coordinate convention:
+//  - Each point [x, z] is in meters, room center is the origin
+//  - Positive x = right, positive z = front (toward the default camera)
+//  - Point order is normalized so the signed area (in the x,z plane) is positive
+//  - Edge i = segment from point i to point (i+1) mod n
+//  - Reference rectangle: edge 0=back (z-), 1=right (x+), 2=front (z+), 3=left (x-)
 // ============================================================
 
-export type Pt = [number, number]; // [x, z] متر
+export type Pt = [number, number]; // [x, z] in meters
 
-/** مساحت علامت‌دار دوبرابر (شومaker) در صفحه x,z — مثبت = winding مرجع */
+/** Doubled signed area (shoelace) in the x,z plane — positive = reference winding */
 export function signedAreaXZ(pts: Pt[]): number {
   let s = 0;
   for (let i = 0; i < pts.length; i++) {
@@ -25,33 +25,33 @@ export function signedAreaXZ(pts: Pt[]): number {
   return s / 2;
 }
 
-/** مستطیل مرجع به‌ترتیب لبه‌های back/right/front/left */
+/** Reference rectangle ordered back/right/front/left */
 export function rectangleOutline(widthM: number, depthM: number): Pt[] {
   const w = Math.max(0.5, widthM) / 2;
   const d = Math.max(0.5, depthM) / 2;
   return [
     [-w, -d], // back-left
-    [w, -d], // back-right  → لبه ۰ = back
-    [w, d], // front-right → لبه ۱ = right
-    [-w, d], // front-left  → لبه ۲ = front
-  ]; // بستن حلقه → لبه ۳ = left
+    [w, -d], // back-right  → edge 0 = back
+    [w, d], // front-right → edge 1 = right
+    [-w, d], // front-left  → edge 2 = front
+  ]; // closing the loop → edge 3 = left
 }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export interface OutlineOptions {
-  maxPts?: number; // پیش‌فرض ۱۲
-  minArea?: number; // مترمربع — پیش‌فرض ۰٫۸
-  bound?: number; // حد مختصات ± — پیش‌فرض ۱۵
+  maxPts?: number; // default 12
+  minArea?: number; // square meters — default 0.8
+  bound?: number; // coordinate limit ± — default 15
 }
 
 /**
- * اعتبارسنجی تدافعی خروجی outline (از AI یا UI):
- * - ۳ تا maxPts نقطه با مختصات عددی معتبر
- * - حذف نقاط تکراری/خیلی نزدیک (< ۸ سانت)
- * - winding یکسان (مساحت مثبت)
- * - مساحت حداقلی
- * نامعتبر → null
+ * Defensively validate an outline result (from AI or UI):
+ * - 3..maxPts points with valid numeric coordinates
+ * - Remove duplicate/too-close points (< 8 cm)
+ * - Consistent winding (positive area)
+ * - Minimum area
+ * Invalid → null
  */
 export function normalizeOutline(raw: unknown, opts?: OutlineOptions): Pt[] | null {
   const maxPts = opts?.maxPts ?? 12;
@@ -68,12 +68,12 @@ export function normalizeOutline(raw: unknown, opts?: OutlineOptions): Pt[] | nu
     if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
     const p: Pt = [round3(Math.min(bound, Math.max(-bound, x))), round3(Math.min(bound, Math.max(-bound, z)))];
     const last = pts[pts.length - 1];
-    // نقطه تکراری متوالی یا تکرار نقطه اول در انتها
+    // consecutive duplicate point or first point repeated at the end
     if (last && Math.hypot(last[0] - p[0], last[1] - p[1]) < 0.08) continue;
     if (pts.length > 0 && pts.length === maxPts) break;
     pts.push(p);
   }
-  // نزدیکی آخرین نقطه به اولین
+  // last point too close to the first
   while (pts.length > 2) {
     const first = pts[0];
     const last = pts[pts.length - 1];
@@ -85,7 +85,7 @@ export function normalizeOutline(raw: unknown, opts?: OutlineOptions): Pt[] | nu
   const area = Math.abs(signedAreaXZ(pts));
   if (area < minArea) return null;
 
-  // winding مرجع
+  // reference winding
   if (signedAreaXZ(pts) < 0) pts.reverse();
   return pts;
 }
@@ -113,12 +113,12 @@ export function outlineBBox(pts: Pt[]): OutlineBBox {
   return { minX, maxX, minZ, maxZ, w: maxX - minX, d: maxZ - minZ };
 }
 
-/** مساحت چندضلع (مترمربع) */
+/** Polygon area (square meters) */
 export function outlineArea(pts: Pt[]): number {
   return Math.abs(signedAreaXZ(pts));
 }
 
-/** تست داخل‌بودن نقطه (ray casting) */
+/** Point-in-polygon test (ray casting) */
 export function pointInPolygon(x: number, z: number, pts: Pt[]): boolean {
   let inside = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -132,7 +132,7 @@ export function pointInPolygon(x: number, z: number, pts: Pt[]): boolean {
   return inside;
 }
 
-/** مرکز سطح چندضلع (centroid چندضلعی) */
+/** Polygon area centroid */
 export function polygonCentroid(pts: Pt[]): Pt {
   let cx = 0;
   let cz = 0;
@@ -146,7 +146,7 @@ export function polygonCentroid(pts: Pt[]): Pt {
     cz += (z1 + z2) * cross;
   }
   if (Math.abs(a) < 1e-9) {
-    // افتاده به مرکز bbox
+    // degenerate — fall back to bbox center
     const bb = outlineBBox(pts);
     return [(bb.minX + bb.maxX) / 2, (bb.minZ + bb.maxZ) / 2];
   }
@@ -155,8 +155,8 @@ export function polygonCentroid(pts: Pt[]): Pt {
 }
 
 /**
- * محدودکردن نقطه به داخل چندضلع:
- * داخل → همان نقطه؛ بیرون → دورترین نقطه داخل روی پاره‌خط مرکز→هدف
+ * Clamp a point inside the polygon:
+ * inside → same point; outside → the farthest inside point along the center→target segment
  */
 export function clampPointToOutline(x: number, z: number, pts: Pt[]): Pt {
   if (pointInPolygon(x, z, pts)) return [x, z];
@@ -178,25 +178,25 @@ export interface EdgeFrame {
   az: number;
   bx: number;
   bz: number;
-  /** مرکز لبه */
+  /** Edge midpoint */
   cx: number;
   cz: number;
-  /** طول لبه (متر) */
+  /** Edge length (meters) */
   len: number;
-  /** بردار واحد در راستای لبه (a→b) */
+  /** Unit vector along the edge (a→b) */
   dirX: number;
   dirZ: number;
-  /** نرمال واحد رو به بیرون اتاق */
+  /** Unit normal pointing outward from the room */
   outX: number;
   outZ: number;
-  /** نرمال واحد رو به داخل اتاق */
+  /** Unit normal pointing into the room */
   inX: number;
   inZ: number;
-  /** زاویه yaw برای صفحه‌ای که رو به داخل است */
+  /** Yaw angle for a plane facing inward */
   angleY: number;
 }
 
-/** قاب هندسی لبه i (پاره‌خط نقطه i تا i+1) */
+/** Geometric frame of edge i (segment from point i to i+1) */
 export function edgeFrame(pts: Pt[], i: number): EdgeFrame {
   const n = pts.length;
   const idx = ((i % n) + n) % n;
@@ -205,7 +205,7 @@ export function edgeFrame(pts: Pt[], i: number): EdgeFrame {
   const len = Math.max(0.05, Math.hypot(bx - ax, bz - az));
   const dirX = (bx - ax) / len;
   const dirZ = (bz - az) / len;
-  // برای winding مثبت در صفحه x,z نرمال بیرونی = (dz, -dx)
+  // For positive winding in the x,z plane the outward normal = (dz, -dx)
   const outX = dirZ;
   const outZ = -dirX;
   const inX = -outX;
@@ -216,20 +216,20 @@ export function edgeFrame(pts: Pt[], i: number): EdgeFrame {
   return { ax, az, bx, bz, cx, cz, len, dirX, dirZ, outX, outZ, inX, inZ, angleY };
 }
 
-/** outline معتبر اتاق — بدون outline یا نامعتبر → مستطیل مرجع */
+/** Valid room outline — missing or invalid outline → reference rectangle */
 export function getRoomOutline(spec: Pick<RoomSpec, 'widthM' | 'depthM' | 'outline'>): Pt[] {
   const fromSpec = (spec as { outline?: unknown }).outline;
   return normalizeOutline(fromSpec) ?? rectangleOutline(spec.widthM, spec.depthM);
 }
 
-/** آیا اتاق شکل غیرمستطیلی دارد؟ */
+/** Does the room have a non-rectangular shape? */
 export function hasCustomOutline(spec: Pick<RoomSpec, 'outline'>): boolean {
   return normalizeOutline((spec as { outline?: unknown }).outline) != null;
 }
 
 /**
- * clamp موقعیت سه‌بعدی آبجکت داخل اتاق (مستطیل یا چندضلع):
- * x,z با bbox + چندضلع؛ y دست‌نخورده (تماس‌گیرنده clamp ارتفاع می‌کند)
+ * Clamp a 3D object position inside the room (rectangle or polygon):
+ * x,z via bbox + polygon; y untouched (the caller clamps height)
  */
 export function clampPositionToRoom(
   spec: Pick<RoomSpec, 'widthM' | 'depthM' | 'outline'>,

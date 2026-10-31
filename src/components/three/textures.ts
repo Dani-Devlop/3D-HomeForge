@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 
 // ============================================================
-// بافت‌های پروسیجرال — بدون هیچ فایل تصویری، همه با Canvas 2D تولید می‌شوند
-// فقط سمت کلاینت: اگر document نبود (SSR) null برمی‌گردد و فراخواننده متریال رنگی ساده دارد
-// کش در سطح ماژول: هر ترکیب (نوع بافت + رنگ) فقط یک بار تولید می‌شود
-// کلید کش شامل رنگ است → تغییر رنگ = بافت تازه، بدون رنگ کهنه
+// Procedural textures — no image files, everything generated with Canvas 2D
+// Client-side only: if document is unavailable (SSR) it returns null and the caller falls back to a plain color material
+// Module-level cache: each (texture type + color) combination is generated only once
+// The cache key includes the color → changing color = fresh texture, no stale colors
 // ============================================================
 
 const cache = new Map<string, THREE.CanvasTexture>();
 
-/* ---------------- ابزار رنگ ---------------- */
+/* ---------------- Color utilities ---------------- */
 
 function hexToRgb(hex: string): [number, number, number] {
   const n = hex.replace('#', '');
@@ -18,7 +18,7 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 
-/** h: ۰..۳۶۰ — s/l: ۰..۱۰۰ */
+/** h: 0..360 — s/l: 0..100 */
 function hexToHsl(hex: string): [number, number, number] {
   let [r, g, b] = hexToRgb(hex);
   r /= 255;
@@ -50,22 +50,22 @@ function hexToHsl(hex: string): [number, number, number] {
 const clamp100 = (v: number) => Math.min(100, Math.max(0, v));
 const clamp255 = (v: number) => Math.min(255, Math.max(0, Math.round(v)));
 
-/** رشته hsl برای fillStyle/strokeStyle بوم */
+/** hsl string for the canvas fillStyle/strokeStyle */
 function hslCss(h: number, s: number, l: number): string {
   return `hsl(${h.toFixed(1)}, ${clamp100(s).toFixed(1)}%, ${clamp100(l).toFixed(1)}%)`;
 }
 
-/** روشن/تیره کردن هگز (amount مثبت = مخلوط با سفید، منفی = با مشکی) */
+/** Lighten/darken hex (positive amount = mix with white, negative = with black) */
 export function shadeHex(hex: string, amount: number): string {
   const [r, g, b] = hexToRgb(hex);
   const mix = (c: number) => clamp255(amount >= 0 ? c + (255 - c) * amount : c * (1 + amount));
   return `#${((mix(r) << 16) | (mix(g) << 8) | mix(b)).toString(16).padStart(6, '0')}`;
 }
 
-/* ---------------- زیرساخت بوم/بافت ---------------- */
+/* ---------------- Canvas/texture infrastructure ---------------- */
 
 function makeCanvas(size: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null {
-  if (typeof document === 'undefined') return null; // گارد SSR — فراخواننده fallback رنگی دارد
+  if (typeof document === 'undefined') return null; // SSR guard — the caller has a color fallback
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -98,8 +98,8 @@ function cachedTexture(
 }
 
 /**
- * کلون با تکرار مستقل — برای اینکه هر مش (مثلاً هر دیوار) repeat خودش را داشته باشد
- * بدون خراب کردن کش مشترک. کلون‌ها source مشترک دارند (آپلود GPU یک بار).
+ * Clone with an independent repeat — so each mesh (e.g. each wall) can have its own
+ * repeat without corrupting the shared cache. Clones share the same source (single GPU upload).
  */
 export function cloneWithRepeat(
   tex: THREE.Texture | null,
@@ -115,9 +115,9 @@ export function cloneWithRepeat(
   return t;
 }
 
-/* ---------------- کف چوبی (پارکت تخته‌ای) ---------------- */
+/* ---------------- Wood floor (plank parquet) ---------------- */
 
-/** کف پارکت — تخته‌های افقی ~۶۴px با لرزش hue/lightness، درز تیره و گره چوب */
+/** Parquet floor — horizontal ~64px planks with hue/lightness jitter, dark seams and wood knots */
 export function woodFloorTexture(baseColor: string): THREE.CanvasTexture | null {
   return cachedTexture(`woodFloor:${baseColor}`, true, () => {
     const S = 512;
@@ -128,14 +128,14 @@ export function woodFloorTexture(baseColor: string): THREE.CanvasTexture | null 
     const plankH = 64;
 
     for (let py = 0; py < S; py += plankH) {
-      // لرزش رنگ هر تخته (±۶ واحد hue/lightness)
+      // Per-plank color jitter (±6 hue/lightness units)
       const jh = (Math.random() * 2 - 1) * 6;
       const jl = (Math.random() * 2 - 1) * 6;
       const js = (Math.random() * 2 - 1) * 4;
       ctx.fillStyle = hslCss(h0 + jh, s0 + js, l0 + jl);
       ctx.fillRect(0, py, S, plankH);
 
-      // رگه‌های دراز کم‌رنگ در راستای تخته
+      // Faint long grain lines along the plank
       for (let i = 0; i < 7; i++) {
         const y0 = py + 3 + Math.random() * (plankH - 6);
         const dark = Math.random() > 0.4;
@@ -153,7 +153,7 @@ export function woodFloorTexture(baseColor: string): THREE.CanvasTexture | null 
       }
       ctx.globalAlpha = 1;
 
-      // گره چوب گاه‌به‌گاه (گرادیان شعاعی کوچک)
+      // Occasional wood knot (small radial gradient)
       if (Math.random() > 0.55) {
         const kx = Math.random() * S;
         const ky = py + plankH * (0.3 + Math.random() * 0.4);
@@ -167,11 +167,11 @@ export function woodFloorTexture(baseColor: string): THREE.CanvasTexture | null 
         ctx.fill();
       }
 
-      // درز افقی تیره ۲px بین تخته‌ها
+      // Dark 2px horizontal seam between planks
       ctx.fillStyle = 'rgba(28, 18, 10, 0.85)';
       ctx.fillRect(0, py, S, 2);
 
-      // درز عمودی انتهای تخته‌ها (آفست پلکانی مثل پارکت واقعی)
+      // Vertical seams at plank ends (staggered offset like real parquet)
       const seams = 1 + Math.floor(Math.random() * 2);
       for (let i = 0; i < seams; i++) {
         const sx = Math.floor(Math.random() * S);
@@ -182,7 +182,7 @@ export function woodFloorTexture(baseColor: string): THREE.CanvasTexture | null 
   });
 }
 
-/* ---------------- دیوار گچی ---------------- */
+/* ---------------- Plaster wall ---------------- */
 
 function plasterCanvas(baseColor: string, gray: boolean): HTMLCanvasElement | null {
   const S = 256;
@@ -194,7 +194,7 @@ function plasterCanvas(baseColor: string, gray: boolean): HTMLCanvasElement | nu
   ctx.fillStyle = gray ? hslCss(0, 0, l0) : hslCss(h0, Math.min(28, s0), l0);
   ctx.fillRect(0, 0, S, S);
 
-  // نویز تک‌پیکسلی ±۳٪ روشنایی
+  // Per-pixel noise, ±3% brightness
   const img = ctx.getImageData(0, 0, S, S);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -205,7 +205,7 @@ function plasterCanvas(baseColor: string, gray: boolean): HTMLCanvasElement | nu
   }
   ctx.putImageData(img, 0, 0);
 
-  // چند کمانه ماله خیلی کم‌رنگ
+  // A few very faint trowel arcs
   ctx.globalAlpha = 0.05;
   ctx.strokeStyle = gray ? '#000000' : '#ffffff';
   for (let i = 0; i < 6; i++) {
@@ -222,19 +222,19 @@ function plasterCanvas(baseColor: string, gray: boolean): HTMLCanvasElement | nu
   return canvas;
 }
 
-/** نقشه رنگی دیوار گچی (map) */
+/** Plaster wall color map (map) */
 export function plasterWallTexture(baseColor: string): THREE.CanvasTexture | null {
   return cachedTexture(`plaster:${baseColor}`, true, () => plasterCanvas(baseColor, false));
 }
 
-/** نقشه برجستگی گچ (bumpMap خاکستری — بدون colorSpace) */
+/** Plaster bump map (grayscale bumpMap — no colorSpace) */
 export function plasterWallBumpTexture(baseColor: string): THREE.CanvasTexture | null {
   return cachedTexture(`plasterBump:${baseColor}`, false, () => plasterCanvas(baseColor, true));
 }
 
-/* ---------------- سنگ رویه (گرانیت) ---------------- */
+/* ---------------- Countertop stone (granite) ---------------- */
 
-/** گرانیت تك‌پیکلی — ۴۵۰ نقطه روشن/تیره + ۳ رگه بزیه کم‌رنگ */
+/** Speckled granite — 450 light/dark dots + 3 faint bezier veins */
 export function stoneCountertopTexture(baseColor: string): THREE.CanvasTexture | null {
   return cachedTexture(`stone:${baseColor}`, true, () => {
     const S = 256;
@@ -246,7 +246,7 @@ export function stoneCountertopTexture(baseColor: string): THREE.CanvasTexture |
     ctx.fillStyle = hslCss(h0, s0, l0);
     ctx.fillRect(0, 0, S, S);
 
-    // نقطه‌های ریز گرانیت
+    // Fine granite speckles
     for (let i = 0; i < 450; i++) {
       const dark = Math.random() > 0.5;
       const ll = clamp100(l0 + (dark ? -1 : 1) * (6 + Math.random() * 14));
@@ -256,7 +256,7 @@ export function stoneCountertopTexture(baseColor: string): THREE.CanvasTexture |
       ctx.fill();
     }
 
-    // رگه‌های نرم
+    // Soft veins
     ctx.strokeStyle = hslCss(h0, s0 * 0.4, clamp100(l0 - 22));
     for (let i = 0; i < 3; i++) {
       const y0 = Math.random() * S;
@@ -279,16 +279,16 @@ export function stoneCountertopTexture(baseColor: string): THREE.CanvasTexture |
   });
 }
 
-/* ---------------- کاشی (پشت سینک) ---------------- */
+/* ---------------- Tile (sink backsplash) ---------------- */
 
-/** کاشی ۴×۴ با بند ۲px و لرزش روشنایی — شطرنجی از دو رنگ */
+/** 4×4 tiles with 2px grout and lightness jitter — checkerboard of two colors */
 export function tileTexture(colorA: string, colorB: string): THREE.CanvasTexture | null {
   return cachedTexture(`tile:${colorA}:${colorB}`, true, () => {
     const S = 256;
     const c = makeCanvas(S);
     if (!c) return null;
     const { canvas, ctx } = c;
-    ctx.fillStyle = '#d9d4c8'; // بند کاشی
+    ctx.fillStyle = '#d9d4c8'; // Tile grout
     ctx.fillRect(0, 0, S, S);
     const cell = S / 4;
     for (let gy = 0; gy < 4; gy++) {
@@ -302,9 +302,9 @@ export function tileTexture(colorA: string, colorB: string): THREE.CanvasTexture
   });
 }
 
-/* ---------------- رگه چوب مبل/کابینت ---------------- */
+/* ---------------- Wood grain for sofas/cabinets ---------------- */
 
-/** رگه عمودی باریک با موج سینوسی ملایم — برای درب کابینت/مبلمان */
+/** Narrow vertical grain with a gentle sine wave — for cabinet doors/furniture */
 export function woodGrainTexture(baseColor: string): THREE.CanvasTexture | null {
   return cachedTexture(`woodGrain:${baseColor}`, true, () => {
     const S = 256;

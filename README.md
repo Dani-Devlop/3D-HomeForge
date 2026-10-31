@@ -1,91 +1,107 @@
-# کابین‌۳بعد — پلتفرم طراحی و اشتراک‌گذاری سه‌بعدی کابینت (MVP)
+# 3D HomeForge
 
-چرخه کامل **«عکس فضا → مدل سه‌بعدی ویرایش‌پذیر → ویرایش و چیدمان کابینت → لینک اشتراکی با مشتری»** تحت وب، با خروجی استاندارد **glTF/GLB**.
+**Turn real-space photos into editable, shareable 3D interior designs — right in the browser.**
 
-## معماری (Logic Flow)
+3D HomeForge is a web app for designers, kitchen studios and cabinet makers: upload a few photos of a real room, let AI reconstruct it as an editable 3D model, refine it in a professional editor, then share a live 3D link with your client — or export to **glTF/GLB**.
 
-```
-آپلود عکس ──▶ AI Reconstruction (VLM) ──▶ RoomSpec ──▶ مش سه‌بعدی ویرایش‌پذیر
-                                                              │
-        کابینت‌ساز: ویرایشگر R3F ◀────────────────────────────┘
-        (Drag&Drop، ابعاد پارامتریک، درب/چراغ، پریست، Undo/Redo، خروجی GLB)
-                                                              │
-                    Publish ──▶ لینک امضاشده HMAC (نقش درون توکن)
-                                                              │
-        مشتری: باز کردن لینک ──▶ پاپ‌آپ نام ──▶ کاوش سه‌بعدی (درب/چراغ/جابه‌جایی)
-```
+<p align="center">
+  <img src="docs/preview.png" alt="3D HomeForge — from room photo to editable 3D model" width="800" />
+</p>
 
-## استک فنی
+## ✨ Features
 
-| لایه | فناوری |
-|---|---|
-| فریم‌ورک | **Next.js 16** (App Router) + **React 19** + TypeScript 5 |
-| رندر سه‌بعدی | **Three.js** از طریق `@react-three/fiber` + `@react-three/drei` |
-| استایل | Tailwind CSS 4 + shadcn/ui + فونت Vazirmatn (RTL) |
-| دیتابیس | **Prisma ORM + SQLite** (جایگزین Supabase در این محیط) |
-| AI Reconstruction | VLM داخلی از طریق `z-ai-web-dev-sdk` (chat.completions vision) — جایگزین MeltFlex/Tripo |
-| احراز هویت | **Guest Invite بدون ایمیل** — توکن امضاشده HMAC-SHA256 (`src/lib/share-token.ts`) |
-| State | Zustand (ویرایشگر) + TanStack Query (سرور) |
+- **Photo → 3D reconstruction** — send multiple photos (or video frames) of a space and AI analyzes the floor plan, cabinets and appliances (fridge, stove, sink, range hood, microwave…) and rebuilds them as parametric 3D objects.
+- **Professional 3D editor** — move, rotate, resize and restyle objects; drag cabinets with wall snapping; edit arbitrary (non-rectangular) room outlines with slanted walls; undo/redo; autosave.
+- **AI text tools** — generate a piece of furniture or a whole room from a single sentence, or edit the selected object by describing the change.
+- **Client share links** — one-click viewer/editor links with expiry dates, guest names and role management. Clients open the live 3D view in any browser — no install.
+- **Live portfolio** — publish finished projects on the landing page as interactive 3D scenes (not just screenshots).
+- **CRM for makers** — client name, phone, installation site, project stage (survey → design → build → install → delivered), contract amount and photos.
+- **glTF/GLB export** — take the scene into Blender, Unity, Three.js or any 3D tool.
+- **Dark & light themes** — full theming (including the 3D canvas) with a top-bar toggle; follows the system preference by default.
+- **100% English UI** — clean LTR interface, desktop and mobile.
 
-> **نکته درباره AI Reconstruction:** به‌جای سرویس خارجی (MeltFlex/Tripo)، خط لوله داخلی پیاده شده: VLM عکس را تحلیل می‌کند (نوع فضا، ابعاد متریک از روی نشانه‌های بصری مثل ارتفاع درب ≈۲.۱م، رنگ دیوار/کف/سقف، موقعیت پنجره‌ها و درب‌ها) و خروجی JSON استاندارد `RoomSpec` تولید می‌شود که به **مش واقعی ویرایش‌پذیر** (نه تصویر بافت‌دار ثابت) تبدیل می‌شود — دیوارها، کف، پنجره‌ها همگی Mesh قابل انتخاب و ویرایش هستند.
+## 🌐 Live demo
 
-## راه‌اندازی
+👉 **https://dani-devlop.github.io/3D-HomeForge/**
+
+The GitHub Pages build runs in **demo mode**: all data lives in your browser's localStorage and AI calls return prebuilt sample scenes. The password for the demo dashboard is `admin`.
+
+## 🧰 Tech stack
+
+| Layer | Tech |
+| --- | --- |
+| Framework | [Next.js 16](https://nextjs.org) (App Router) + React 19 + TypeScript |
+| 3D | [three.js](https://threejs.org), [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber), [@react-three/drei](https://github.com/pmndrs/drei) |
+| UI | [Tailwind CSS 4](https://tailwindcss.com), [shadcn/ui](https://ui.shadcn.com), Lucide icons, sonner |
+| State | Zustand, TanStack Query |
+| Backend (full mode) | Next.js API routes, Prisma ORM + SQLite, z-ai-web-dev-sdk (LLM + vision) |
+| Demo mode (Pages) | LocalStorage-backed client "backend" with seeded sample data |
+| Tooling | Bun, ESLint, GitHub Actions |
+
+## 🚀 Getting started
 
 ```bash
-bun install          # نصب وابستگی‌ها
-bun run db:push      # همگام‌سازی اسکیمای Prisma با SQLite
-bun run dev          # اجرای توسعه روی پورت 3000
+# 1. Clone
+git clone https://github.com/Dani-Devlop/3D-HomeForge.git
+cd 3D-HomeForge
+
+# 2. Install (Bun recommended; npm/pnpm work too)
+bun install
+
+# 3. Set up the database (full server mode)
+bun run db:push
+
+# 4. Run
+bun run dev
 ```
 
-متغیرهای محیطی (اختیاری):
-- `DATABASE_URL` — مسیر فایل SQLite (پیش‌فرض: `db/custom.db`)
-- `SHARE_SECRET` — کلید امضای توکن لینک‌های اشتراکی (برای production تغییر دهید)
+Open http://localhost:3000. Sign in to the dashboard with the temporary password `admin`, then change it from the admin panel.
 
-## ساختار پروژه
+### Static demo build (GitHub Pages)
 
-```
-prisma/schema.prisma          # Project, ShareLink, Guest, Preset
-src/lib/
-  scene-types.ts              # تایپ‌های صحنه + کاتالوگ پارامتریک کابینت
-  share-token.ts              # امضا/راستی‌آزمایی HMAC لینک اشتراکی
-  api.ts | export-glb.ts | image-utils.ts | sample-room.ts
-src/store/editor-store.ts     # Zustand: آبجکت‌ها، تاریخچه، انتخاب
-src/app/api/                  # ۹ endpoint REST (پروژه، بازسازی AI، اشتراک، مهمان، پریست)
-src/components/three/         # room.tsx (اتاق از spec) — cabinet.tsx (کابینت پارامتریک)
-                              # decor.tsx (چراغ/گیاه/فرش) — editor-scene / viewer-scene
-src/components/editor/        # ویرایشگر: کتابخانه، مشخصات، پریست‌ها، دیالوگ انتشار
-src/components/home/          # پنل کابینت‌ساز + ویزارد آپلود
-src/components/viewer/        # نمای مشتری (Guest Gate + تعامل)
+```bash
+rm -rf src/app/api                      # strip server routes (demo mode needs none)
+NEXT_EXPORT=1 \
+NEXT_PUBLIC_BASE_PATH=/3D-HomeForge \
+NEXT_PUBLIC_DEMO_MODE=1 \
+bunx next build                         # static site in ./out
 ```
 
-## قابلیت‌ها
+## 📁 Project structure
 
-### پنل کابینت‌ساز (`#/`)
-- آپلود عکس (Drag & Drop یا انتخاب) → بازسازی AI با انیمیشن مراحل → ورود خودکار به ویرایشگر
-- شروع سریع با «فضای نمونه» (بدون آپلود)
-- مدیریت پروژه‌ها با thumbnail خودکار از بوم سه‌بعدی
+```
+├── docs/                 # preview image
+├── prisma/               # database schema (server mode)
+├── public/               # static assets (logo, hero images)
+├── scripts/              # seed script for the 3D portfolio
+└── src/
+    ├── app/
+    │   ├── api/          # API routes (auth, projects, folders, share, portfolio, AI) — server mode
+    │   └── page.tsx      # hash-routed app shell (home / editor / viewer)
+    ├── components/
+    │   ├── editor/       # editor panels (library, properties, room plan, share dialog…)
+    │   ├── home/         # landing site, dashboard, portfolio manager
+    │   ├── three/        # react-three-fiber scene: cabinets, appliances, furniture, room
+    │   ├── ui/           # shadcn/ui components
+    │   └── viewer/       # client-facing shared 3D view
+    ├── lib/              # api client, scene types, polygon math, GLB export, demo backend
+    └── store/            # editor state (Zustand)
+```
 
-### ویرایشگر (`#/editor/:id`)
-- **کتابخانه Drag & Drop**: کابینت زمینی/کشودار/دیواری/بلند، جزیره، قفسه باز، چراغ آویز/ایستاده، گیاه، فرش
-- **مبلمان پارامتریک**: اسلایدر عرض/ارتفاع/عمق، رنگ بدنه/درب/رویه، تعداد درب و کشو، نوع دستگیره، ارتفاع نصب
-- **Mesh States**: کلیک روی درب/کشو → باز/بسته با انیمیشن نرم (damp)
-- **کنترل چراغ**: سوییچ روشن/خاموش + شدت نور + رنگ
-- Undo/Redo (دکمه + Ctrl+Z / Ctrl+Shift+Z)، چرخش ۹۰°، تکثیر، حذف
-- **پریست**: ذخیره ترکیب انتخاب‌شده (Shift+کلیک چندتایی) و استفاده در پروژه‌های بعدی
-- **انتشار**: ساخت لینک امضاشده با نقش پیش‌فرض و انقضا + لیست بازدیدکنندگان با تغییر نقش زنده
-- **خروجی GLB**: دانلود فایل دودویی glTF استاندارد از کل صحنه
-- ذخیره خودکار (debounce ۱.۴ ثانیه)
+## 🤝 Contributing
 
-### نمای مشتری (`#/s/:token`)
-- بدون ثبت‌نام: فقط نام → شناسه موقت با رنگ (مثل مهمان Figma)
-- **Viewer**: چرخش/زوم نما، باز کردن درب‌ها، کنترل چراغ‌ها
-- **Modifier** (تغییر از پنل کابینت‌ساز، بلافاصله اعمال می‌شود): + جابه‌جایی کابینت با گیزموت
+Contributions are welcome!
 
-## امنیت لینک اشتراکی
+1. Fork the repository
+2. Create your branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-توکن = `base64url({lid, pid, role, exp}).HMAC-SHA256(...)`. سرور امضا، فعال‌بودن و انقضا را در هر resolve بررسی می‌کند؛ تغییر نقش هر مهمان در دیتابیس ذخیره و با polling (هر ۴ ثانیه) بلافاصله به کلاینت مشتری اعمال می‌شود.
+## 📄 License
 
-## محدودیت‌های MVP
-- ویرایش مشتریِ Modifier فقط محلی است (ذخیره دائمی نمی‌شود)
-- هم‌حضوری real-time چندکاربره (WebSocket) در فاز بعد
-- بازسازی AI از ویدیو هنوز پشتیبانی نمی‌شود (فقط عکس)
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+
+## 👤 Author
+
+**Dani-Devlop** — [GitHub profile](https://github.com/Dani-Devlop)

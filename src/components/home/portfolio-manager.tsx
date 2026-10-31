@@ -57,25 +57,25 @@ import {
 import { CATEGORY_LABEL } from './site-landing';
 
 // ============================================================
-// مدیریت نمونه‌کارها — تصویر یا مدل سه‌بعدی زنده (از پروژه‌ها)
+// Portfolio management — image or live 3D model (from projects)
 // ============================================================
 
 const CATEGORIES = ['kitchen', 'bedroom', 'living', 'office', 'other'] as const;
 
-// صحنه سه‌بعدی زنده — فقط سمت کلاینت (three.js)
+// Live 3D scene — client-side only (three.js)
 const PortfolioScene = dynamic(() => import('@/components/three/portfolio-scene'), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-muted animate-pulse" aria-hidden />,
 });
 
-/** صحنه زنده انتخاب‌شده برای نمونه‌کار */
+/** Live scene picked for the portfolio item */
 interface PickedScene {
   roomSpec: unknown;
   sceneState: unknown;
   sourceName: string;
 }
 
-/** خروجی دیالوگ ذخیره */
+/** Save dialog output */
 interface SavedItem {
   title: string;
   description: string;
@@ -86,7 +86,7 @@ interface SavedItem {
   sceneState?: unknown;
 }
 
-// ---------- دیالوگ افزودن/ویرایش ----------
+// ---------- Add/edit dialog ----------
 function ItemDialog({
   initial,
   saving,
@@ -110,13 +110,13 @@ function ItemDialog({
       return {
         roomSpec: initial.roomSpec,
         sceneState: initial.sceneState,
-        sourceName: 'صحنه ذخیره‌شده',
+        sourceName: 'Saved scene',
       };
     }
     return null;
   });
 
-  // پروژه‌های مدیر — منبع مدل‌های سه‌بعدی زنده
+  // Admin's projects — source of live 3D models
   const projectsQ = useQuery({
     queryKey: ['projects', 'portfolio-picker'],
     queryFn: () => api.listProjects(),
@@ -154,20 +154,20 @@ function ItemDialog({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent dir="ltr" className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{initial ? 'ویرایش نمونه‌کار' : 'نمونه‌کار جدید'}</DialogTitle>
+          <DialogTitle>{initial ? 'Edit portfolio item' : 'New portfolio item'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
-          {/* مدل سه‌بعدی زنده از پروژه‌ها */}
+          {/* Live 3D model from projects */}
           <div className="space-y-1.5">
             <Label className="text-xs flex items-center gap-1.5">
-              <Rotate3d className="h-3.5 w-3.5 text-primary" /> مدل سه‌بعدی زنده
+              <Rotate3d className="h-3.5 w-3.5 text-primary" /> Live 3D model
             </Label>
-            <Select value="" onValueChange={pickProject} dir="rtl">
-              <SelectTrigger className="w-full" aria-label="انتخاب پروژه برای مدل سه‌بعدی">
-                <SelectValue placeholder={projects.length > 0 ? 'انتخاب از پروژه‌های من…' : 'پروژه‌ای با صحنه موجود نیست'} />
+            <Select value="" onValueChange={pickProject} dir="ltr">
+              <SelectTrigger className="w-full" aria-label="Pick a project for the 3D model">
+                <SelectValue placeholder={projects.length > 0 ? 'Pick from my projects…' : 'No projects with a scene'} />
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
@@ -178,7 +178,7 @@ function ItemDialog({
                 ))}
                 {projects.length === 0 && (
                   <SelectItem value="__none" disabled>
-                    ابتدا در تب پروژه‌ها یک پروژه بسازید
+                    Create a project in the Projects tab first
                   </SelectItem>
                 )}
               </SelectContent>
@@ -194,7 +194,7 @@ function ItemDialog({
                 </div>
                 <div className="absolute top-2 start-2 flex gap-1.5 pointer-events-none">
                   <Badge className="text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0">
-                    <Rotate3d className="h-2.5 w-2.5" /> سه‌بعدی زنده
+                    <Rotate3d className="h-2.5 w-2.5" /> Live 3D
                   </Badge>
                   <Badge className="text-[10px] bg-black/50 text-white border-0 backdrop-blur">
                     {scene.sourceName}
@@ -208,9 +208,9 @@ function ItemDialog({
                       variant="secondary"
                       className="h-7 text-[11px] gap-1"
                       onClick={() => (window.location.hash = `/editor/pf/${initial.id}`)}
-                      title="ویرایش مدل سه‌بعدی در ویرایشگر"
+                      title="Edit the 3D model in the editor"
                     >
-                      <Rotate3d className="h-3 w-3" /> ویرایش این مدل
+                      <Rotate3d className="h-3 w-3" /> Edit this model
                     </Button>
                   )}
                   <Button
@@ -219,21 +219,21 @@ function ItemDialog({
                     variant="secondary"
                     className="h-7 text-[11px] gap-1"
                     onClick={() => setScene(null)}
-                    aria-label="حذف مدل سه‌بعدی"
+                    aria-label="Remove 3D model"
                   >
-                    <X className="h-3 w-3" /> حذف مدل
+                    <X className="h-3 w-3" /> Remove model
                   </Button>
                 </div>
               </div>
             ) : (
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                با انتخاب یکی از پروژه‌هایتان، کارت نمونه‌کار به‌جای عکس، یک مدل سه‌بعدی زنده و
-                قابل‌چرخش می‌شود.
+                Pick one of your projects and the portfolio card becomes a live, rotatable 3D model
+                instead of a photo.
               </p>
             )}
           </div>
 
-          {/* تصویر (اختیاری وقتی مدل زنده هست) */}
+          {/* Image (optional when a live model exists) */}
           <input
             ref={imgRef}
             type="file"
@@ -247,7 +247,7 @@ function ItemDialog({
           />
           {image ? (
             <div className="relative rounded-xl overflow-hidden border">
-              <img src={image} alt="پیش‌نمایش تصویر نمونه‌کار" className="w-full aspect-video object-cover" />
+              <img src={image} alt="Portfolio image preview" className="w-full aspect-video object-cover" />
               <div className="absolute top-2 end-2 flex gap-1.5">
                 <Button
                   type="button"
@@ -256,7 +256,7 @@ function ItemDialog({
                   className="h-7 text-[11px] gap-1"
                   onClick={() => imgRef.current?.click()}
                 >
-                  <UploadCloud className="h-3 w-3" /> تغییر تصویر
+                  <UploadCloud className="h-3 w-3" /> Change image
                 </Button>
                 <Button
                   type="button"
@@ -264,7 +264,7 @@ function ItemDialog({
                   variant="secondary"
                   className="h-7 w-7"
                   onClick={() => setImage('')}
-                  aria-label="حذف تصویر"
+                  aria-label="Remove image"
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -287,7 +287,7 @@ function ItemDialog({
                 pickImage(e.dataTransfer.files?.[0]);
               }}
               className="w-full aspect-video rounded-xl border-2 border-dashed border-border hover:border-primary/60 bg-muted/30 flex flex-col items-center justify-center gap-2 cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              aria-label="انتخاب تصویر نمونه‌کار"
+              aria-label="Choose portfolio image"
             >
               {reading ? (
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -295,10 +295,10 @@ function ItemDialog({
                 <>
                   <UploadCloud className="h-8 w-8 text-muted-foreground/50 group-hover:text-primary transition-colors" />
                   <p className="text-xs font-medium">
-                    تصویر (اختیاری{scene ? ' — مدل زنده کافی است' : ''})
+                    Image (optional{scene ? ' — a live model is enough' : ''})
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {scene ? 'به‌عنوان جایگزین نمایش داده می‌شود' : 'اگر مدل سه‌بعدی ندارید، تصویر الزامی است'}
+                    {scene ? 'Shown as a fallback' : 'An image is required if you have no 3D model'}
                   </p>
                 </>
               )}
@@ -306,20 +306,20 @@ function ItemDialog({
           )}
 
           <div className="space-y-1">
-            <Label className="text-xs">عنوان</Label>
+            <Label className="text-xs">Title</Label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="مثلاً: آشپزخانه مدرن چوبی"
+              placeholder="e.g. Modern wooden kitchen"
               maxLength={80}
               autoFocus
             />
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">دسته‌بندی</Label>
-            <Select value={category} onValueChange={setCategory} dir="rtl">
-              <SelectTrigger className="w-full" aria-label="دسته‌بندی نمونه‌کار">
+            <Label className="text-xs">Category</Label>
+            <Select value={category} onValueChange={setCategory} dir="ltr">
+              <SelectTrigger className="w-full" aria-label="Portfolio category">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -333,11 +333,11 @@ function ItemDialog({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">توضیح (اختیاری)</Label>
+            <Label className="text-xs">Description (optional)</Label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="یک یا دو جمله درباره این نمونه‌کار..."
+              placeholder="One or two sentences about this item..."
               rows={3}
               maxLength={400}
             />
@@ -345,22 +345,22 @@ function ItemDialog({
 
           <div className="flex items-center justify-between rounded-xl border px-3 py-2.5">
             <div className="space-y-0.5">
-              <Label className="text-xs">نمایش در صفحه اصلی</Label>
+              <Label className="text-xs">Show on landing page</Label>
               <p className="text-[10px] text-muted-foreground">
-                نمونه‌کارهای پنهان فقط اینجا دیده می‌شوند
+                Hidden items are only visible here
               </p>
             </div>
             <Switch
               checked={visible}
               onCheckedChange={setVisible}
-              aria-label="نمایش در صفحه اصلی"
+              aria-label="Show on landing page"
             />
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            انصراف
+            Cancel
           </Button>
           <Button
             onClick={() =>
@@ -377,7 +377,7 @@ function ItemDialog({
             }
             disabled={!canSave || saving}
           >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -385,7 +385,7 @@ function ItemDialog({
   );
 }
 
-// ---------- کارت مدیریت ----------
+// ---------- Manager card ----------
 function ManagerCard({
   item,
   index,
@@ -411,18 +411,18 @@ function ManagerCard({
     mutationFn: () => api.updatePortfolioItem(item.id, { visible: !item.visible }),
     onSuccess: () => {
       invalidate();
-      toast({ title: item.visible ? 'از صفحه اصلی پنهان شد' : 'در صفحه اصلی نمایش داده می‌شود' });
+      toast({ title: item.visible ? 'Hidden from the landing page' : 'Shown on the landing page' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const del = useMutation({
     mutationFn: () => api.deletePortfolioItem(item.id),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'نمونه‌کار حذف شد' });
+      toast({ title: 'Portfolio item deleted' });
     },
-    onError: (e: Error) => toast({ title: 'خطا در حذف', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Delete failed', description: e.message, variant: 'destructive' }),
   });
 
   const move = useMutation({
@@ -441,7 +441,7 @@ function ManagerCard({
         invalidate();
       }
     },
-    onError: (e: Error) => toast({ title: 'خطا در جابه‌جایی', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Reorder failed', description: e.message, variant: 'destructive' }),
   });
 
   const iconBtn =
@@ -453,7 +453,7 @@ function ManagerCard({
         {live ? (
           <PortfolioScene roomSpec={item.roomSpec as never} sceneState={item.sceneState as never} />
         ) : item.image ? (
-          <img src={item.image} alt={`نمونه‌کار ${item.title}`} className="w-full h-full object-cover" />
+          <img src={item.image} alt={`Portfolio item ${item.title}`} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
@@ -461,20 +461,20 @@ function ManagerCard({
         )}
         <div className="absolute top-2 start-2 flex gap-1">
           <Badge className="text-[10px] bg-black/50 text-white border-0 backdrop-blur pointer-events-none">
-            {CATEGORY_LABEL[item.category] ?? 'فضا'}
+            {CATEGORY_LABEL[item.category] ?? 'Space'}
           </Badge>
           {live && (
             <Badge className="text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0 backdrop-blur pointer-events-none">
-              <Rotate3d className="h-2.5 w-2.5" /> سه‌بعدی زنده
+              <Rotate3d className="h-2.5 w-2.5" /> Live 3D
             </Badge>
           )}
           {item.visible ? (
             <Badge variant="secondary" className="text-[10px] gap-1 bg-emerald-600/90 text-white border-0">
-              <Eye className="h-2.5 w-2.5" /> نمایش
+              <Eye className="h-2.5 w-2.5" /> Visible
             </Badge>
           ) : (
             <Badge variant="secondary" className="text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur">
-              <EyeOff className="h-2.5 w-2.5" /> پنهان
+              <EyeOff className="h-2.5 w-2.5" /> Hidden
             </Badge>
           )}
         </div>
@@ -492,7 +492,7 @@ function ManagerCard({
               className={iconBtn}
               onClick={() => move.mutate(-1)}
               disabled={index === 0 || move.isPending}
-              aria-label={`انتقال ${item.title} به عقب در ترتیب`}
+              aria-label={`Move ${item.title} back in order`}
             >
               <ChevronUp className="h-4 w-4" />
             </Button>
@@ -502,7 +502,7 @@ function ManagerCard({
               className={iconBtn}
               onClick={() => move.mutate(1)}
               disabled={index === total - 1 || move.isPending}
-              aria-label={`انتقال ${item.title} به جلو در ترتیب`}
+              aria-label={`Move ${item.title} forward in order`}
             >
               <ChevronDown className="h-4 w-4" />
             </Button>
@@ -512,7 +512,7 @@ function ManagerCard({
               className={iconBtn}
               onClick={() => toggle.mutate()}
               disabled={toggle.isPending}
-              aria-label={item.visible ? `پنهان کردن ${item.title}` : `نمایش ${item.title}`}
+              aria-label={item.visible ? `Hide ${item.title}` : `Show ${item.title}`}
             >
               {item.visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
@@ -524,12 +524,12 @@ function ManagerCard({
               className={iconBtn}
               onClick={() => (window.location.hash = `/editor/pf/${item.id}`)}
               disabled={!live}
-              title="ویرایش مدل سه‌بعدی در ویرایشگر"
-              aria-label={`ویرایش مدل سه‌بعدی ${item.title}`}
+              title="Edit the 3D model in the editor"
+              aria-label={`Edit the 3D model of ${item.title}`}
             >
               <Rotate3d className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className={iconBtn} onClick={() => onEdit(item)} aria-label={`ویرایش ${item.title}`}>
+            <Button size="icon" variant="ghost" className={iconBtn} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`}>
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
@@ -537,7 +537,7 @@ function ManagerCard({
               variant="ghost"
               className={`${iconBtn} hover:text-destructive hover:bg-destructive/10`}
               onClick={() => setDelOpen(true)}
-              aria-label={`حذف ${item.title}`}
+              aria-label={`Delete ${item.title}`}
             >
               <Trash2 className="h-3 w-3" />
             </Button>
@@ -546,20 +546,20 @@ function ManagerCard({
       </CardContent>
 
       <AlertDialog open={delOpen} onOpenChange={setDelOpen}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir="ltr">
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف نمونه‌کار؟</AlertDialogTitle>
+            <AlertDialogTitle>Delete portfolio item?</AlertDialogTitle>
             <AlertDialogDescription>
-              «{item.title}» برای همیشه از لیست نمونه‌کارها حذف می‌شود. این عمل قابل بازگشت نیست.
+              “{item.title}” will be permanently removed from the portfolio. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
               onClick={() => del.mutate()}
             >
-              حذف کن
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -568,7 +568,7 @@ function ManagerCard({
   );
 }
 
-// ---------- پنل کامل ----------
+// ---------- Full panel ----------
 export function PortfolioManager() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -584,9 +584,9 @@ export function PortfolioManager() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['portfolio'] });
       setDlg({ open: false });
-      toast({ title: 'نمونه‌کار اضافه شد ✓' });
+      toast({ title: 'Portfolio item added ✓' });
     },
-    onError: (e: Error) => toast({ title: 'خطا در ذخیره', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Save failed', description: e.message, variant: 'destructive' }),
   });
 
   const update = useMutation({
@@ -594,9 +594,9 @@ export function PortfolioManager() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['portfolio'] });
       setDlg({ open: false });
-      toast({ title: 'نمونه‌کار به‌روزرسانی شد ✓' });
+      toast({ title: 'Portfolio item updated ✓' });
     },
-    onError: (e: Error) => toast({ title: 'خطا در ذخیره', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Save failed', description: e.message, variant: 'destructive' }),
   });
 
   const items = itemsQ.data?.items ?? [];
@@ -608,22 +608,22 @@ export function PortfolioManager() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-bold flex items-center gap-2">
-            <Images className="h-5 w-5 text-primary" /> مدیریت نمونه‌کارها
+            <Images className="h-5 w-5 text-primary" /> Portfolio management
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            این موارد در صفحه اصلی عمومی (لندینگ مشتری) نمایش داده می‌شوند —{' '}
-            <span className="tabular-nums">{visibleCount.toLocaleString('fa-IR')} مورد نمایش</span> از{' '}
-            <span className="tabular-nums">{items.length.toLocaleString('fa-IR')} مورد</span>
+            These items appear on the public landing page (client-facing site) —{' '}
+            <span className="tabular-nums">{visibleCount.toLocaleString('en-US')} shown</span> of{' '}
+            <span className="tabular-nums">{items.length.toLocaleString('en-US')} items</span>
             {liveCount > 0 && (
               <>
                 {' '}• <Boxes className="inline h-3 w-3 text-primary" />{' '}
-                <span className="tabular-nums">{liveCount.toLocaleString('fa-IR')} مدل سه‌بعدی زنده</span>
+                <span className="tabular-nums">{liveCount.toLocaleString('en-US')} live 3D models</span>
               </>
             )}
           </p>
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => setDlg({ open: true })}>
-          <Plus className="h-4 w-4" /> نمونه‌کار جدید
+          <Plus className="h-4 w-4" /> New portfolio item
         </Button>
       </div>
 
@@ -642,9 +642,9 @@ export function PortfolioManager() {
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed p-10 text-center space-y-2">
           <Images className="h-10 w-10 mx-auto text-muted-foreground/30" />
-          <p className="text-sm font-medium">هنوز نمونه‌کاری ندارید</p>
+          <p className="text-sm font-medium">No portfolio items yet</p>
           <p className="text-xs text-muted-foreground">
-            با «نمونه‌کار جدید» یک پروژه سه‌بعدی زنده یا تصویر کار خود را برای صفحه اصلی اضافه کنید
+            Use “New portfolio item” to add a live 3D project or a photo of your work to the landing page
           </p>
         </div>
       ) : (

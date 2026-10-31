@@ -83,11 +83,11 @@ export function LibraryPanel({
   return (
     <ScrollArea className="h-full">
       <div className="p-3 space-y-4">
-        {/* ---- تولید مدل با توصیف متنی (text-to-3D) ---- */}
+        {/* ---- Generate a model from a text description (text-to-3D) ---- */}
         <div className="rounded-xl border bg-accent/30 p-3 space-y-2">
           <div className="flex items-center gap-1.5">
             <Sparkles className="h-4 w-4 text-primary" />
-            <p className="text-xs font-bold">ساخت کابینت با یک جمله</p>
+            <p className="text-xs font-bold">Generate a cabinet with one sentence</p>
           </div>
           <Textarea
             value={prompt}
@@ -98,10 +98,10 @@ export function LibraryPanel({
                 submit();
               }
             }}
-            placeholder="مثلاً: کابینت زمینی با درب شیشه‌ای، عرض ۸۰ سانت، رنگ سفید مات"
+            placeholder="e.g. base cabinet with glass doors, 80 cm wide, matte white"
             rows={2}
             className="text-xs min-h-[60px] resize-none bg-card"
-            aria-label="توصیف متنی کابینت"
+            aria-label="Cabinet description"
             maxLength={500}
           />
           <Button
@@ -113,19 +113,19 @@ export function LibraryPanel({
             {generating ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                در حال ساخت مدل...
+                Generating model...
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5" />
-                تولید مدل سه‌بعدی
+                Generate 3D model
               </>
             )}
           </Button>
         </div>
 
         <p className="text-xs text-muted-foreground leading-relaxed">
-          آیتم را بکشید و داخل صحنه رها کنید — یا برای افزودن سریع کلیک کنید.
+          Drag an item and drop it into the scene — or click to add it quickly.
         </p>
         {GROUPS.map((cat) => (
           <div key={cat} className="space-y-2">
@@ -150,7 +150,7 @@ export function LibraryPanel({
                     onClick={() => onPick(item)}
                     className="group flex flex-col items-center gap-1.5 rounded-lg border bg-card p-3 text-center transition-all hover:border-primary/60 hover:bg-accent/60 active:scale-95 cursor-grab active:cursor-grabbing min-h-[72px] touch-manipulation"
                     title={item.description}
-                    aria-label={`افزودن ${item.label}`}
+                    aria-label={`Add ${item.label}`}
                   >
                     <Icon className="h-5 w-5 text-primary/80 group-hover:text-primary transition-colors" />
                     <span className="text-xs font-medium leading-tight">{item.label}</span>

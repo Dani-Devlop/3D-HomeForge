@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # GitHub Pages is static — strip server-only API routes.
+      # The app then runs fully client-side in demo mode
+      # (NEXT_PUBLIC_DEMO_MODE=1 → localStorage-backed backend).
+      - name: Remove server-only API routes
+        run: rm -rf src/app/api
+
+      - name: Build static site
+        env:
+          NEXT_EXPORT: "1"
+          NEXT_PUBLIC_BASE_PATH: /3D-HomeForge
+          NEXT_PUBLIC_DEMO_MODE: "1"
+        run: bunx next build
+
+      # Hash-based SPA routing + safety net for deep links
+      - name: SPA fallback (404.html) and .nojekyll
+        run: |
+          cp export-dist/index.html export-dist/404.html
+          touch export-dist/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: export-dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

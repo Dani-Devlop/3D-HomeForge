@@ -4,7 +4,7 @@ import { parseJsonSafe } from '@/app/api/_lib/serialize';
 import { checkShareToken } from '@/app/api/_lib/share-guard';
 
 // ============================================================
-// /api/share/resolve?token=... — باز کردن لینک اشتراکی برای مهمان
+// /api/share/resolve?token=... — resolve a share link for a guest
 // ============================================================
 
 export async function GET(req: NextRequest) {
@@ -16,14 +16,14 @@ export async function GET(req: NextRequest) {
     const { payload, link } = check;
     if (link.projectId !== payload.pid) {
       return NextResponse.json(
-        { ok: false, error: 'لینک نامعتبر یا منقضی است' },
+        { ok: false, error: 'Invalid or expired link' },
         { status: 403 },
       );
     }
 
     const project = await db.project.findUnique({ where: { id: link.projectId } });
     if (!project) {
-      return NextResponse.json({ ok: false, error: 'پروژه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ ok: false, error: 'Project not found' }, { status: 404 });
     }
 
     return NextResponse.json({
@@ -43,6 +43,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('GET /api/share/resolve failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

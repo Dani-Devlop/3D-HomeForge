@@ -23,8 +23,8 @@ import { placeAtWall } from '@/lib/scene-types';
 import type { ObjectType, RoomSpec, SceneObject, WallName } from '@/lib/scene-types';
 
 // ============================================================
-// /api/ai/room — طراحی کامل فضا از یک توصیف متنی (text-to-room)
-// «آشپزخانه ۴ متری مدرن با کابینت سفید و جزیره» → roomSpec + آبجکت‌ها
+// /api/ai/room — design a complete space from a text description (text-to-room)
+// "Modern 4-meter kitchen with white cabinets and an island" → roomSpec + objects
 // ============================================================
 
 const ROOM_PROMPT = `You are a professional interior designer for a 3D home/cabinet design app.
@@ -46,7 +46,7 @@ Return ONLY a JSON object (no markdown fences, no commentary) shaped exactly lik
     { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave",
       "wall": "back"|"front"|"left"|"right", "offsetX": number,
       "widthM": number, "heightM": number, "depthM": number,
-      "glassDoors": boolean, "colorHex": "#hex", "description": "برچسب فارسی کوتاه" }
+      "glassDoors": boolean, "colorHex": "#hex", "description": "short English label" }
   ]
 }
 
@@ -57,11 +57,12 @@ DESIGN RULES:
 - Realistic kitchens: line the base cabinets along the back wall, appliances (stove between cabinets, hood above stove with same offsetX, fridge at a corner), wall cabinets above base cabinets (skip where window/hood is), optionally an island in the middle if widthM*depthM >= 12.
 - max 14 items total. Do NOT duplicate the same appliance. Cabinet rows: align offsets so adjacent items touch (e.g. -1.2, -0.4, 0.4).
 - Colors harmonious hex (#rrggbb lowercase). floorColor is wood/ceramic tone; wallColor light neutral; ceiling near-white.
-- Persian number words: یک=1 دو=2 سه=3 چهار=4 پنج=5 شش=6 هفت=7 هشت=8 نه=9 ده=10. «۴ متری» = 4 meters.
+- Number words: one=1 two=2 three=3 four=4 five=5 six=6 seven=7 eight=8 nine=9 ten=10. "4-meter kitchen" = 4 meters.
 - Windows: sillY 0.8..1.4, width 0.9..2.2, height 1.0..1.6, at most 3, NOT behind wall cabinets (leave gap in wall cabinets where window sits).
 - Doorways: width 0.85..1.2, height 2.0..2.3, at most 2.
-- Glass doors ONLY when explicitly requested (درب شیشه‌ای).
-- description for each item = SHORT Persian label (max 30 chars).`;
+- Glass doors ONLY when explicitly requested.
+- description for each item = SHORT English label (max 30 chars).
+All values you output (labels, names, descriptions) MUST be in English.`;
 
 const bodySchema = z.object({
   text: z.string().trim().min(3).max(600),
@@ -93,17 +94,17 @@ interface RoomAnalysis {
 }
 
 const ITEM_LABELS: Record<string, string> = {
-  base: 'کابینت زمینی (طراحی‌شده)', wall: 'کابینت دیواری (طراحی‌شده)',
-  tall: 'کابینت بلند (طراحی‌شده)', island: 'جزیره (طراحی‌شده)',
-  shelf: 'قفسه باز (طراحی‌شده)', fridge: 'یخچال (طراحی‌شده)',
-  stove: 'اجاق گاز (طراحی‌شده)', hood: 'هود (طراحی‌شده)',
-  tv: 'تلویزیون (طراحی‌شده)', sofa: 'مبل (طراحی‌شده)',
-  bed: 'تخت (طراحی‌شده)', table: 'میز (طراحی‌شده)',
-  chair: 'صندلی (طراحی‌شده)', washer: 'ماشین لباسشویی (طراحی‌شده)',
-  dishwasher: 'ماشین ظرفشویی (طراحی‌شده)', microwave: 'مایکروویو (طراحی‌شده)',
+  base: 'Base cabinet (designed)', wall: 'Wall cabinet (designed)',
+  tall: 'Tall cabinet (designed)', island: 'Island (designed)',
+  shelf: 'Open shelf (designed)', fridge: 'Refrigerator (designed)',
+  stove: 'Stove (designed)', hood: 'Range hood (designed)',
+  tv: 'TV (designed)', sofa: 'Sofa (designed)',
+  bed: 'Bed (designed)', table: 'Table (designed)',
+  chair: 'Chair (designed)', washer: 'Washing machine (designed)',
+  dishwasher: 'Dishwasher (designed)', microwave: 'Microwave (designed)',
 };
 
-/** انواعی که درب شیشه‌ای می‌پذیرند */
+/** Kinds that accept glass doors */
 const GLASS_KINDS: ReadonlySet<string> = new Set([
   'base', 'wall', 'tall', 'island', 'shelf', 'dishwasher',
 ]);
@@ -258,24 +259,24 @@ function buildObject(item: RoomAnalysis['items'][number], room: RoomAnalysis['ro
 }
 
 export async function POST(req: NextRequest) {
-  // گارد مالک — تولید AI فقط برای مدیر
+  // Owner guard — AI generation is for the admin only
   if (!(await getOwner(req))) {
     return NextResponse.json(
-      { error: 'برای این عملیات باید به‌عنوان مدیر وارد شوید' },
+      { error: 'You must be signed in as the admin for this operation' },
       { status: 401 },
     );
   }
 
   const body = await readJsonBody(req);
   if (!body.ok) {
-    return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
   }
 
   try {
     const parsed = bodySchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'توصیف فضا را بین ۳ تا ۶۰۰ کاراکتر وارد کنید' },
+        { error: 'Enter a room description between 3 and 600 characters' },
         { status: 400 },
       );
     }
@@ -295,7 +296,7 @@ export async function POST(req: NextRequest) {
         });
         const content = completion?.choices?.[0]?.message?.content;
         if (typeof content !== 'string' || !content.trim()) {
-          throw new Error('پاسخ خالی از مدل');
+          throw new Error('Empty response from model');
         }
         analysis = normalizeAnalysis(extractJsonObject(content));
       } catch (err) {
@@ -305,7 +306,7 @@ export async function POST(req: NextRequest) {
 
     if (!analysis) {
       return NextResponse.json(
-        { error: 'طراحی فضا با هوش مصنوعی ناموفق بود — دوباره تلاش کنید' },
+        { error: 'AI room design failed — please try again' },
         { status: 502 },
       );
     }
@@ -326,12 +327,12 @@ export async function POST(req: NextRequest) {
       roomType: analysis.roomType,
       roomSpec,
       objects,
-      description: `طراحی با ${objects.length.toLocaleString('fa-IR')} قطعه از توصیف متنی شما ساخته شد`,
+      description: `Designed ${objects.length.toLocaleString('en-US')} items from your text description`,
     });
   } catch (err) {
     console.error('POST /api/ai/room failed:', err);
     return NextResponse.json(
-      { error: 'طراحی فضا با هوش مصنوعی ناموفق بود' },
+      { error: 'AI room design failed' },
       { status: 502 },
     );
   }

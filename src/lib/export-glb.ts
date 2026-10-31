@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 
-/** خروجی GLB از گروه ریشه صحنه (استاندارد glTF دودویی) */
+/** Export a GLB from the scene root group (binary glTF standard) */
 export async function exportGroupToGLB(
   group: THREE.Object3D,
   filename: string

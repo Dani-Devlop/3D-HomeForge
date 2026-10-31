@@ -3,7 +3,7 @@ import { requireOwner } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 // ============================================================
-// GET /api/admin/stats — آمار کلی پنل مدیریت (فقط مدیر)
+// GET /api/admin/stats — overall admin panel statistics (admin only)
 // ============================================================
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const roomTypes: Record<string, number> = {};
     for (const g of roomGroups) roomTypes[g.roomType] = g._count._all;
 
-    // پروژه‌هایی که هر کدام از بازدید/اجرا/اتمامشان در بازه دیروز تا ۴۵ روز بعد است
+    // Projects where any of visit/install/due falls within yesterday → 45 days ahead
     const windowStart = new Date(Date.now() - DAY);
     const windowEnd = new Date(Date.now() + 45 * DAY);
     const inRange = (d: Date | null) => !!d && d >= windowStart && d < windowEnd;
@@ -91,6 +91,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('GET /api/admin/stats failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

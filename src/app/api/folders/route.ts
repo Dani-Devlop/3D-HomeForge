@@ -6,7 +6,7 @@ import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/folders — فهرست و ساخت پوشه مشتری (هر پوشه = یک مشتری؛ همه پروژه‌های او)
+// /api/folders — list and create client folders (each folder = one client; all their projects)
 // ============================================================
 
 interface FolderDTO {
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ folders: folders.map(serializeFolder) });
   } catch (err) {
     console.error('GET /api/folders failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -55,17 +55,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = createSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'نام مشتری را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
+        { error: 'Enter a client name between 1 and 60 characters' },
         { status: 400 },
       );
     }
 
-    // پوشه تکراری با همان نام → همان پوشه موجود برگرردد (پوشه = مشتری)
+    // Duplicate folder with the same name → return the existing folder (folder = client)
     const existing = await db.folder.findFirst({
       where: { name: parsed.data.name },
       include: { _count: { select: { projects: true } } },
@@ -84,6 +84,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ folder: serializeFolder(folder) }, { status: 201 });
   } catch (err) {
     console.error('POST /api/folders failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

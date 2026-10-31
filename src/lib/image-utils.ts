@@ -1,13 +1,13 @@
-// ابزارهای کار با تصویر در سمت کلاینت
+// Client-side image utilities
 
-/** فایل عکس را به dataURL با حداکثر بعد مشخص تبدیل می‌کند (برای ارسال به AI) */
+/** Convert an image file to a dataURL with a maximum dimension (for sending to AI) */
 export async function fileToResizedDataUrl(
   file: File,
   maxDim = 1280,
   quality = 0.82
 ): Promise<string> {
   if (!file.type.startsWith('image/')) {
-    throw new Error('فقط فایل تصویری مجاز است');
+    throw new Error('Only image files are allowed');
   }
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
@@ -17,16 +17,16 @@ export async function fileToResizedDataUrl(
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('عدم پشتیبانی مرورگر');
+  if (!ctx) throw new Error('Browser not supported');
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
   return canvas.toDataURL('image/jpeg', quality);
 }
 
-/** استخراج فریم‌های پراکنده از ویدیو برای تحلیل AI (بدون نیاز به پوشش کامل ۳۶۰ درجه) */
+/** Extract sparse frames from a video for AI analysis (no full 360° coverage needed) */
 export async function videoToFrames(file: File, count = 3, maxDim = 1280, quality = 0.8): Promise<string[]> {
   if (!file.type.startsWith('video/')) {
-    throw new Error('فقط فایل ویدیویی مجاز است');
+    throw new Error('Only video files are allowed');
   }
   const url = URL.createObjectURL(file);
   const video = document.createElement('video');
@@ -37,21 +37,21 @@ export async function videoToFrames(file: File, count = 3, maxDim = 1280, qualit
 
   try {
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('خواندن ویدیو بیش از حد طول کشید')), 15000);
+      const timer = setTimeout(() => reject(new Error('Reading the video took too long')), 15000);
       video.onloadeddata = () => {
         clearTimeout(timer);
         resolve();
       };
       video.onerror = () => {
         clearTimeout(timer);
-        reject(new Error('ویدیو قابل پخش نیست'));
+        reject(new Error('Video cannot be played'));
       };
     });
 
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('عدم پشتیبانی مرورگر');
+    if (!ctx) throw new Error('Browser not supported');
 
     const scale = Math.min(1, maxDim / Math.max(video.videoWidth || maxDim, video.videoHeight || maxDim));
     canvas.width = Math.round((video.videoWidth || 1280) * scale);
@@ -59,10 +59,10 @@ export async function videoToFrames(file: File, count = 3, maxDim = 1280, qualit
 
     const frames: string[] = [];
     for (let i = 0; i < count; i++) {
-      // فریم‌ها از ابتدا، میانه و انتهای ویدیو
+      // Frames from the start, middle and end of the video
       const t = duration * ((i + 0.5) / count);
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('جستجوی ویدیو ناموفق بود')), 8000);
+        const timer = setTimeout(() => reject(new Error('Video seek failed')), 8000);
         const onSeeked = () => {
           clearTimeout(timer);
           video.removeEventListener('seeked', onSeeked);

@@ -6,9 +6,9 @@ import { isValidRole } from '@/lib/scene-types';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/guests/[id] — حضور مهمان (heartbeat) و تغییر نقش
-// GET عمومی است ولی پاسخ فقط {id,name,color,role} دارد (بدون shareLinkId)
-// PATCH فقط برای مدیر
+// /api/guests/[id] — guest presence (heartbeat) and role change
+// GET is public but the response only contains {id,name,color,role} (no shareLinkId)
+// PATCH is admin only
 // ============================================================
 
 const patchSchema = z.object({ role: z.unknown() });
@@ -21,10 +21,10 @@ export async function GET(
     const { id } = await params;
     const guest = await db.guest.findUnique({ where: { id } });
     if (!guest) {
-      return NextResponse.json({ error: 'مهمان یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
     }
     await db.guest.update({ where: { id }, data: { lastSeenAt: new Date() } });
-    // پاسخ محدود — بدون shareLinkId
+    // Limited response — no shareLinkId
     return NextResponse.json({
       guest: {
         id: guest.id,
@@ -35,7 +35,7 @@ export async function GET(
     });
   } catch (err) {
     console.error('GET /api/guests/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -51,21 +51,21 @@ export async function PATCH(
     const body = await readJsonBody(req);
     if (!body.ok) {
       return NextResponse.json(
-        { error: 'نقش باید viewer یا modifier باشد' },
+        { error: 'Role must be viewer or modifier' },
         { status: 400 },
       );
     }
     const parsed = patchSchema.safeParse(body.data);
     if (!parsed.success || !isValidRole(parsed.data.role)) {
       return NextResponse.json(
-        { error: 'نقش باید viewer یا modifier باشد' },
+        { error: 'Role must be viewer or modifier' },
         { status: 400 },
       );
     }
 
     const existing = await db.guest.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'مهمان یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Guest not found' }, { status: 404 });
     }
 
     const guest = await db.guest.update({
@@ -82,6 +82,6 @@ export async function PATCH(
     });
   } catch (err) {
     console.error('PATCH /api/guests/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

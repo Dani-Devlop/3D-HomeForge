@@ -1,4 +1,4 @@
-// serialize مشترک نمونه‌کارها (استفاده در route و [id])
+// Shared portfolio serialization (used by route and [id])
 export interface PortfolioRow {
   id: string;
   title: string;
@@ -29,7 +29,7 @@ export function serializePortfolioItem(it: PortfolioRow) {
     description: it.description,
     category: it.category,
     image: it.image,
-    // مدل سه‌بعدی زنده (اگر roomSpec/sceneState ست شده باشد)
+    // Live 3D model (when roomSpec/sceneState is set)
     roomSpec: parseJsonSafe(it.roomSpec),
     sceneState: parseJsonSafe(it.sceneState),
     visible: it.visible,
@@ -39,7 +39,7 @@ export function serializePortfolioItem(it: PortfolioRow) {
   };
 }
 
-// تبدیل ورودی صحنه/اتاق به رشته JSON برای ذخیره در دیتابیس (با سقف حجم)
+// Convert room/scene input to a JSON string for database storage (with a size cap)
 export const MAX_SCENE_CHARS = 500_000;
 
 export function stringifyOrEmpty(value: unknown): string {
@@ -52,7 +52,7 @@ export function stringifyOrEmpty(value: unknown): string {
   }
 }
 
-/** آیا sceneState حداقل یک آبجکت دارد؟ (برای اعتبارسنجی «تصویر یا مدل زنده») */
+/** Does sceneState contain at least one object? (for the "image or live model" validation) */
 export function hasSceneObjects(sceneState: unknown): boolean {
   if (!sceneState || typeof sceneState !== 'object') return false;
   const objects = (sceneState as { objects?: unknown }).objects;

@@ -7,10 +7,10 @@ import { serializeProject, readJsonBody, toDate } from '@/app/api/_lib/serialize
 import { isProjectStage } from '@/lib/crm';
 
 // ============================================================
-// /api/projects — فهرست و ساخت پروژه (فقط مدیر)
-// GET ?folderId=<id> | ?folderId=none | ?q=<جست‌وجو>
-// q در نام/نام مشتری/تلفن/آدرس جست‌وجو می‌شود؛ اگر q الگوی تاریخ
-// YYYY-MM-DD یا YYYY/MM/DD باشد بازدید/اجرا/اتمام همان روز هم چک می‌شود
+// /api/projects — list and create projects (admin only)
+// GET ?folderId=<id> | ?folderId=none | ?q=<search>
+// q searches name/client name/phone/address; if q matches a date pattern
+// YYYY-MM-DD or YYYY/MM/DD, the visit/install/due dates of that day are checked too
 // ============================================================
 
 const projectCount = {
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
         { address: contains },
       ];
 
-      // جست‌وجوی تاریخ: ۱۴۰۳-۰۵-۱۲ یا ۱۴۰۳/۰۵/۱۲ (میلادی) → بازدید/اجرا/اتمام همان روز
+      // Date search: 2024-05-12 or 2024/05/12 (Gregorian) → visit/install/due of the same day
       const m = q.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
       if (m) {
         const y = Number(m[1]);
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       searchFilter = { OR: or };
     }
 
-    // فیلتر پوشه و جست‌وجو با هم AND می‌شوند (کلیدهای متفاوت → spread کافی است)
+    // Folder filter and search are ANDed together (different keys → spreading is enough)
     const where: Prisma.ProjectWhereInput | undefined =
       folderFilter || searchFilter ? { ...folderFilter, ...searchFilter } : undefined;
 
@@ -73,13 +73,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ projects: projects.map(serializeProject) });
   } catch (err) {
     console.error('GET /api/projects failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
 const looseObject = z.record(z.string(), z.unknown());
 
-const MAX_PHOTO_CHARS = 4_000_000; // ~۳MB پس از base64
+const MAX_PHOTO_CHARS = 4_000_000; // ~3MB after base64
 
 const createSchema = z.object({
   name: z.string().min(1).max(80),
@@ -87,21 +87,21 @@ const createSchema = z.object({
   roomSpec: looseObject.optional(),
   sceneState: looseObject.optional(),
   folderId: z.string().min(1).nullable().optional(),
-  // CRM — مشخصات مشتری، مرحله پیشرفت و مذاکره
+  // CRM — client details, progress stage and deal info
   clientName: z.string().max(80).optional(),
   clientPhone: z.string().max(60).optional(),
   address: z.string().max(300).optional(),
-  stage: z.string().refine(isProjectStage, 'مرحله پروژه نامعتبر است').optional(),
+  stage: z.string().refine(isProjectStage, 'Invalid project stage').optional(),
   dealAt: z.string().nullable().optional(),
   contractAmount: z.number().min(0).max(1e12).nullable().optional(),
-  contractPhoto: z.string().max(MAX_PHOTO_CHARS).refine((v) => v === '' || v.startsWith('data:image/'), 'عکس قرارداد باید dataURL تصویر باشد').nullable().optional(),
-  invoicePhoto: z.string().max(MAX_PHOTO_CHARS).refine((v) => v === '' || v.startsWith('data:image/'), 'فاکتور باید dataURL تصویر باشد').nullable().optional(),
+  contractPhoto: z.string().max(MAX_PHOTO_CHARS).refine((v) => v === '' || v.startsWith('data:image/'), 'Contract photo must be an image dataURL').nullable().optional(),
+  invoicePhoto: z.string().max(MAX_PHOTO_CHARS).refine((v) => v === '' || v.startsWith('data:image/'), 'Invoice photo must be an image dataURL').nullable().optional(),
   visitAt: z.string().nullable().optional(),
   installAt: z.string().nullable().optional(),
   dueAt: z.string().nullable().optional(),
 });
 
-/** رشته خالی → null (پاک‌کردن فیلد) */
+/** Empty string → null (clears the field) */
 const toNullIfEmpty = (s: string): string | null => (s === '' ? null : s);
 
 export async function POST(req: NextRequest) {
@@ -111,12 +111,12 @@ export async function POST(req: NextRequest) {
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = createSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'داده ارسالی نامعتبر است' },
+        { error: 'Invalid request data' },
         { status: 400 },
       );
     }
@@ -127,18 +127,18 @@ export async function POST(req: NextRequest) {
       visitAt, installAt, dueAt,
     } = parsed.data;
 
-    /** رشته خالی تصویر → null (حذف عکس) */
+    /** Empty image string → null (removes the photo) */
     const photoOrNull = (s?: string | null): string | null | undefined =>
       s === undefined ? undefined : !s ? null : s;
 
-    // پوشه ارسالی باید موجود باشد
+    // The sent folder must exist
     if (folderId) {
       const folder = await db.folder.findUnique({
         where: { id: folderId },
         select: { id: true },
       });
       if (!folder) {
-        return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 400 });
+        return NextResponse.json({ error: 'Folder not found' }, { status: 400 });
       }
     }
 
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
         ...(contractAmount !== undefined ? { contractAmount } : {}),
         ...(contractPhoto !== undefined ? { contractPhoto: photoOrNull(contractPhoto) } : {}),
         ...(invoicePhoto !== undefined ? { invoicePhoto: photoOrNull(invoicePhoto) } : {}),
-        // رشته خالی/نامعتبر → null (پاک‌کردن تاریخ)
+        // Empty/invalid string → null (clears the date)
         ...(visitAt !== undefined ? { visitAt: toDate(visitAt) } : {}),
         ...(installAt !== undefined ? { installAt: toDate(installAt) } : {}),
         ...(dueAt !== undefined ? { dueAt: toDate(dueAt) } : {}),
@@ -167,6 +167,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ project: serializeProject(project) }, { status: 201 });
   } catch (err) {
     console.error('POST /api/projects failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

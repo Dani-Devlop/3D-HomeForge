@@ -1,15 +1,15 @@
 import crypto from 'crypto';
 
-// توکن اشتراکی امضاشده (HMAC-SHA256): نقش و انقضا درون لینک رمزنگاری می‌شود
-// فرمت: base64url(payload).base64url(signature)
+// Signed share token (HMAC-SHA256): role and expiry are encoded inside the link
+// Format: base64url(payload).base64url(signature)
 
 const SECRET = process.env.SHARE_SECRET || 'cabinet3d-mvp-secret-key-change-in-production';
 
 export interface SharePayload {
   lid: string; // shareLink id
   pid: string; // project id
-  role: string; // نقش پیش‌فرض لینک: viewer | modifier
-  exp: number; // انقضا (epoch ms)
+  role: string; // link default role: viewer | modifier
+  exp: number; // expiry (epoch ms)
 }
 
 export function signShareToken(p: SharePayload): string {
@@ -30,7 +30,7 @@ export function verifyShareToken(token: string): SharePayload | null {
   try {
     const p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as SharePayload;
     if (!p.lid || !p.pid || typeof p.exp !== 'number') return null;
-    if (p.exp < Date.now()) return null; // لینک منقضی شده
+    if (p.exp < Date.now()) return null; // link expired
     return p;
   } catch {
     return null;

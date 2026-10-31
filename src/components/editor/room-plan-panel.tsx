@@ -27,14 +27,14 @@ import {
 } from '@/components/ui/select';
 
 // ============================================================
-// پنل اتاق (وقتی چیزی انتخاب نشده) — دو تب:
-//  • «پلان»: ویرایشگر SVG چندضلعی (دیوار کج / گوشه اضافه)
-//  • «نما و بازشوها»: رنگ دیوار/کف/سقف + ارتفاع اتاق + پنجره‌ها و درب‌ها (بازگردانی قابلیت نسخه ۱)
-// هر دو تب در پنل کناری و دیالوگ پلان کار می‌کنند (وضعیت از استور می‌آید)
+// Room panel (when nothing is selected) — two tabs:
+//  • "Plan": SVG polygon editor (slanted walls / add corners)
+//  • "Facade & openings": wall/floor/ceiling colors + room height + windows and doorways (v1 feature restored)
+// Both tabs work in the side panel and the plan dialog (state comes from the store)
 // ============================================================
 
 const MAX_VERTICES = 12;
-const snap = (n: number) => Math.round(n * 20) / 20; // خوشه ۵ سانتی‌متری
+const snap = (n: number) => Math.round(n * 20) / 20; // 5 cm snapping cluster
 
 interface ViewBox {
   x: number;
@@ -44,13 +44,13 @@ interface ViewBox {
 }
 
 const faNum = (n: number, digits = 1) =>
-  n.toLocaleString('fa-IR', { maximumFractionDigits: digits });
+  n.toLocaleString('en-US', { maximumFractionDigits: digits });
 
-/** نام دیوار هر اندیس لبه در outline مرجع مستطیل */
+/** Wall name for each edge index in the reference rectangle outline */
 const EDGE_TO_NAME: readonly WallName[] = ['back', 'right', 'front', 'left'];
 
-/** برچسب فارسی لبه i (۴ لبه اول با نام، بقیه «لبه N») */
-const edgeLabel = (i: number): string => (i < 4 ? WALL_NAME_FA[EDGE_TO_NAME[i]] : `لبه ${faNum(i + 1, 0)}`);
+/** Label for edge i (first 4 edges by name, the rest "Edge N") */
+const edgeLabel = (i: number): string => (i < 4 ? WALL_NAME_FA[EDGE_TO_NAME[i]] : `Edge ${faNum(i + 1, 0)}`);
 
 function ColorRow({
   label,
@@ -112,7 +112,7 @@ function NumField({
 }
 
 // ============================================================
-// تب پلان — همان ویرایشگر چندضلعی قبلی
+// Plan tab — the same polygon editor as before
 // ============================================================
 
 function PlanEditor({
@@ -124,7 +124,7 @@ function PlanEditor({
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [frozenVb, setFrozenVb] = useState<ViewBox | null>(null); // قاب ثابت حین درگ
+  const [frozenVb, setFrozenVb] = useState<ViewBox | null>(null); // frozen viewBox while dragging
 
   const outline = useMemo<OutlinePoint[]>(() => getRoomOutline(roomSpec), [roomSpec]);
   const hasCustom = normalizeOutline(roomSpec.outline) != null;
@@ -141,7 +141,7 @@ function PlanEditor({
 
   const ptsAttr = outline.map(([x, z]) => `${x},${z}`).join(' ');
 
-  /** مختصات پیکسل → مختصات اتاق (۵ سانت خوشه، داخل کادر ±۸ متر) */
+  /** Pixel coordinates → room coordinates (5 cm snap, clamped to a ±8 m box) */
   const toRoom = (clientX: number, clientY: number): OutlinePoint => {
     const svg = svgRef.current;
     const vb = frozenVb ?? liveViewBox;
@@ -153,7 +153,7 @@ function PlanEditor({
     return [snap(clamp8(x)), snap(clamp8(z))];
   };
 
-  /** اعمال تغییر نقاط — نامعتبر (مساحت ناچیز) نادیده گرفته می‌شود */
+  /** Apply point changes — invalid shapes (negligible area) are ignored */
   const applyPts = (pts: OutlinePoint[]) => {
     if (!normalizeOutline(pts, { minArea: 0.5 })) return;
     onOutlineChange(pts);
@@ -162,7 +162,7 @@ function PlanEditor({
   const startDrag = (e: React.PointerEvent, idx: number) => {
     e.stopPropagation();
     e.preventDefault();
-    setFrozenVb(liveViewBox); // قاب ثابت حین درگ تا پرش نداشته باشیم
+    setFrozenVb(liveViewBox); // freeze the viewBox while dragging to avoid jumps
     setDragIdx(idx);
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
@@ -204,7 +204,7 @@ function PlanEditor({
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold flex items-center gap-1.5">
           <PencilRuler className="h-4 w-4 text-primary" />
-          پلان اتاق
+          Room plan
         </h3>
         <Button
           size="sm"
@@ -212,10 +212,10 @@ function PlanEditor({
           className="h-8 gap-1.5 text-xs"
           onClick={reset}
           disabled={!hasCustom}
-          aria-label="بازگشت پلان به مستطیل"
+          aria-label="Reset plan to rectangle"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          مستطیل
+          Rectangle
         </Button>
       </div>
 
@@ -225,7 +225,7 @@ function PlanEditor({
           viewBox={`${activeVb.x} ${activeVb.y} ${activeVb.w} ${activeVb.h}`}
           className="w-full select-none touch-none"
           role="img"
-          aria-label="پلان دوبعدی اتاق — گوشه‌ها را بکشید"
+          aria-label="2D room plan — drag the corners"
           onPointerMove={onDragMove}
           onPointerUp={endDrag}
           onPointerLeave={endDrag}
@@ -237,10 +237,10 @@ function PlanEditor({
             </pattern>
           </defs>
 
-          {/* شبکه راهنما */}
+          {/* Guide grid */}
           <rect x={activeVb.x} y={activeVb.y} width={activeVb.w} height={activeVb.h} fill="url(#plan-grid)" />
 
-          {/* کف اتاق */}
+          {/* Room floor */}
           <polygon
             points={ptsAttr}
             className="fill-stone-200/80 dark:fill-stone-700/60"
@@ -249,7 +249,7 @@ function PlanEditor({
             strokeLinejoin="round"
           />
 
-          {/* دستگیره درج گوشه («+») روی وسط هر دیوار */}
+          {/* Corner-insert handle ("+") at the middle of each wall */}
           {outline.map((p, i) => {
             const q = outline[(i + 1) % outline.length];
             const mx = (p[0] + q[0]) / 2;
@@ -260,7 +260,7 @@ function PlanEditor({
                 key={`mid-${i}`}
                 onPointerDown={(e) => insertVertex(e, i)}
                 className={disabled ? '' : 'cursor-copy'}
-                aria-label={`افزودن گوشه روی دیوار ${i + 1}`}
+                aria-label={`Add corner on wall ${i + 1}`}
               >
                 <circle cx={mx} cy={mz} r="0.12" fill="#fff" stroke="#16a34a" strokeWidth="0.03" strokeDasharray="0.05 0.04" />
                 <text x={mx} y={mz} fontSize="0.17" textAnchor="middle" dominantBaseline="central" fill="#16a34a" pointerEvents="none" fontWeight="bold">
@@ -270,7 +270,7 @@ function PlanEditor({
             );
           })}
 
-          {/* گوشه‌ها (قابل کشیدن) */}
+          {/* Corners (draggable) */}
           {outline.map(([x, z], i) => (
             <g key={`v-${i}`}>
               <circle
@@ -282,13 +282,13 @@ function PlanEditor({
                 strokeWidth="0.035"
                 className="cursor-grab active:cursor-grabbing"
                 onPointerDown={(e) => startDrag(e, i)}
-                aria-label={`گوشه ${i + 1} — بکشید تا جابه‌جا شود`}
+                aria-label={`Corner ${i + 1} — drag to move`}
               />
               {outline.length > 3 && (
                 <g
                   onPointerDown={(e) => removeVertex(e, i)}
                   className="cursor-pointer"
-                  aria-label={`حذف گوشه ${i + 1}`}
+                  aria-label={`Delete corner ${i + 1}`}
                 >
                   {(() => {
                     const dx = x - centroid[0];
@@ -313,19 +313,19 @@ function PlanEditor({
       </div>
 
       <p className="text-xs text-muted-foreground leading-5">
-        گوشه‌های سبز را بکشید تا دیوار کج بسازید (اتاق ۵ضلعی، ذوزنقه و...) •
-        «+» وسط هر دیوار گوشه اضافه می‌کند • «×» گوشه را حذف می‌کند
+        Drag the green corners to create slanted walls (pentagon, trapezoid, etc.) •
+        "+" at the middle of each wall adds a corner • "×" removes a corner
       </p>
 
-      <div className="flex flex-wrap gap-2 text-xs" dir="rtl">
+      <div className="flex flex-wrap gap-2 text-xs" dir="ltr">
         <span className="rounded-full bg-muted px-2.5 py-1">
-          عرض {faNum(bb.w)} × عمق {faNum(bb.d)} متر
+          Width {faNum(bb.w)} × Depth {faNum(bb.d)} m
         </span>
         <span className="rounded-full bg-muted px-2.5 py-1">
-          مساحت {faNum(area)} مترمربع
+          Area {faNum(area)} m²
         </span>
         <span className="rounded-full bg-muted px-2.5 py-1">
-          {faNum(outline.length, 0)} دیوار
+          {faNum(outline.length, 0)} walls
         </span>
       </div>
     </div>
@@ -333,7 +333,7 @@ function PlanEditor({
 }
 
 // ============================================================
-// تب نما و بازشوها — رنگ‌ها، ارتفاع و پنجره/درب (بازگردانی نسخه ۱)
+// Facade & openings tab — colors, height and windows/doors (v1 restore)
 // ============================================================
 
 function WallSelect({
@@ -341,7 +341,7 @@ function WallSelect({
   edgeCount,
   onChange,
 }: {
-  /** اندیس لبه فعلی (wallIndex یا نگاشت نام دیوار) */
+  /** Current edge index (wallIndex or wall-name mapping) */
   edgeIndex: number;
   edgeCount: number;
   onChange: (wall: WallName, wallIndex: number) => void;
@@ -355,13 +355,13 @@ function WallSelect({
         onChange(i < 4 ? EDGE_TO_NAME[i] : 'back', i);
       }}
     >
-      <SelectTrigger className="h-8 text-xs" aria-label="دیوار">
+      <SelectTrigger className="h-8 text-xs" aria-label="Wall">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {Array.from({ length: Math.max(4, edgeCount) }, (_, i) => (
           <SelectItem key={i} value={String(i)} className="text-xs">
-            دیوار {edgeLabel(i)}
+            Wall {edgeLabel(i)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -393,17 +393,17 @@ function FacadeEditor({ roomSpec }: { roomSpec: RoomSpec }) {
   return (
     <ScrollArea className="h-full">
       <div className="p-4 space-y-4">
-        {/* ---- رنگ‌ها ---- */}
+        {/* ---- Colors ---- */}
         <div className="space-y-2.5">
-          <p className="text-xs font-medium text-primary">نمای اتاق</p>
-          <ColorRow label="رنگ دیوار" value={roomSpec.wallColor} onChange={(v) => setRoomSpec({ wallColor: v })} />
-          <ColorRow label="رنگ کف" value={roomSpec.floorColor} onChange={(v) => setRoomSpec({ floorColor: v })} />
-          <ColorRow label="رنگ سقف" value={roomSpec.ceilingColor} onChange={(v) => setRoomSpec({ ceilingColor: v })} />
+          <p className="text-xs font-medium text-primary">Room finish</p>
+          <ColorRow label="Wall color" value={roomSpec.wallColor} onChange={(v) => setRoomSpec({ wallColor: v })} />
+          <ColorRow label="Floor color" value={roomSpec.floorColor} onChange={(v) => setRoomSpec({ floorColor: v })} />
+          <ColorRow label="Ceiling color" value={roomSpec.ceilingColor} onChange={(v) => setRoomSpec({ ceilingColor: v })} />
           <div className="space-y-1.5 pt-1">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">ارتفاع اتاق</Label>
+              <Label className="text-xs">Room height</Label>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {faNum(roomSpec.heightM, 2)} متر
+                {faNum(roomSpec.heightM, 2)} m
               </span>
             </div>
             <Slider
@@ -412,47 +412,47 @@ function FacadeEditor({ roomSpec }: { roomSpec: RoomSpec }) {
               max={3.5}
               step={0.05}
               onValueChange={([v]) => setRoomSpec({ heightM: v })}
-              aria-label="ارتفاع اتاق"
+              aria-label="Room height"
             />
           </div>
         </div>
 
-        {/* ---- بازشوها ---- */}
+        {/* ---- Openings ---- */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-primary">بازشوها</p>
+            <p className="text-xs font-medium text-primary">Openings</p>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px] px-2" onClick={addWindow}>
                 <Plus className="h-3 w-3" />
-                پنجره
+                Window
               </Button>
               <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px] px-2" onClick={addDoorway}>
                 <Plus className="h-3 w-3" />
-                درب
+                Door
               </Button>
             </div>
           </div>
 
           {roomSpec.windows.length === 0 && roomSpec.doorways.length === 0 && (
             <p className="text-[11px] text-muted-foreground leading-5">
-              هنوز پنجره یا دربی نیست — با دکمه‌های بالا اضافه کنید.
+              No windows or doors yet — add them with the buttons above.
             </p>
           )}
 
-          {/* پنجره‌ها */}
+          {/* Windows */}
           {roomSpec.windows.map((w, i) => (
             <div key={`win-${i}`} className="rounded-lg border bg-card p-2.5 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold flex items-center gap-1.5">
                   <AppWindow className="h-3.5 w-3.5 text-primary" />
-                  پنجره {roomSpec.windows.length > 1 ? faNum(i + 1, 0) : ''}
+                  Window {roomSpec.windows.length > 1 ? faNum(i + 1, 0) : ''}
                 </span>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={() => setRoomSpec({ windows: roomSpec.windows.filter((_, j) => j !== i) })}
-                  aria-label={`حذف پنجره ${i + 1}`}
+                  aria-label={`Delete window ${i + 1}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -463,28 +463,28 @@ function FacadeEditor({ roomSpec }: { roomSpec: RoomSpec }) {
                 onChange={(wall, wallIndex) => setWindow(i, { wall, wallIndex })}
               />
               <div className="grid grid-cols-2 gap-2">
-                <NumField label="فاصله از مرکز (متر)" value={w.offsetX} step={0.1} onChange={(v) => setWindow(i, { offsetX: v })} />
-                <NumField label="ارتفاع از کف (متر)" value={w.sillY} step={0.05} min={0} onChange={(v) => setWindow(i, { sillY: v })} />
-                <NumField label="عرض (متر)" value={w.width} step={0.1} min={0.3} onChange={(v) => setWindow(i, { width: v })} />
-                <NumField label="ارتفاع (متر)" value={w.height} step={0.1} min={0.3} onChange={(v) => setWindow(i, { height: v })} />
+                <NumField label="Offset from center (m)" value={w.offsetX} step={0.1} onChange={(v) => setWindow(i, { offsetX: v })} />
+                <NumField label="Height from floor (m)" value={w.sillY} step={0.05} min={0} onChange={(v) => setWindow(i, { sillY: v })} />
+                <NumField label="Width (m)" value={w.width} step={0.1} min={0.3} onChange={(v) => setWindow(i, { width: v })} />
+                <NumField label="Height (m)" value={w.height} step={0.1} min={0.3} onChange={(v) => setWindow(i, { height: v })} />
               </div>
             </div>
           ))}
 
-          {/* درب‌ها */}
+          {/* Doors */}
           {roomSpec.doorways.map((d, i) => (
             <div key={`door-${i}`} className="rounded-lg border bg-card p-2.5 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold flex items-center gap-1.5">
                   <DoorOpen className="h-3.5 w-3.5 text-primary" />
-                  درب {roomSpec.doorways.length > 1 ? faNum(i + 1, 0) : ''}
+                  Door {roomSpec.doorways.length > 1 ? faNum(i + 1, 0) : ''}
                 </span>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={() => setRoomSpec({ doorways: roomSpec.doorways.filter((_, j) => j !== i) })}
-                  aria-label={`حذف درب ${i + 1}`}
+                  aria-label={`Delete door ${i + 1}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -495,9 +495,9 @@ function FacadeEditor({ roomSpec }: { roomSpec: RoomSpec }) {
                 onChange={(wall, wallIndex) => setDoorway(i, { wall, wallIndex })}
               />
               <div className="grid grid-cols-3 gap-2">
-                <NumField label="فاصله از مرکز" value={d.offsetX} step={0.1} onChange={(v) => setDoorway(i, { offsetX: v })} />
-                <NumField label="عرض" value={d.width} step={0.05} min={0.6} onChange={(v) => setDoorway(i, { width: v })} />
-                <NumField label="ارتفاع" value={d.height} step={0.05} min={1.8} onChange={(v) => setDoorway(i, { height: v })} />
+                <NumField label="Offset from center" value={d.offsetX} step={0.1} onChange={(v) => setDoorway(i, { offsetX: v })} />
+                <NumField label="Width" value={d.width} step={0.05} min={0.6} onChange={(v) => setDoorway(i, { width: v })} />
+                <NumField label="Height" value={d.height} step={0.05} min={1.8} onChange={(v) => setDoorway(i, { height: v })} />
               </div>
             </div>
           ))}
@@ -508,7 +508,7 @@ function FacadeEditor({ roomSpec }: { roomSpec: RoomSpec }) {
 }
 
 // ============================================================
-// پنل اصلی با تب‌ها
+// Main panel with tabs
 // ============================================================
 
 export function RoomPlanPanel({
@@ -519,13 +519,13 @@ export function RoomPlanPanel({
   onOutlineChange: (outline: OutlinePoint[] | null) => void;
 }) {
   return (
-    <Tabs defaultValue="plan" dir="rtl" className="h-full flex flex-col" data-testid="room-plan-panel">
+    <Tabs defaultValue="plan" dir="ltr" className="h-full flex flex-col" data-testid="room-plan-panel">
       <TabsList className="mx-3 mt-2 grid grid-cols-2 h-8 shrink-0">
         <TabsTrigger value="plan" className="text-xs">
-          پلان
+          Plan
         </TabsTrigger>
         <TabsTrigger value="facade" className="text-xs">
-          نما و بازشوها
+          Facade & openings
         </TabsTrigger>
       </TabsList>
       <TabsContent value="plan" className="flex-1 min-h-0 mt-0">

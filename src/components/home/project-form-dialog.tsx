@@ -31,14 +31,14 @@ import {
 } from '@/components/ui/select';
 
 // ============================================================
-// دیالوگ کامل پروژه — مشتری، قرارداد و مالی، زمان‌بندی
-// جایگزین CrmDialog قدیمی؛ هم برای ساخت پروژه جدید و هم ویرایش
+// Full project dialog — client, contract & finance, scheduling
+// Replaces the old CrmDialog; used for both creating and editing projects
 // ============================================================
 
-/** فیلدهای خروجی دیالوگ — رشته خالی یعنی «پاک شود» (سرور null می‌کند) */
+/** Dialog output fields — an empty string means "clear" (server stores null) */
 export type ProjectFormSave = ProjectCrmFields & { name?: string };
 
-/** زیرمجموعه‌ای از ProjectDTO برای مقدار اولیه (پروژه موجود یا {}) */
+/** Subset of ProjectDTO used as the initial value (existing project or {}) */
 export interface ProjectFormInitial {
   name?: string;
   clientName?: string | null;
@@ -54,17 +54,17 @@ export interface ProjectFormInitial {
   dueAt?: string | null;
 }
 
-/** نتیجه پیدا/ساختن پوشه مشتری — existed یعنی پوشه از قبل بوده و استفاده شد */
+/** Result of finding/creating the customer folder — existed means the folder already existed and was reused */
 export interface ResolvedCustomerFolder {
   id: string | null;
   existed: boolean;
 }
 
 /**
- * پوشه مشتری را بر اساس نام پیدا یا می‌سازد (پوشه = مشتری).
- * سرور خودش پوشه‌های هم‌نام را یکی می‌کند و پوشه موجود را برمی‌گرداند —
- * پس یک فراخوانی createFolder هم «پیدا کردن» و هم «ساختن» را حل می‌کند.
- * نام خالی → بدون پوشه. خطاهای شبکه به فراخواننده منتقل می‌شود.
+ * Finds or creates the customer folder by name (folder = customer).
+ * The server merges same-named folders and returns the existing one, so a
+ * single createFolder call handles both "find" and "create".
+ * Empty name → no folder. Network errors propagate to the caller.
  */
 export async function resolveCustomerFolder(
   name: string,
@@ -76,7 +76,7 @@ export async function resolveCustomerFolder(
   return { id: res.folder.id, existed: !!res.existed };
 }
 
-// --- تاریخ قرارداد: ورودی date ساده ↔ ISO (ظهر محلی برای جلوگیری از جابه‌جایی روز) ---
+// --- Deal date: plain date input <-> ISO (local noon to avoid day shifts) ---
 const dealIsoToDateInput = (iso: string | null | undefined): string =>
   iso ? iso.slice(0, 10) : '';
 
@@ -120,14 +120,14 @@ function PhotoFieldRow({
       {value ? (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-1.5">
           <img src={value} alt={label} className="h-12 w-16 rounded-md border object-cover shrink-0" />
-          <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">تصویر افزوده شد</p>
+          <p className="text-xs text-muted-foreground flex-1 min-w-0 truncate">Image added</p>
           <Button
             type="button"
             size="icon"
             variant="ghost"
             className="h-7 w-7 shrink-0"
             onClick={onRemove}
-            aria-label={`حذف ${label}`}
+            aria-label={`Remove ${label}`}
           >
             <X className="h-3.5 w-3.5" />
           </Button>
@@ -141,12 +141,12 @@ function PhotoFieldRow({
         >
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : label.includes('فاکتور') ? (
+          ) : label.includes('Invoice') ? (
             <FileText className="h-3.5 w-3.5" />
           ) : (
             <Paperclip className="h-3.5 w-3.5" />
           )}
-          افزودن تصویر
+          Add image
         </button>
       )}
     </div>
@@ -192,12 +192,12 @@ export function ProjectFormDialog({
     if (!file.type.startsWith('image/')) return;
     try {
       setPhotoBusy(field);
-      // عرض ~1100 و کیفیت ۰٫۷۵ برای کوچک‌ماندن حجم dataURL
+      // Width ~1100 and quality 0.75 to keep the dataURL small
       const url = await fileToResizedDataUrl(file, 1100, 0.75);
       if (field === 'contract') setContractPhoto(url);
       else setInvoicePhoto(url);
     } catch {
-      // خواندن ناموفق — بدون تغییر
+      // Read failed — keep the previous value
     } finally {
       setPhotoBusy(null);
     }
@@ -229,7 +229,7 @@ export function ProjectFormDialog({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent dir="rtl" className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent dir="ltr" className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -237,34 +237,34 @@ export function ProjectFormDialog({
         <div className="space-y-4">
           {withName && (
             <div className="space-y-1">
-              <Label className="text-xs">نام پروژه</Label>
+              <Label className="text-xs">Project name</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="مثلاً: آشپزخانه آقای رضایی"
+                placeholder="e.g. Mr. Rezaei kitchen"
                 maxLength={80}
                 autoFocus
               />
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground">همه فیلدها اختیاری هستند</p>
+          <p className="text-[10px] text-muted-foreground">All fields are optional</p>
 
-          {/* ---------- مشتری ---------- */}
+          {/* ---------- Client ---------- */}
           <section className="space-y-2">
-            <h4 className="text-[11px] font-bold text-muted-foreground">مشتری</h4>
+            <h4 className="text-[11px] font-bold text-muted-foreground">Client</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">نام مشتری</Label>
+                <Label className="text-xs">Client name</Label>
                 <Input
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
-                  placeholder="مثلاً: آقای محمدی"
+                  placeholder="e.g. Mr. Mohammadi"
                   maxLength={80}
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">شماره‌های تماس</Label>
+                <Label className="text-xs">Phone numbers</Label>
                 <Input
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
@@ -276,18 +276,18 @@ export function ProjectFormDialog({
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">مکان اجرا</Label>
+              <Label className="text-xs">Installation site</Label>
               <Input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="مثلاً: تهران، سعادت‌آباد، کوچه…"
+                placeholder="e.g. City, neighborhood, street…"
                 maxLength={300}
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">مرحله پیشرفت</Label>
-              <Select value={stage} onValueChange={(v) => setStage(v as ProjectStage)} dir="rtl">
-                <SelectTrigger className="w-full" aria-label="مرحله پیشرفت پروژه">
+              <Label className="text-xs">Progress stage</Label>
+              <Select value={stage} onValueChange={(v) => setStage(v as ProjectStage)} dir="ltr">
+                <SelectTrigger className="w-full" aria-label="Project progress stage">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -301,12 +301,12 @@ export function ProjectFormDialog({
             </div>
           </section>
 
-          {/* ---------- قرارداد و مالی ---------- */}
+          {/* ---------- Contract & finance ---------- */}
           <section className="space-y-2">
-            <h4 className="text-[11px] font-bold text-muted-foreground">قرارداد و مالی</h4>
+            <h4 className="text-[11px] font-bold text-muted-foreground">Contract & finance</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">مبلغ قرارداد</Label>
+                <Label className="text-xs">Contract amount</Label>
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -315,7 +315,7 @@ export function ProjectFormDialog({
                   onChange={(e) => setAmountInput(e.target.value)}
                   dir="ltr"
                   className="text-start"
-                  placeholder="تومان"
+                  placeholder="Toman"
                 />
                 {amountValid && amountNumber !== null ? (
                   <p className="text-[10px] text-muted-foreground tabular-nums">
@@ -326,7 +326,7 @@ export function ProjectFormDialog({
                 )}
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">تاریخ قرارداد</Label>
+                <Label className="text-xs">Contract date</Label>
                 <Input
                   type="date"
                   value={dealAt}
@@ -337,7 +337,7 @@ export function ProjectFormDialog({
               </div>
             </div>
             <PhotoFieldRow
-              label="عکس قرارداد"
+              label="Contract photo"
               value={contractPhoto}
               busy={photoBusy === 'contract'}
               inputRef={contractImgRef}
@@ -345,7 +345,7 @@ export function ProjectFormDialog({
               onRemove={() => setContractPhoto('')}
             />
             <PhotoFieldRow
-              label="فاکتور"
+              label="Invoice"
               value={invoicePhoto}
               busy={photoBusy === 'invoice'}
               inputRef={invoiceImgRef}
@@ -354,12 +354,12 @@ export function ProjectFormDialog({
             />
           </section>
 
-          {/* ---------- زمان‌بندی ---------- */}
+          {/* ---------- Scheduling ---------- */}
           <section className="space-y-2">
-            <h4 className="text-[11px] font-bold text-muted-foreground">زمان‌بندی</h4>
+            <h4 className="text-[11px] font-bold text-muted-foreground">Scheduling</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">زمان بازدید</Label>
+                <Label className="text-xs">Visit date</Label>
                 <Input
                   type="datetime-local"
                   value={visitAt}
@@ -368,7 +368,7 @@ export function ProjectFormDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">زمان اجرا</Label>
+                <Label className="text-xs">Install date</Label>
                 <Input
                   type="datetime-local"
                   value={installAt}
@@ -377,7 +377,7 @@ export function ProjectFormDialog({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">زمان اتمام</Label>
+                <Label className="text-xs">Due date</Label>
                 <Input
                   type="datetime-local"
                   value={dueAt}
@@ -390,17 +390,17 @@ export function ProjectFormDialog({
 
           {!contractPhoto && !invoicePhoto && (
             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <ImageIcon className="h-3 w-3" /> عکس قرارداد و فاکتور اختیاری‌اند و بعداً هم قابل افزودن است
+              <ImageIcon className="h-3 w-3" /> Contract photo and invoice are optional and can be added later
             </p>
           )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            انصراف
+            Cancel
           </Button>
           <Button onClick={submit} disabled={saving || !amountValid || (withName && !name.trim())}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
           </Button>
         </DialogFooter>
       </DialogContent>

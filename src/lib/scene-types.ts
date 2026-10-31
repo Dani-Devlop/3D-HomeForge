@@ -1,39 +1,39 @@
 // ============================================================
-// تایپ‌های مشترک صحنه سه‌بعدی — بین API، ویرایشگر و نمایشگر مشتری
+// Shared 3D scene types — between API, editor and client viewer
 // ============================================================
 
 export type WallName = 'back' | 'front' | 'left' | 'right';
 
-/** نقطه outline اتاق [x, z] بر حسب متر — مرکز اتاق مبدأ */
+/** Room outline point [x, z] in meters — room center is the origin */
 export type OutlinePoint = [number, number];
 
 export interface WindowSpec {
   wall: WallName;
-  /** اندیس لبه outline برای اتاق‌های چندضلعی (دیوار کج) — اگر بود بر wall اولویت دارد */
+  /** Outline edge index for polygonal rooms (slanted wall) — takes priority over wall when present */
   wallIndex?: number;
-  offsetX: number; // فاصله از مرکز دیوار/لبه (متر)
-  sillY: number; // ارتفاع کف پنجره
+  offsetX: number; // distance from the wall/edge center (meters)
+  sillY: number; // window sill height
   width: number;
   height: number;
 }
 
 export interface DoorwaySpec {
   wall: WallName;
-  /** اندیس لبه outline برای اتاق‌های چندضلعی */
+  /** Outline edge index for polygonal rooms */
   wallIndex?: number;
   offsetX: number;
   width: number;
   height: number;
 }
 
-/** مشخصات فضای بازسازی‌شده از عکس */
+/** Room spec reconstructed from a photo */
 export interface RoomSpec {
   widthM: number;
   depthM: number;
   heightM: number;
   /**
-   * پلان اتاق به‌صورت چندضلع (۳..۱۲ گوشه) — برای دیوارهای کج/گوشه‌های اضافی.
-   * غایب = مستطیل ساده widthM×depthM. widthM/depthM باید bbox چندضلع باشند.
+   * Room floor plan as a polygon (3..12 corners) — for slanted walls/extra corners.
+   * Absent = plain widthM×depthM rectangle. widthM/depthM must be the polygon bbox.
    */
   outline?: OutlinePoint[];
   wallColor: string;
@@ -44,37 +44,37 @@ export interface RoomSpec {
 }
 
 export type ObjectType =
-  | 'base' // کابینت زمینی
-  | 'wall' // کابینت دیواری
-  | 'tall' // کابینت بلند / یخچالی
-  | 'island' // جزیره
-  | 'shelf' // قفسه باز
-  | 'fridge' // یخچال
-  | 'stove' // اجاق گاز
-  | 'hood' // هود
-  | 'tv' // تلویزیون
-  | 'sofa' // مبل
-  | 'bed' // تخت
-  | 'table' // میز
-  | 'chair' // صندلی
-  | 'washer' // ماشین لباسشویی
-  | 'dishwasher' // ماشین ظرفشویی
-  | 'microwave' // مایکروویو
-  | 'pendant' // چراغ آویز
-  | 'floor-lamp' // چراغ ایستاده
-  | 'plant' // گیاه
-  | 'rug'; // فرش
+  | 'base' // base cabinet
+  | 'wall' // wall cabinet
+  | 'tall' // tall / fridge cabinet
+  | 'island' // kitchen island
+  | 'shelf' // open shelf
+  | 'fridge' // refrigerator
+  | 'stove' // stove / oven
+  | 'hood' // range hood
+  | 'tv' // TV
+  | 'sofa' // sofa
+  | 'bed' // bed
+  | 'table' // table
+  | 'chair' // chair
+  | 'washer' // washing machine
+  | 'dishwasher' // dishwasher
+  | 'microwave' // microwave
+  | 'pendant' // pendant light
+  | 'floor-lamp' // floor lamp
+  | 'plant' // plant
+  | 'rug'; // rug
 
-/** انواع قابل تشخیص/بازسازی توسط AI و تولید با متن (همه‌چیز برای طراحی کل خانه) */
+/** Types detectable/reconstructable by AI and text generation (everything for whole-home design) */
 export const RECONSTRUCTABLE_TYPES: readonly ObjectType[] = [
   'base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove', 'hood',
   'tv', 'sofa', 'bed', 'table', 'chair', 'washer', 'dishwasher', 'microwave',
 ];
 
-/** انواع دارای درب باز/بسته‌شونده (Mesh States) */
+/** Types with openable doors (Mesh States) */
 export const DOOR_TYPES: readonly ObjectType[] = ['base', 'wall', 'tall', 'island', 'shelf', 'fridge', 'stove', 'washer', 'dishwasher', 'microwave'];
 
-/** انواع دارای روشن/خاموش (چراغ یا صفحه روشن) */
+/** Types with on/off state (light or lit surface) */
 export const LIGHT_TYPES: readonly ObjectType[] = ['pendant', 'floor-lamp', 'hood', 'stove', 'tv'];
 
 export const isDoorType = (t: ObjectType) => DOOR_TYPES.includes(t);
@@ -83,7 +83,7 @@ export const isLightType = (t: ObjectType) => LIGHT_TYPES.includes(t);
 export type HandleType = 'bar' | 'knob' | 'none';
 
 export interface ObjectParams {
-  // کابینت
+  // Cabinet
   w?: number;
   h?: number;
   d?: number;
@@ -93,9 +93,9 @@ export interface ObjectParams {
   doors?: number; // 0..2
   drawers?: number; // 0..3
   handles?: HandleType;
-  mountY?: number; // ارتفاع نصب (کابینت دیواری/هود/تلویزیون/مایکروویو روی کانتر)
-  glass?: boolean; // درب‌های شیشه‌ای (شفاف — هرگز سیاه نیست)
-  // دکور/چراغ
+  mountY?: number; // mount height (wall cabinet/hood/TV/microwave above the counter)
+  glass?: boolean; // glass doors (transparent — never black)
+  // Decor/light
   color?: string;
   scale?: number;
   intensity?: number;
@@ -108,8 +108,8 @@ export interface SceneObject {
   params: ObjectParams;
   position: [number, number, number];
   rotationY: number;
-  open?: boolean; // درب/کشو باز است؟ (Mesh State)
-  on?: boolean; // چراغ روشن است؟
+  open?: boolean; // is the door/drawer open? (Mesh State)
+  on?: boolean; // is the light on?
 }
 
 export interface SceneState {
@@ -119,8 +119,8 @@ export interface SceneState {
 export const defaultSceneState = (): SceneState => ({ objects: [] });
 
 /**
- * تضمین id برای آبجکت‌های فاقد شناسه (دادهٔ قدیمی/وارد‌شده از API) —
- * برای کلید React، انتخاب و ذخیرهٔ مهمان ضروری است.
+ * Guarantee an id for objects without one (legacy data / imported from the API) —
+ * required for React keys, selection and guest saving.
  */
 export function ensureObjectIds(objects: SceneObject[]): SceneObject[] {
   return objects.map((o, i) =>
@@ -130,16 +130,16 @@ export function ensureObjectIds(objects: SceneObject[]): SceneObject[] {
   );
 }
 
-// ---------------- کاتالوگ کتابخانه (پارامتریک) ----------------
+// ---------------- Library catalog (parametric) ----------------
 
 export type CatalogCategory = 'cabinet' | 'appliance' | 'furniture' | 'light' | 'decor';
 
 export const CATALOG_CATEGORY_LABEL: Record<CatalogCategory, string> = {
-  cabinet: 'کابینت‌ها',
-  appliance: 'لوازم موجود',
-  furniture: 'مبلمان خانه',
-  light: 'چراغ‌ها',
-  decor: 'دکور',
+  cabinet: 'Cabinets',
+  appliance: 'Appliances',
+  furniture: 'Furniture',
+  light: 'Lights',
+  decor: 'Decor',
 };
 
 export interface CatalogItem {
@@ -153,9 +153,9 @@ export interface CatalogItem {
 export const CATALOG: CatalogItem[] = [
   {
     type: 'base',
-    label: 'کابینت زمینی',
+    label: 'Base cabinet',
     category: 'cabinet',
-    description: 'کابینت پایه با درب و کشو و صفحه رویه',
+    description: 'Base cabinet with doors, drawers and a countertop',
     defaults: {
       w: 0.8, h: 0.85, d: 0.6,
       bodyColor: '#6b4f3a', doorColor: '#7d5f45', countertopColor: '#d8d3c8',
@@ -164,9 +164,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'base',
-    label: 'کابینت کشودار',
+    label: 'Drawer base cabinet',
     category: 'cabinet',
-    description: 'کابینت پایه با سه کشو',
+    description: 'Base cabinet with three drawers',
     defaults: {
       w: 0.8, h: 0.85, d: 0.6,
       bodyColor: '#5a6b5d', doorColor: '#6b7d6e', countertopColor: '#2f2b28',
@@ -175,9 +175,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'wall',
-    label: 'کابینت دیواری',
+    label: 'Wall cabinet',
     category: 'cabinet',
-    description: 'کابینت بالایی نصب‌شونده روی دیوار',
+    description: 'Upper cabinet mounted on the wall',
     defaults: {
       w: 0.8, h: 0.7, d: 0.35,
       bodyColor: '#8a6d4f', doorColor: '#9a7c5c', countertopColor: '#d8d3c8',
@@ -186,9 +186,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'tall',
-    label: 'کابینت بلند',
+    label: 'Tall cabinet',
     category: 'cabinet',
-    description: 'یونیت تمام‌قد (قفسه پانتری / یخچال)',
+    description: 'Full-height unit (pantry shelf / fridge)',
     defaults: {
       w: 0.6, h: 2.1, d: 0.6,
       bodyColor: '#4f5d75', doorColor: '#5d6d87', countertopColor: '#d8d3c8',
@@ -197,9 +197,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'island',
-    label: 'جزیره',
+    label: 'Island',
     category: 'cabinet',
-    description: 'جزیره مرکزی آشپزخانه با رویه سنگی',
+    description: 'Central kitchen island with a stone countertop',
     defaults: {
       w: 1.6, h: 0.9, d: 0.9,
       bodyColor: '#3f4a5a', doorColor: '#48566a', countertopColor: '#e8e4dc',
@@ -208,9 +208,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'shelf',
-    label: 'قفسه باز',
+    label: 'Open shelf',
     category: 'cabinet',
-    description: 'قفسه چندطبقه بدون درب',
+    description: 'Multi-tier shelf without doors',
     defaults: {
       w: 0.8, h: 1.8, d: 0.35,
       bodyColor: '#8a7357', doorColor: '#8a7357', countertopColor: '#8a7357',
@@ -219,9 +219,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'fridge',
-    label: 'یخچال',
+    label: 'Refrigerator',
     category: 'appliance',
-    description: 'یخچال دو‌درب با دستگیره — درب آن باز می‌شود',
+    description: 'Two-door fridge with a handle — its door opens',
     defaults: {
       w: 0.75, h: 1.8, d: 0.7,
       color: '#b9bec6', bodyColor: '#b9bec6', doorColor: '#cdd2d9',
@@ -230,9 +230,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'stove',
-    label: 'اجاق گاز',
+    label: 'Stove',
     category: 'appliance',
-    description: 'اجاق با فر و صفحه گاز — شعله‌ها قابل روشن/خاموش هستند',
+    description: 'Oven and gas cooktop — flames can be toggled on/off',
     defaults: {
       w: 0.6, h: 0.9, d: 0.6,
       color: '#3d4046', bodyColor: '#4a4e55', doorColor: '#34373c',
@@ -241,9 +241,9 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'hood',
-    label: 'هود',
+    label: 'Range hood',
     category: 'appliance',
-    description: 'هود آشپزخانه با چراغ — نصب روی دیوار بالای اجاق',
+    description: 'Kitchen hood with a light — mounted on the wall above the stove',
     defaults: {
       w: 0.6, h: 0.14, d: 0.5,
       color: '#aab0b8', bodyColor: '#aab0b8',
@@ -252,97 +252,97 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'pendant',
-    label: 'چراغ آویز',
+    label: 'Pendant light',
     category: 'light',
-    description: 'چراغ سقفی آویزان با نور قابل کنترل',
+    description: 'Hanging ceiling light with controllable glow',
     defaults: {
       color: '#f59e0b', scale: 1, intensity: 1.4, mountY: 2.3,
     },
   },
   {
     type: 'floor-lamp',
-    label: 'چراغ ایستاده',
+    label: 'Floor lamp',
     category: 'light',
-    description: 'آباژور زمینی با نور گرم',
+    description: 'Standing lamp with a warm glow',
     defaults: {
       color: '#b45309', scale: 1, intensity: 1.1,
     },
   },
   {
     type: 'plant',
-    label: 'گیاه دکوری',
+    label: 'Decorative plant',
     category: 'decor',
-    description: 'گلدان با گیاه سبز',
+    description: 'Potted green plant',
     defaults: { color: '#2e7d32', scale: 1 },
   },
   {
     type: 'rug',
-    label: 'فرش',
+    label: 'Rug',
     category: 'decor',
-    description: 'فرش کف با رنگ دلخواه',
+    description: 'Floor rug in any color',
     defaults: { color: '#9c4a3c', scale: 1 },
   },
   {
     type: 'tv',
-    label: 'تلویزیون',
+    label: 'TV',
     category: 'furniture',
-    description: 'تلویزیون نصب روی دیوار — صفحه قابل روشن/خاموش',
+    description: 'Wall-mounted TV — screen can be toggled on/off',
     defaults: { w: 1.2, h: 0.7, d: 0.06, color: '#101318', bodyColor: '#1b1f26', mountY: 1.4 },
   },
   {
     type: 'sofa',
-    label: 'مبل راحتی',
+    label: 'Sofa',
     category: 'furniture',
-    description: 'مبل سه‌نفره با کوسن',
+    description: 'Three-seat sofa with a cushion',
     defaults: { w: 2.0, h: 0.8, d: 0.9, color: '#5d6b7a', bodyColor: '#4e5a68' },
   },
   {
     type: 'bed',
-    label: 'تخت دو‌نفره',
+    label: 'Double bed',
     category: 'furniture',
-    description: 'تخت با تشک و لحاف و بالش',
+    description: 'Bed with mattress, duvet and pillows',
     defaults: { w: 1.6, h: 0.55, d: 2.0, color: '#8d6e63', bodyColor: '#6d4c41' },
   },
   {
     type: 'table',
-    label: 'میز غذاخوری',
+    label: 'Dining table',
     category: 'furniture',
-    description: 'میز با چهار پایه',
+    description: 'Table with four legs',
     defaults: { w: 1.5, h: 0.75, d: 0.9, color: '#7a5c3f', bodyColor: '#6b4e34' },
   },
   {
     type: 'chair',
-    label: 'صندلی',
+    label: 'Chair',
     category: 'furniture',
-    description: 'صندلی با پشتی',
+    description: 'Chair with a backrest',
     defaults: { w: 0.45, h: 0.9, d: 0.5, color: '#6b4e34' },
   },
   {
     type: 'washer',
-    label: 'ماشین لباسشویی',
+    label: 'Washing machine',
     category: 'appliance',
-    description: 'ماشین لباسشویی با درب گرد — درب باز می‌شود',
+    description: 'Washing machine with a round door — the door opens',
     defaults: { w: 0.6, h: 0.85, d: 0.6, color: '#e8eaee', bodyColor: '#dfe2e8' },
   },
   {
     type: 'dishwasher',
-    label: 'ماشین ظرفشویی',
+    label: 'Dishwasher',
     category: 'appliance',
-    description: 'ماشین ظرفشویی با دستگیره — درب باز می‌شود',
+    description: 'Dishwasher with a handle — the door opens',
     defaults: { w: 0.6, h: 0.85, d: 0.6, color: '#c9cdd4', bodyColor: '#c2c7cf', doors: 1, handles: 'bar' },
   },
   {
     type: 'microwave',
-    label: 'مایکروویو',
+    label: 'Microwave',
     category: 'appliance',
-    description: 'مایکروویو رومیزی با پنجره شیشه‌ای روشن',
+    description: 'Countertop microwave with a lit glass window',
     defaults: { w: 0.5, h: 0.3, d: 0.38, color: '#2c2f35', bodyColor: '#33373e', mountY: 0.9 },
   },
 ];
 
-// ---------------- جانمایی روی دیوار (مشترک بین AI و UI) ----------------
+// ---------------- Wall placement (shared between AI and UI) ----------------
 
-/** اندیس لبه هر دیوار نامی در outline مرجع مستطیل */
+/** Edge index of each named wall in the reference rectangle outline */
 export const WALL_NAME_EDGE: Record<WallName, number> = {
   back: 0,
   right: 1,
@@ -350,15 +350,15 @@ export const WALL_NAME_EDGE: Record<WallName, number> = {
   left: 3,
 };
 
-/** برچسب فارسی دیوارها (پنل نما و بازشوها و ...) */
+/** Wall labels (views & openings panel, etc.) */
 export const WALL_NAME_FA: Record<WallName, string> = {
-  back: 'پشت',
-  front: 'جلو',
-  left: 'چپ',
-  right: 'راست',
+  back: 'Back',
+  front: 'Front',
+  left: 'Left',
+  right: 'Right',
 };
 
-/** نقطه قرارگیری آبجکت با عمق مشخص روی دیوار — offsetX از مرکز دیوار (متر) */
+/** Place an object of a given depth on a wall — offsetX from the wall center (meters) */
 export function placeAtWall(
   wall: WallName,
   offsetX: number,
@@ -380,8 +380,8 @@ export function placeAtWall(
 }
 
 /**
- * نقطه قرارگیری آبجکت روی لبه i از outline اتاق (دیوار کج هم پشتیبانی می‌شود) —
- * offsetAlong = فاصله از مرکز لبه در راستای لبه (متر)
+ * Place an object on edge i of the room outline (slanted walls supported too) —
+ * offsetAlong = distance from the edge center along the edge (meters)
  */
 export function placeAtEdge(
   outline: OutlinePoint[],
@@ -397,7 +397,7 @@ export function placeAtEdge(
   const len = Math.max(0.05, Math.hypot(bx - ax, bz - az));
   const dirX = (bx - ax) / len;
   const dirZ = (bz - az) / len;
-  const inX = -dirZ; // نرمال داخلی برای winding مثبت
+  const inX = -dirZ; // inward normal for positive winding
   const inZ = dirX;
   const inset = objDepth / 2 + 0.02;
   return {
@@ -410,12 +410,12 @@ export function placeAtEdge(
   };
 }
 
-// ---------------- پچ ویرایش متنی آبجکت (خروجی /api/ai/edit) ----------------
+// ---------------- Text-edit object patch (output of /api/ai/edit) ----------------
 
 export interface ObjectPatch {
-  /** جابه‌جایی نسبی بر حسب متر */
+  /** Relative movement in meters */
   positionDelta?: [number, number, number];
-  /** چرخش نسبی بر حسب رادیان */
+  /** Relative rotation in radians */
   rotationYDelta?: number;
   params?: ObjectParams;
   label?: string;
@@ -423,7 +423,7 @@ export interface ObjectPatch {
   on?: boolean;
 }
 
-// ---------------- پالت رنگ مهمان‌ها ----------------
+// ---------------- Guest color palette ----------------
 
 export const GUEST_COLORS = [
   '#e11d48', '#059669', '#d97706', '#7c3aed',
@@ -436,7 +436,7 @@ export const guestColorFor = (seed: string): string => {
   return GUEST_COLORS[hash % GUEST_COLORS.length];
 };
 
-// ---------------- اعتبارسنجی نقش‌ها ----------------
+// ---------------- Role validation ----------------
 
 export type ShareRole = 'viewer' | 'modifier';
 

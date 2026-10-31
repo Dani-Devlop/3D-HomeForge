@@ -11,6 +11,7 @@ import { BedMesh, ChairMesh, SofaMesh, TableMesh, TvMesh } from './furniture';
 import { RoomMesh } from './room';
 import { SceneEnvironment } from './editor-scene';
 import { applyToneMapping } from './scene-quality';
+import { useSceneBackground } from './scene-background';
 
 function ViewerTransform({
   targetId,
@@ -74,6 +75,8 @@ export default function ViewerScene(props: ViewerSceneProps) {
     onSelect(id);
   };
 
+  const sceneBg = useSceneBackground();
+
   return (
     <Canvas
       shadows
@@ -82,12 +85,12 @@ export default function ViewerScene(props: ViewerSceneProps) {
       camera={{ position: cameraPos, fov: 50 }}
       gl={{ antialias: true }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#cdc6ba');
         applyToneMapping(gl);
       }}
       onPointerMissed={() => handleSelect(null)}
     >
       <SceneEnvironment />
+      <color attach="background" args={[sceneBg]} />
       <OrbitControls
         makeDefault
         enableDamping

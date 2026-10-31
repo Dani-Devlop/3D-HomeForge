@@ -5,7 +5,7 @@ import { requireOwner } from '@/lib/auth';
 import { parseJsonSafe, readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/presets — ذخیره و بازیابی ترکیب‌های آماده کابینت
+// /api/presets — save and retrieve ready-made cabinet presets
 // ============================================================
 
 const createSchema = z.object({
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('GET /api/presets failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = createSchema.safeParse(body.data);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const preset = await db.preset.create({
       data: { name: parsed.data.name, data: JSON.stringify(parsed.data.data) },
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error('POST /api/presets failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -73,16 +73,16 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get('id');
     if (!id) {
-      return NextResponse.json({ error: 'شناسه پریست الزامی است' }, { status: 400 });
+      return NextResponse.json({ error: 'Preset id is required' }, { status: 400 });
     }
     const existing = await db.preset.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'پریست یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Preset not found' }, { status: 404 });
     }
     await db.preset.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/presets failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

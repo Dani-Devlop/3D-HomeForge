@@ -1,13 +1,13 @@
 'use client';
 
 // ============================================================
-// لایه کیفیت مشترک همه صحنه‌های سه‌بعدی — حس رندر حرفه‌ای
-// ۱) Environment + Lightformer — استودیوی داخلی برای بازتاب PBR
-//    (فلز/شیشه/رویه براق چیزی برای بازتاباندن پیدا می‌کنند — بدون فایل HDR)
-// نکته: SoftShadows (PCSS) عمداً حذف شد — پچ سراسری شیدر آن با چند Canvas
-// هم‌زمان (مثلاً کارت‌های زنده لندینگ) تداخل می‌کند و شیدر سایه را خراب می‌کند.
-// سایه نرم = PCFSoftShadowMap که خود R3F با prop `shadows` فعال می‌کند.
-// یک بار داخل هر Canvas رندر می‌شود (داخل SceneEnvironment بعد از نورها)
+// Shared quality layer for all 3D scenes — a professional render feel
+// 1) Environment + Lightformer — built-in studio for PBR reflections
+//    (metal/glass/glossy countertops have something to reflect — no HDR file)
+// Note: SoftShadows (PCSS) was deliberately removed — its global shader patch
+// conflicts with multiple concurrent Canvases (e.g. live landing cards) and breaks the shadow shader.
+// Soft shadows = PCFSoftShadowMap, which R3F itself enables via the `shadows` prop.
+// Rendered once inside each Canvas (inside SceneEnvironment after the lights)
 // ============================================================
 
 import * as THREE from 'three';
@@ -16,9 +16,9 @@ import { Environment, Lightformer } from '@react-three/drei';
 export function SceneQuality() {
   return (
     <>
-      {/* محیط استودیویی — فقط environment map است، پس‌زمینه صحنه عوض نمی‌شود */}
+      {/* Studio environment — it is only an environment map; the scene background is unchanged */}
       <Environment resolution={128} frames={1}>
-        {/* پنل سقفی بزرگ و نرم (نور اصلی محیط) */}
+        {/* Large soft ceiling panel (main environment light) */}
         <Lightformer
           intensity={2.2}
           color="#fff2e0"
@@ -26,7 +26,7 @@ export function SceneQuality() {
           rotation-x={Math.PI / 2}
           scale={[6, 2, 1]}
         />
-        {/* دو پنل جانبی سرد برای بُعد */}
+        {/* Two cool side panels for depth */}
         <Lightformer
           intensity={0.6}
           color="#dfe8f0"
@@ -41,7 +41,7 @@ export function SceneQuality() {
           rotation-y={-Math.PI / 2}
           scale={[3, 2, 1]}
         />
-        {/* بازتاب گرم ملایم از کف */}
+        {/* Gentle warm reflection from the floor */}
         <Lightformer
           intensity={0.3}
           color="#ffe6c7"
@@ -55,8 +55,8 @@ export function SceneQuality() {
 }
 
 /**
- * تون‌مپینگ فیلمیک برای همه Canvas ها — در onCreated صدا زده می‌شود.
- * با preserveDrawingBuffer (تامب‌نیل‌ها) سازگار است.
+ * Filmic tone mapping for all Canvases — called in onCreated.
+ * Compatible with preserveDrawingBuffer (thumbnails).
  */
 export function applyToneMapping(gl: THREE.WebGLRenderer) {
   gl.toneMapping = THREE.ACESFilmicToneMapping;

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { requireOwner } from '@/lib/auth';
 
 // ============================================================
-// /api/projects/[id]/guests — همه مهمان‌های همه لینک‌های اشتراکی پروژه (فقط مدیر)
+// /api/projects/[id]/guests — all guests of every share link of a project (admin only)
 // ============================================================
 
 export async function GET(
@@ -17,7 +17,7 @@ export async function GET(
     const { id } = await params;
     const project = await db.project.findUnique({ where: { id }, select: { id: true } });
     if (!project) {
-      return NextResponse.json({ error: 'پروژه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
     const guests = await db.guest.findMany({
@@ -37,6 +37,6 @@ export async function GET(
     });
   } catch (err) {
     console.error('GET /api/projects/[id]/guests failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

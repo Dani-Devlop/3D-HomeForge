@@ -9,7 +9,7 @@ import { shadeHex, stoneCountertopTexture, woodGrainTexture } from './textures';
 
 export type RefsMap = Map<string, THREE.Group>;
 
-/** استیل دستگیره‌ها — بازتاب قوی محیط برای حس فلز واقعی */
+/** Handle steel — strong environment reflection for a real-metal feel */
 const HANDLE_STEEL = {
   color: '#c9c9cf',
   metalness: 0.95,
@@ -28,8 +28,8 @@ export interface MeshCtx {
   onToggleLight?: (id: string) => void;
 }
 
-const OPEN_ANGLE = 1.75; // زاویه باز شدن درب (رادیان)
-const DRAWER_OUT = 0.34; // بیرون آمدن کشو (متر)
+const OPEN_ANGLE = 1.75; // Door opening angle (radians)
+const DRAWER_OUT = 0.34; // Drawer extension (meters)
 
 function useCursor(pointer: boolean) {
   return (e: { stopPropagation: () => void }) => {
@@ -38,11 +38,11 @@ function useCursor(pointer: boolean) {
   };
 }
 
-/** درب لولادار با انیمیشن نرم (الگوی Mesh States) — حالت شیشه‌ای: شفاف آبی-سبز روشن، هرگز سیاه */
+/** Hinged door with smooth animation (Mesh States pattern) — glass variant: bright blue-green transparent, never black */
 function HingedDoor({
   width,
   height,
-  side, // -1 = لولا چپ، +1 = لولا راست
+  side, // -1 = hinge left, +1 = hinge right
   open,
   color,
   handle,
@@ -52,16 +52,16 @@ function HingedDoor({
   glass,
   onClick,
 }: {
-  width: number; // عرض هر درب
+  width: number; // Width of each door
   height: number;
-  side: 1 | -1; // -1 = لولا سمت چپ کابینت، +1 = لولا سمت راست
+  side: 1 | -1; // -1 = hinge on the cabinet's left, +1 = hinge on the right
   open: boolean;
   color: string;
   handle: string;
   zBase: number;
-  hingeX: number; // فاصله لولا از مرکز کابینت (≈ w/2)
-  yCenter: number; // ارتفاع مرکز درب از مبدأ کابینت
-  glass?: boolean; // درب شیشه‌ای شفاف با قاب باریک
+  hingeX: number; // hinge distance from the cabinet center (≈ w/2)
+  yCenter: number; // door center height from the cabinet origin
+  glass?: boolean; // transparent glass door with a narrow frame
   onClick: (e: { stopPropagation: () => void }) => void;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -74,7 +74,7 @@ function HingedDoor({
   });
   const hover = useCursor(true);
 
-  // رگه چوب درب — تولید یک‌بار به‌ازای هر رنگ (کش ماژول textures)
+  // Door wood grain — generated once per color (textures module cache)
   const doorTex = useMemo(() => woodGrainTexture(color), [color]);
   const woodMat = doorTex ? (
     <meshPhysicalMaterial
@@ -94,7 +94,7 @@ function HingedDoor({
       envMapIntensity={0.7}
     />
   );
-  // قاب باریک دور درب شیشه‌ای — همان رگه
+  // Narrow frame around the glass door — same grain
   const frameMat = doorTex ? (
     <meshStandardMaterial map={doorTex} color="#ffffff" roughness={0.5} envMapIntensity={0.6} />
   ) : (
@@ -117,8 +117,8 @@ function HingedDoor({
       </mesh>
     ) : null;
 
-  const T = 0.03; // ضخامت قاب دور شیشه
-  const D = 0.028; // عمق قاب
+  const T = 0.03; // Glass frame thickness
+  const D = 0.028; // Frame depth
 
   return (
     <group
@@ -134,7 +134,7 @@ function HingedDoor({
             document.body.style.cursor = 'auto';
           }}
         >
-          {/* شیشه شفاف روشن با درخشش خیلی ملایم — هرگز سیاه */}
+          {/* Bright transparent glass with a very soft glow — never black */}
           <mesh castShadow>
             <boxGeometry args={[width, height, 0.014]} />
             <meshStandardMaterial
@@ -149,7 +149,7 @@ function HingedDoor({
               side={THREE.DoubleSide}
             />
           </mesh>
-          {/* قاب باریک دور شیشه — بالا و پایین */}
+          {/* Narrow frame around the glass — top and bottom */}
           <mesh position={[0, height / 2 - T / 2, 0]} castShadow>
             <boxGeometry args={[width, T, D]} />
             {frameMat}
@@ -158,7 +158,7 @@ function HingedDoor({
             <boxGeometry args={[width, T, D]} />
             {frameMat}
           </mesh>
-          {/* قاب باریک دور شیشه — چپ و راست */}
+          {/* Narrow frame around the glass — left and right */}
           <mesh position={[-width / 2 + T / 2, 0, 0]} castShadow>
             <boxGeometry args={[T, height - T * 2, D]} />
             {frameMat}
@@ -187,7 +187,7 @@ function HingedDoor({
   );
 }
 
-/** کشوی کشیدنی با انیمیشن نرم */
+/** Pull-out drawer with smooth animation */
 function Drawer({
   width,
   height,
@@ -240,7 +240,7 @@ function Drawer({
   );
 }
 
-/** کابینت پارامتریک: بدنه + درب/کشو + دستگیره + رویه + قفسه */
+/** Parametric cabinet: body + door/drawer + handle + countertop + shelf */
 export function CabinetMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -262,7 +262,7 @@ export function CabinetMesh(ctx: MeshCtx) {
     onSelect(obj.id, !!e.shiftKey);
   };
 
-  // ارتفاع بخش درب‌ها: کشوها بالای درب‌ها هستند
+  // Door section height: drawers sit above the doors
   const drawerH = drawerCount > 0 ? Math.min(0.22, h / (drawerCount + 1)) : 0;
   const drawersTop = drawerCount * drawerH;
   const doorsH = h - drawersTop;
@@ -273,7 +273,7 @@ export function CabinetMesh(ctx: MeshCtx) {
     return Array.from({ length: n }, (_, i) => ((i + 1) * h) / (n + 1));
   }, [isShelf, h]);
 
-  // بافت‌ها — بدنه کمی تیره‌تر از درب‌ها، رویه سنگ صیقلی (کش ماژول textures)
+  // Textures — body slightly darker than the doors, polished stone countertop (textures module cache)
   const bodyTex = useMemo(() => woodGrainTexture(shadeHex(bodyColor, -0.18)), [bodyColor]);
   const counterTex = useMemo(() => stoneCountertopTexture(counterColor), [counterColor]);
   const shelfTex = useMemo(() => woodGrainTexture(doorColor), [doorColor]);
@@ -295,7 +295,7 @@ export function CabinetMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={selectHandler}
     >
-      {/* بدنه — رگه چوب تیره‌تر */}
+      {/* Body — darker wood grain */}
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, h, d]} />
         <meshStandardMaterial
@@ -307,7 +307,7 @@ export function CabinetMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.02} color="#f59e0b" />}
       </mesh>
 
-      {/* داخل تیره (وقتی درب باز می‌شود دیده می‌شود) */}
+      {/* Dark interior (visible when the door opens) */}
       {!isShelf && (
         <mesh position={[0, drawersTop + doorsH / 2, d / 2 + 0.002]}>
           <boxGeometry args={[w * 0.94, Math.max(0.05, doorsH * 0.94), 0.008]} />
@@ -321,7 +321,7 @@ export function CabinetMesh(ctx: MeshCtx) {
         </mesh>
       )}
 
-      {/* قفسه‌های داخلی قفسه باز */}
+      {/* Interior shelves of the open shelf unit */}
       {isShelf &&
         shelves.map((y, i) => (
           <mesh key={i} position={[0, y, 0.01]} castShadow>
@@ -335,7 +335,7 @@ export function CabinetMesh(ctx: MeshCtx) {
           </mesh>
         ))}
 
-      {/* رویه سنگی/چوبی — سنگ صیقلی با بازتاب محیط */}
+      {/* Stone/wood countertop — polished stone with environment reflection */}
       {hasCounter && (
         <mesh position={[0, h + 0.02, 0]} castShadow receiveShadow>
           <boxGeometry args={[w + 0.05, 0.04, d + 0.05]} />
@@ -349,7 +349,7 @@ export function CabinetMesh(ctx: MeshCtx) {
         </mesh>
       )}
 
-      {/* درب‌ها */}
+      {/* Doors */}
       {doorCount === 1 && doorsH > 0.05 && (
         <HingedDoor
           width={w - 0.02}
@@ -396,7 +396,7 @@ export function CabinetMesh(ctx: MeshCtx) {
         </>
       )}
 
-      {/* کشوها */}
+      {/* Drawers */}
       {Array.from({ length: drawerCount }, (_, i) => (
         <Drawer
           key={i}

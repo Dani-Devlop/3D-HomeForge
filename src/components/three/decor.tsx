@@ -14,7 +14,7 @@ const unhover = () => {
   document.body.style.cursor = 'auto';
 };
 
-/** چراغ آویز با نور قابل کنترل */
+/** Pendant light with a controllable bulb */
 export function PendantMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect, onToggleLight } = ctx;
   const p = obj.params;
@@ -41,18 +41,18 @@ export function PendantMesh(ctx: MeshCtx) {
       position={obj.position}
       onClick={select}
     >
-      {/* سیم */}
+      {/* Cord */}
       <mesh position={[0, -0.25 * scale, 0]}>
         <cylinderGeometry args={[0.008, 0.008, 0.5 * scale, 8]} />
         <meshStandardMaterial color="#3a3a3a" roughness={0.6} />
       </mesh>
-      {/* کاسه */}
+      {/* Shade */}
       <mesh position={[0, -0.55 * scale, 0]} castShadow onClick={click} onPointerOver={hoverCursor} onPointerOut={unhover}>
         <cylinderGeometry args={[0.05 * scale, 0.2 * scale, 0.22 * scale, 24, 1, true]} />
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.4} side={THREE.DoubleSide} />
         {selected && <Edges scale={1.03} color="#f59e0b" />}
       </mesh>
-      {/* لامپ */}
+      {/* Bulb */}
       <mesh position={[0, -0.63 * scale, 0]}>
         <sphereGeometry args={[0.055 * scale, 16, 16]} />
         <meshStandardMaterial
@@ -74,7 +74,7 @@ export function PendantMesh(ctx: MeshCtx) {
   );
 }
 
-/** چراغ ایستاده (آباژور) با نور قابل کنترل */
+/** Floor lamp with a controllable bulb */
 export function FloorLampMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect, onToggleLight } = ctx;
   const p = obj.params;
@@ -101,17 +101,17 @@ export function FloorLampMesh(ctx: MeshCtx) {
       position={obj.position}
       onClick={select}
     >
-      {/* پایه */}
+      {/* Base */}
       <mesh position={[0, 0.02 * scale, 0]} castShadow>
         <cylinderGeometry args={[0.16 * scale, 0.19 * scale, 0.04 * scale, 24]} />
         <meshStandardMaterial color="#3a3532" roughness={0.5} metalness={0.4} />
       </mesh>
-      {/* میله */}
+      {/* Pole */}
       <mesh position={[0, 0.75 * scale, 0]} castShadow>
         <cylinderGeometry args={[0.018 * scale, 0.018 * scale, 1.42 * scale, 12]} />
         <meshStandardMaterial color="#4a4540" roughness={0.4} metalness={0.6} />
       </mesh>
-      {/* کاسه */}
+      {/* Shade */}
       <mesh position={[0, 1.52 * scale, 0]} castShadow onClick={click} onPointerOver={hoverCursor} onPointerOut={unhover}>
         <cylinderGeometry args={[0.14 * scale, 0.2 * scale, 0.26 * scale, 24, 1, true]} />
         <meshStandardMaterial
@@ -136,7 +136,7 @@ export function FloorLampMesh(ctx: MeshCtx) {
   );
 }
 
-/** گیاه دکوری */
+/** Decorative plant */
 export function PlantMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -166,18 +166,18 @@ export function PlantMesh(ctx: MeshCtx) {
       scale={scale}
       onClick={select}
     >
-      {/* گلدان */}
+      {/* Pot */}
       <mesh position={[0, 0.16, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.13, 0.1, 0.32, 20]} />
         <meshStandardMaterial color="#b0663f" roughness={0.6} envMapIntensity={0.5} />
         {selected && <Edges scale={1.03} color="#f59e0b" />}
       </mesh>
-      {/* خاک */}
+      {/* Soil */}
       <mesh position={[0, 0.32, 0]}>
         <cylinderGeometry args={[0.115, 0.115, 0.02, 20]} />
         <meshStandardMaterial color="#3d2f24" roughness={1} />
       </mesh>
-      {/* برگ‌ها */}
+      {/* Leaves */}
       {blobs.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, y, z]} castShadow>
           <icosahedronGeometry args={[r, 1]} />
@@ -188,7 +188,7 @@ export function PlantMesh(ctx: MeshCtx) {
   );
 }
 
-/** فرش */
+/** Rug */
 export function RugMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -214,7 +214,7 @@ export function RugMesh(ctx: MeshCtx) {
         <meshStandardMaterial color={color} roughness={1} />
         {selected && <Edges scale={1.01} color="#f59e0b" />}
       </mesh>
-      {/* حاشیه */}
+      {/* Border */}
       <mesh position={[0, 0.002, 0]}>
         <boxGeometry args={[1.78 * scale, 0.03, 1.18 * scale]} />
         <meshStandardMaterial color="#d9c5ae" roughness={1} />

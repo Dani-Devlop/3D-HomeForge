@@ -8,6 +8,7 @@ import type { RoomSpec, SceneObject } from '@/lib/scene-types';
 import { normalizeOutline, outlineBBox } from '@/lib/polygon';
 import { SceneEnvironment } from './editor-scene';
 import { applyToneMapping } from './scene-quality';
+import { useSceneBackground } from './scene-background';
 import { RoomMesh } from './room';
 import { CabinetMesh, type MeshCtx, type RefsMap } from './cabinet';
 import { FloorLampMesh, PendantMesh, PlantMesh, RugMesh } from './decor';
@@ -22,8 +23,8 @@ import {
 } from './appliance';
 
 // ============================================================
-// صحنه سه‌بعدی زنده نمونه‌کار — همان موتور ویرایشگر، داخل کارت لندینگ
-// چرخش خودکار + چرخش با درگ + تعامل درب/چراغ (Mesh States)
+// Portfolio live 3D scene — the same engine as the editor, inside a landing card
+// Auto-rotate + drag rotation + door/light interaction (Mesh States)
 // ============================================================
 
 const clampNum = (v: unknown, min: number, max: number, dflt: number) => {
@@ -31,13 +32,13 @@ const clampNum = (v: unknown, min: number, max: number, dflt: number) => {
   return Number.isNaN(n) ? dflt : Math.min(max, Math.max(min, n));
 };
 
-/** نرمال‌سازی roomSpec ناقص از دیتابیس به RoomSpec کامل و امن */
+/** Normalize an incomplete database roomSpec into a complete, safe RoomSpec */
 export function normalizeRoomSpec(
   raw: Partial<RoomSpec> | Record<string, never> | null | undefined,
 ): RoomSpec {
   const s = (raw ?? {}) as Partial<RoomSpec>;
   const outline = normalizeOutline(s.outline) ?? undefined;
-  // با outline معتبر، ابعاد مرجع باید bbox پلان باشند
+  // With a valid outline, the reference dimensions must be the plan's bbox
   let widthM = clampNum(s.widthM, 2, 15, 4.2);
   let depthM = clampNum(s.depthM, 2, 15, 3.6);
   if (outline) {
@@ -58,7 +59,7 @@ export function normalizeRoomSpec(
   };
 }
 
-/** آبجکت‌های معتبر صحنه (بدون آبجکت خراب/ناقص) — id غایب تضمین می‌شود (کلید React) */
+/** Valid scene objects (drops broken/incomplete ones) — a missing id is guaranteed to be filled (React key) */
 export function normalizeSceneObjects(raw: unknown): SceneObject[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -76,7 +77,7 @@ export function normalizeSceneObjects(raw: unknown): SceneObject[] {
     }));
 }
 
-/** آیا این نمونه‌کار مدل سه‌بعدی زنده دارد؟ */
+/** Does this portfolio item have a live 3D model? */
 export function hasLiveScene(sceneState: unknown): boolean {
   return (
     !!sceneState &&
@@ -131,7 +132,7 @@ export default function PortfolioScene({
 }: {
   roomSpec: Partial<RoomSpec> | Record<string, never> | null | undefined;
   sceneState: { objects?: SceneObject[] } | Record<string, never> | null | undefined;
-  /** چرخش خودکار (در پیش‌نمایش مدیریت خاموش می‌شود) */
+  /** Auto-rotate (turned off in the preview) */
   autoRotate?: boolean;
 }) {
   const spec = useMemo(() => normalizeRoomSpec(roomSpec), [roomSpec]);
@@ -140,7 +141,7 @@ export default function PortfolioScene({
     [sceneState],
   );
 
-  // تعامل زنده: باز/بسته درب‌ها و روشن/خاموش چراغ‌ها بدون تغییر داده اصلی
+  // Live interaction: open/close doors and toggle lights without changing the underlying data
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const refsMap = useRef<RefsMap>(new Map()).current;
 
@@ -180,7 +181,7 @@ export default function PortfolioScene({
     onToggleLight: toggleLight,
   });
 
-  // دوربین: نمای عروسکی از بالا-جلو متناسب با ابعاد اتاق
+  // Camera: dollhouse view from above-front scaled to the room size
   const dist = useMemo(() => Math.hypot(spec.widthM, spec.depthM) * 0.95 + 1.0, [spec]);
   const cameraPos = useMemo<[number, number, number]>(
     () => [dist * 0.72, Math.max(2.4, dist * 0.5), dist * 0.85],
@@ -188,9 +189,11 @@ export default function PortfolioScene({
   );
   const target = useMemo<[number, number, number]>(() => [0, spec.heightM * 0.32, 0], [spec]);
 
-  // فقط وقتی کارت در دید است رندر شود (کارایی — چند صحنه در یک صفحه)
+  // Render only while the card is in view (performance — multiple scenes on one page)
   const holderRef = useRef<HTMLDivElement>(null);
   const inView = useInView(holderRef, { once: true, margin: '160px' });
+
+  const sceneBg = useSceneBackground();
 
   return (
     <div ref={holderRef} className="absolute inset-0">
@@ -201,11 +204,11 @@ export default function PortfolioScene({
           camera={{ position: cameraPos, fov: 46 }}
           gl={{ antialias: true }}
           onCreated={({ gl }) => {
-            gl.setClearColor('#cdc6ba');
             applyToneMapping(gl);
           }}
         >
           <SceneEnvironment />
+          <color attach="background" args={[sceneBg]} />
           <OrbitControls
             makeDefault={false}
             enableDamping

@@ -35,16 +35,16 @@ import { api, type GuestDTO, type ShareLinkDTO } from '@/lib/api';
 import type { ShareRole } from '@/lib/scene-types';
 
 const ROLE_LABEL: Record<ShareRole, string> = {
-  viewer: 'نمایشگر (فقط تعامل با درب/چراغ)',
-  modifier: 'ویرایشگر (جابه‌جایی کابینت)',
+  viewer: 'Viewer (can only interact with doors/lights)',
+  modifier: 'Editor (can move cabinets)',
 };
 
 const ROLE_SHORT: Record<ShareRole, string> = {
-  viewer: 'نمایشگر',
-  modifier: 'ویرایشگر',
+  viewer: 'Viewer',
+  modifier: 'Editor',
 };
 
-/** مقداری که بعد از #/s/ می‌آید — کد کوتاه اگر هست، وگرنه توکن کامل */
+/** The value that follows #/s/ — the short code if present, otherwise the full token */
 export function shareSlug(link: Pick<ShareLinkDTO, 'shortCode' | 'token'>): string {
   return link.shortCode || link.token;
 }
@@ -62,17 +62,17 @@ function LinkRow({ link }: { link: ShareLinkDTO }) {
       api.patchShareLink({ id: link.id, ...p }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['share-links'] });
-      toast({ title: 'لینک به‌روزرسانی شد و بلافاصله برای مشتری اعمال می‌شود' });
+      toast({ title: 'Link updated — viewers see the change immediately' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(shareUrl(link));
-      toast({ title: 'لینک کپی شد ✓' });
+      toast({ title: 'Link copied ✓' });
     } catch {
-      toast({ title: 'کپی نشد', description: shareUrl(link), variant: 'destructive' });
+      toast({ title: 'Copy failed', description: shareUrl(link), variant: 'destructive' });
     }
   };
 
@@ -83,29 +83,29 @@ function LinkRow({ link }: { link: ShareLinkDTO }) {
     <div className="rounded-lg border bg-card p-3 space-y-2 min-w-0">
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant={link.active && !expired ? 'default' : 'secondary'}>
-          {expired ? 'منقضی' : link.active ? 'فعال' : 'غیرفعال'}
+          {expired ? 'Expired' : link.active ? 'Active' : 'Inactive'}
         </Badge>
         <Badge variant="outline" className="gap-1">
           {link.role === 'viewer' ? <Eye className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
           {ROLE_SHORT[link.role]}
         </Badge>
         <span className="text-xs text-muted-foreground">
-          تا {new Date(link.expiresAt).toLocaleDateString('fa-IR')}
-          {typeof link.guestCount === 'number' && ` • ${link.guestCount} بازدیدکننده`}
+          Expires {new Date(link.expiresAt).toLocaleDateString('en-US')}
+          {typeof link.guestCount === 'number' && ` • ${link.guestCount} viewers`}
         </span>
         <div className="ms-auto flex items-center gap-1">
           <Switch
             checked={link.active && !expired}
             disabled={expired}
             onCheckedChange={(v) => patch.mutate({ active: v })}
-            aria-label="فعال/غیرفعال کردن لینک"
+            aria-label="Enable/disable link"
           />
-          <Button size="icon" variant="ghost" onClick={copy} title="کپی لینک" aria-label="کپی لینک">
+          <Button size="icon" variant="ghost" onClick={copy} title="Copy link" aria-label="Copy link">
             <Copy className="h-4 w-4" />
           </Button>
         </div>
       </div>
-      {/* لینک کوتاه — همیشه یک خط کوتاه و قابل کپی */}
+      {/* Short link — always a short, copyable single line */}
       <button
         type="button"
         dir="ltr"
@@ -115,7 +115,7 @@ function LinkRow({ link }: { link: ShareLinkDTO }) {
       >
         {shareUrl(link)}
       </button>
-      <p className="text-[10px] text-muted-foreground">کد لینک: <span dir="ltr" className="font-mono">{slug}</span> — با کلیک روی نوار بالا یا دکمه کپی، لینک کامل کپی می‌شود</p>
+      <p className="text-[10px] text-muted-foreground">Link code: <span dir="ltr" className="font-mono">{slug}</span> — click the bar above or the copy button to copy the full link</p>
     </div>
   );
 }
@@ -127,9 +127,9 @@ function GuestRow({ guest, projectId }: { guest: GuestDTO; projectId: string }) 
     mutationFn: (role: ShareRole) => api.patchGuest(guest.id, role),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-guests', projectId] });
-      toast({ title: `دسترسی ${guest.name} تغییر کرد` });
+      toast({ title: `Access for ${guest.name} updated` });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   return (
@@ -145,17 +145,17 @@ function GuestRow({ guest, projectId }: { guest: GuestDTO; projectId: string }) 
         <p className="text-sm font-medium truncate">{guest.name}</p>
         {guest.createdAt && (
           <p className="text-xs text-muted-foreground">
-            {new Date(guest.createdAt).toLocaleString('fa-IR')}
+            {new Date(guest.createdAt).toLocaleString('en-US')}
           </p>
         )}
       </div>
       <Select value={guest.role} onValueChange={(v) => patch.mutate(v as ShareRole)}>
-        <SelectTrigger className="w-32 sm:w-36 h-9 text-xs shrink-0" aria-label={`سطح دسترسی ${guest.name}`}>
+        <SelectTrigger className="w-32 sm:w-36 h-9 text-xs shrink-0" aria-label={`Access level for ${guest.name}`}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="viewer">نمایشگر</SelectItem>
-          <SelectItem value="modifier">ویرایشگر</SelectItem>
+          <SelectItem value="viewer">Viewer</SelectItem>
+          <SelectItem value="modifier">Editor</SelectItem>
         </SelectContent>
       </Select>
     </div>
@@ -200,13 +200,13 @@ export function ShareDialog({
       qc.invalidateQueries({ queryKey: ['share-links'] });
       try {
         await navigator.clipboard.writeText(shareUrl(res.link));
-        toast({ title: 'لینک کوتاه ساخته و کپی شد ✓', description: 'برای مشتری ارسال کنید' });
+        toast({ title: 'Share link created and copied ✓', description: 'Send it to your client' });
       } catch {
-        toast({ title: 'لینک ساخته شد', description: shareUrl(res.link) });
+        toast({ title: 'Link created', description: shareUrl(res.link) });
       }
     },
     onError: (e: Error) =>
-      toast({ title: 'خطا در ساخت لینک', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Failed to create link', description: e.message, variant: 'destructive' }),
   });
 
   return (
@@ -215,20 +215,20 @@ export function ShareDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
-            اشتراک‌گذاری پروژه
+            Share project
           </DialogTitle>
           <DialogDescription>
-            لینک کوتاه بدون نیاز به ثبت‌نام — نقش دسترسی درون لینک ذخیره می‌شود.
+            Short links, no sign-up required — the access role is embedded in the link.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="links" dir="rtl">
+        <Tabs defaultValue="links" dir="ltr">
           <TabsList className="grid grid-cols-2 w-full">
             <TabsTrigger value="links" className="gap-1.5">
-              <Link2 className="h-4 w-4" /> لینک‌ها
+              <Link2 className="h-4 w-4" /> Links
             </TabsTrigger>
             <TabsTrigger value="guests" className="gap-1.5">
-              <Users className="h-4 w-4" /> بازدیدکنندگان
+              <Users className="h-4 w-4" /> Visitors
               {guestsQ.data?.guests?.length ? (
                 <Badge variant="secondary" className="ms-1 h-5 px-1.5">
                   {guestsQ.data.guests.length}
@@ -239,25 +239,25 @@ export function ShareDialog({
 
           <TabsContent value="links" className="space-y-4 pt-3">
             <div className="rounded-lg border bg-muted/40 p-3 space-y-3">
-              <Label className="text-sm font-medium">ساخت لینک جدید</Label>
+              <Label className="text-sm font-medium">Create a new link</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Select value={newRole} onValueChange={(v) => setNewRole(v as ShareRole)}>
-                  <SelectTrigger aria-label="نقش پیش‌فرض">
-                    <SelectValue placeholder="نقش" />
+                  <SelectTrigger aria-label="Default role">
+                    <SelectValue placeholder="Role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="viewer">نمایشگر</SelectItem>
-                    <SelectItem value="modifier">ویرایشگر</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                    <SelectItem value="modifier">Editor</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={expiry} onValueChange={setExpiry}>
-                  <SelectTrigger aria-label="مدت اعتبار">
-                    <SelectValue placeholder="اعتبار" />
+                  <SelectTrigger aria-label="Expiration">
+                    <SelectValue placeholder="Expiry" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">۱ روز</SelectItem>
-                    <SelectItem value="7">۷ روز</SelectItem>
-                    <SelectItem value="30">۳۰ روز</SelectItem>
+                    <SelectItem value="1">1 day</SelectItem>
+                    <SelectItem value="7">7 days</SelectItem>
+                    <SelectItem value="30">30 days</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -267,18 +267,18 @@ export function ShareDialog({
                 disabled={create.isPending}
               >
                 <Plus className="h-4 w-4" />
-                {create.isPending ? 'در حال ساخت...' : 'ساخت لینک اشتراکی'}
+                {create.isPending ? 'Creating...' : 'Create share link'}
               </Button>
             </div>
 
             <div className="space-y-2">
               {linksQ.isLoading ? (
-                <p className="text-sm text-muted-foreground text-center py-4">در حال بارگذاری...</p>
+                <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
               ) : linksQ.data?.links?.length ? (
                 linksQ.data.links.map((l) => <LinkRow key={l.id} link={l} />)
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  هنوز لینکی نساخته‌اید
+                  No links created yet
                 </p>
               )}
             </div>
@@ -286,7 +286,7 @@ export function ShareDialog({
 
           <TabsContent value="guests" className="space-y-2 pt-3">
             {guestsQ.isLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">در حال بارگذاری...</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
             ) : guestsQ.data?.guests?.length ? (
               guestsQ.data.guests.map((g) => (
                 <GuestRow key={g.id} guest={g} projectId={projectId} />
@@ -295,7 +295,7 @@ export function ShareDialog({
               <div className="text-center py-8 space-y-2">
                 <Link2Off className="h-8 w-8 mx-auto text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">
-                  هنوز کسی با لینک وارد نشده است
+                  No one has joined via a link yet
                 </p>
               </div>
             )}

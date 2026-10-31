@@ -1,8 +1,8 @@
 'use client';
 
 // ============================================================
-// مبلمان خانه سه‌بعدی — تلویزیون، مبل، تخت، میز، صندلی
-// الگوها اقتباس‌شده از cabinet.tsx (MeshCtx/Edges) و appliance.tsx (هاور/نور)
+// 3D home furniture — TV, sofa, bed, table, chair
+// Patterns adapted from cabinet.tsx (MeshCtx/Edges) and appliance.tsx (hover/light)
 // ============================================================
 
 import { useMemo } from 'react';
@@ -10,8 +10,8 @@ import { Edges } from '@react-three/drei';
 import type { MeshCtx } from './cabinet';
 import { woodGrainTexture } from './textures';
 
-const EDGE = '#f59e0b'; // رنگ لبه‌های حالت انتخاب
-const LEG_DARK = '#2a2118'; // پایه‌های چوبی تیره
+const EDGE = '#f59e0b'; // Selection edge color
+const LEG_DARK = '#2a2118'; // Dark wooden legs
 
 const hoverCursor = (e: { stopPropagation: () => void }) => {
   e.stopPropagation();
@@ -21,7 +21,7 @@ const unhover = () => {
   document.body.style.cursor = 'auto';
 };
 
-/** روشن/تیره کردن رنگ هگز (amount مثبت = مخلوط با سفید، منفی = با مشکی) */
+/** Lighten/darken a hex color (positive amount = mix with white, negative = with black) */
 function shadeColor(hex: string, amount: number): string {
   const n = hex.replace('#', '');
   const full = n.length === 3 ? n.split('').map((c) => c + c).join('') : n;
@@ -34,7 +34,7 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((mix(r) << 16) | (mix(g) << 8) | mix(b)).toString(16).padStart(6, '0')}`;
 }
 
-/** تلویزیون دیواری — مبدأ گروه در ارتفاع نصب (position.y = mountY)؛ کلیک صفحه = روشن/خاموش */
+/** Wall-mounted TV — group origin at the mount height (position.y = mountY); click screen = toggle power */
 export function TvMesh(ctx: MeshCtx) {
   const { obj, selected, canInteract, refsMap, onSelect, onToggleLight } = ctx;
   const p = obj.params;
@@ -64,13 +64,13 @@ export function TvMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* براکت دیواری پشت پنل */}
+      {/* Wall bracket behind the panel */}
       <mesh position={[0, 0, -d / 2 - 0.025]} castShadow>
         <boxGeometry args={[0.2, 0.2, 0.05]} />
         <meshStandardMaterial color="#3a3d42" roughness={0.5} metalness={0.5} />
       </mesh>
 
-      {/* قاب اصلی پنل (کلیک = چراغ/صفحه) */}
+      {/* Main panel frame (click = light/screen) */}
       <mesh
         position={[0, 0, 0]}
         castShadow
@@ -84,7 +84,7 @@ export function TvMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* صفحه نمایش — وقتی روشن است پرنور و زنده می‌درخشد */}
+      {/* Display — glows bright and lively when on */}
       <mesh
         position={[0, 0, d / 2 + 0.006]}
         castShadow
@@ -103,7 +103,7 @@ export function TvMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.01} color={EDGE} />}
       </mesh>
 
-      {/* نور پخش صفحه هنگام روشن بودن */}
+      {/* Screen glow light while on */}
       {on && (
         <pointLight
           position={[0, 0, 0.35]}
@@ -117,7 +117,7 @@ export function TvMesh(ctx: MeshCtx) {
   );
 }
 
-/** مبل سه‌نفره — بدنه + نشیمن + پشتی + دسته‌ها + کوسن */
+/** Three-seat sofa — body + seat cushions + backrest + arms + pillows */
 export function SofaMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -134,8 +134,8 @@ export function SofaMesh(ctx: MeshCtx) {
 
   const legH = 0.1;
   const baseH = 0.32;
-  const baseY = legH + baseH / 2; // مرکز بدنه
-  const seatTop = legH + baseH; // ۰.۴۲
+  const baseY = legH + baseH / 2; // Body center
+  const seatTop = legH + baseH; // 0.42
   const cushionH = 0.14;
   const armW = 0.16;
   const innerW = w - armW * 2;
@@ -152,7 +152,7 @@ export function SofaMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* پایه‌های چوبی */}
+      {/* Wooden legs */}
       {[
         [-w / 2 + 0.12, -d / 2 + 0.12],
         [w / 2 - 0.12, -d / 2 + 0.12],
@@ -165,14 +165,14 @@ export function SofaMesh(ctx: MeshCtx) {
         </mesh>
       ))}
 
-      {/* بدنه اصلی */}
+      {/* Main body */}
       <mesh position={[0, baseY, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, baseH, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.95} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* کوسن‌های نشیمن (۲ یا ۳ تکه) */}
+      {/* Seat cushions (2 or 3 pieces) */}
       {Array.from({ length: nCushions }, (_, i) => (
         <mesh
           key={`cushion-${i}`}
@@ -188,14 +188,14 @@ export function SofaMesh(ctx: MeshCtx) {
         </mesh>
       ))}
 
-      {/* پشتی */}
+      {/* Backrest */}
       <mesh position={[0, seatTop + backH / 2 - 0.02, -d / 2 + 0.09]} castShadow>
         <boxGeometry args={[w, backH, 0.18]} />
         <meshStandardMaterial color={bodyColor} roughness={0.95} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* دسته‌های کناری */}
+      {/* Side arms */}
       <mesh position={[-w / 2 + armW / 2, seatTop / 2 + 0.06, 0]} castShadow>
         <boxGeometry args={[armW, seatTop + 0.12, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.95} />
@@ -205,7 +205,7 @@ export function SofaMesh(ctx: MeshCtx) {
         <meshStandardMaterial color={bodyColor} roughness={0.95} />
       </mesh>
 
-      {/* دو کوسن تزئینی چرخیده */}
+      {/* Two tilted decorative pillows */}
       <mesh position={[-w / 4, seatTop + 0.14, -d / 2 + 0.3]} rotation={[-0.18, 0, 0.22]} castShadow>
         <boxGeometry args={[0.34, 0.34, 0.1]} />
         <meshStandardMaterial color={shadeColor(color, 0.25)} roughness={0.95} />
@@ -218,14 +218,14 @@ export function SofaMesh(ctx: MeshCtx) {
   );
 }
 
-/** تخت دو‌نفره — قاب + تشک + لحاف + بالش + تاج */
+/** Double bed — frame + mattress + blanket + pillows + headboard */
 export function BedMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
   const w = p.w ?? 1.6;
   const h = p.h ?? 0.55;
   const d = p.d ?? 2.0;
-  const color = p.color ?? '#8d6e63'; // رنگ لحاف
+  const color = p.color ?? '#8d6e63'; // Blanket color
   const bodyColor = p.bodyColor ?? '#6d4c41';
   const mattressColor = '#e8e2d8';
 
@@ -236,11 +236,11 @@ export function BedMesh(ctx: MeshCtx) {
 
   const legH = 0.12;
   const mattressH = 0.2;
-  const frameH = Math.min(0.4, Math.max(0.15, h - legH - mattressH)); // ارتفاع قاب از پارامتر h
+  const frameH = Math.min(0.4, Math.max(0.15, h - legH - mattressH)); // Frame height derived from the h param
   const frameTop = legH + frameH;
   const mattressD = d - 0.15;
   const mattressTop = frameTop + mattressH;
-  const blanketD = mattressD * 0.55 + 0.06; // پوشش ۵۵٪ پایین + کمی بیشتر
+  const blanketD = mattressD * 0.55 + 0.06; // Covers the bottom 55% + a bit more
   const blanketZ = mattressD / 2 - blanketD / 2 + 0.03;
 
   return (
@@ -252,7 +252,7 @@ export function BedMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* پایه‌ها */}
+      {/* Legs */}
       {[
         [-w / 2 + 0.1, -d / 2 + 0.1],
         [w / 2 - 0.1, -d / 2 + 0.1],
@@ -265,38 +265,38 @@ export function BedMesh(ctx: MeshCtx) {
         </mesh>
       ))}
 
-      {/* قاب تخت */}
+      {/* Bed frame */}
       <mesh position={[0, legH + frameH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, frameH, d]} />
         <meshStandardMaterial color={bodyColor} roughness={0.75} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* تاج تخت (سمت سر — پشت صحنه) */}
+      {/* Headboard (head side — toward the back) */}
       <mesh position={[0, legH + 0.35, -d / 2 + 0.04]} castShadow>
         <boxGeometry args={[w, 0.7, 0.08]} />
         <meshStandardMaterial color={bodyColor} roughness={0.75} />
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* تشک روشن */}
+      {/* Light mattress */}
       <mesh position={[0, frameTop + mattressH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w - 0.1, mattressH, mattressD]} />
         <meshStandardMaterial color={mattressColor} roughness={0.95} />
       </mesh>
 
-      {/* لحاف روی نیمه پایین (سمت پا) */}
+      {/* Blanket over the lower half (foot side) */}
       <mesh position={[0, mattressTop + 0.04, blanketZ]} castShadow>
         <boxGeometry args={[w + 0.02, 0.1, blanketD]} />
         <meshStandardMaterial color={color} roughness={0.95} />
       </mesh>
-      {/* ریزش لحاف از دو طرف تشک */}
+      {/* Blanket draping down the mattress sides */}
       <mesh position={[0, mattressTop - 0.06, blanketZ]}>
         <boxGeometry args={[w + 0.045, 0.12, blanketD - 0.06]} />
         <meshStandardMaterial color={shadeColor(color, -0.12)} roughness={0.95} />
       </mesh>
 
-      {/* دو بالش سفید سمت سر */}
+      {/* Two white pillows on the head side */}
       <mesh position={[-w / 4 - 0.02, mattressTop + 0.07, -mattressD / 2 + 0.26]} rotation-x={-0.12} castShadow>
         <boxGeometry args={[0.55, 0.12, 0.35]} />
         <meshStandardMaterial color="#f4f1ea" roughness={0.95} />
@@ -309,7 +309,7 @@ export function BedMesh(ctx: MeshCtx) {
   );
 }
 
-/** میز غذاخوری — رویه + چهار پایه */
+/** Dining table — top + four legs */
 export function TableMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -328,7 +328,7 @@ export function TableMesh(ctx: MeshCtx) {
   const legH = h - topH;
   const inset = 0.08;
 
-  // رگه چوب میز — تولید یک‌بار به‌ازای هر رنگ (کش ماژول textures)
+  // Table wood grain — generated once per color (textures module cache)
   const topTex = useMemo(() => woodGrainTexture(color), [color]);
   const legTex = useMemo(() => woodGrainTexture(bodyColor), [bodyColor]);
 
@@ -341,7 +341,7 @@ export function TableMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* رویه میز */}
+      {/* Tabletop */}
       <mesh position={[0, h - topH / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[w, topH, d]} />
         <meshStandardMaterial
@@ -353,7 +353,7 @@ export function TableMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.02} color={EDGE} />}
       </mesh>
 
-      {/* چهار پایه */}
+      {/* Four legs */}
       {[
         [-w / 2 + inset, -d / 2 + inset],
         [w / 2 - inset, -d / 2 + inset],
@@ -374,7 +374,7 @@ export function TableMesh(ctx: MeshCtx) {
   );
 }
 
-/** صندلی — نشیمن + پشتی + چهار پایه */
+/** Chair — seat + backrest + four legs */
 export function ChairMesh(ctx: MeshCtx) {
   const { obj, selected, refsMap, onSelect } = ctx;
   const p = obj.params;
@@ -393,9 +393,9 @@ export function ChairMesh(ctx: MeshCtx) {
   const seatD = 0.42;
   const legH = seatY - seatH / 2;
   const legInset = 0.045;
-  const backH = Math.max(0.3, h - seatY); // پشتی از نشیمن تا ارتفاع کل
+  const backH = Math.max(0.3, h - seatY); // Backrest from the seat up to full height
 
-  // رگه چوب صندلی (کش ماژول textures)
+  // Chair wood grain (textures module cache)
   const seatTex = useMemo(() => woodGrainTexture(color), [color]);
   const legTex = useMemo(() => woodGrainTexture(bodyColor), [bodyColor]);
 
@@ -408,7 +408,7 @@ export function ChairMesh(ctx: MeshCtx) {
       rotation-y={obj.rotationY}
       onClick={select}
     >
-      {/* نشیمن */}
+      {/* Seat */}
       <mesh position={[0, seatY, 0]} castShadow receiveShadow>
         <boxGeometry args={[seatW, seatH, seatD]} />
         <meshStandardMaterial
@@ -420,7 +420,7 @@ export function ChairMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.03} color={EDGE} />}
       </mesh>
 
-      {/* پشتی */}
+      {/* Backrest */}
       <mesh position={[0, seatY + backH / 2, -seatD / 2 + 0.02]} castShadow>
         <boxGeometry args={[seatW, backH, 0.04]} />
         <meshStandardMaterial
@@ -432,7 +432,7 @@ export function ChairMesh(ctx: MeshCtx) {
         {selected && <Edges scale={1.03} color={EDGE} />}
       </mesh>
 
-      {/* چهار پایه */}
+      {/* Four legs */}
       {[
         [-seatW / 2 + legInset, -seatD / 2 + legInset],
         [seatW / 2 - legInset, -seatD / 2 + legInset],

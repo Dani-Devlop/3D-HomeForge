@@ -13,54 +13,55 @@ import {
 } from '@/app/api/_lib/normalize';
 
 // ============================================================
-// /api/ai/cabinet — تولید یک آیتم مبلمان پارامتریک از توصیف متنی (text-to-3D)
+// /api/ai/cabinet — generate one parametric furniture item from a text description (text-to-3D)
 // ============================================================
 
 const CABINET_PROMPT = `You are a parametric furniture generator for a 3D home-design app (kitchen + whole home).
 Convert the user's description (Persian or English) into exactly ONE parametric furniture item.
 
 Allowed types — use exactly one of these strings:
-"base" (floor cabinet / کابینت زمینی), "wall" (wall-mounted upper cabinet / کابینت دیواری),
-"tall" (full-height unit / کابینت بلند), "island" (kitchen island / جزیره),
-"shelf" (open shelf / قفسه باز), "fridge" (refrigerator / یخچال),
-"stove" (stove or oven / اجاق گاز), "hood" (range hood / هود),
-"tv" (flat-screen television / تلویزیون), "sofa" (couch / مبل یا کاناپه),
-"bed" (bed / تخت), "table" (dining or coffee table / میز), "chair" (chair / صندلی),
-"washing machine" → "washer" (ماشین لباسشویی), "dishwasher" (ماشین ظرفشویی),
-"microwave" (مایکروویو یا ریزموج).
+"base" (floor cabinet), "wall" (wall-mounted upper cabinet),
+"tall" (full-height unit), "island" (kitchen island),
+"shelf" (open shelf), "fridge" (refrigerator),
+"stove" (stove or oven), "hood" (range hood),
+"tv" (flat-screen television), "sofa" (couch),
+"bed" (bed), "table" (dining or coffee table), "chair" (chair),
+"washing machine" → "washer", "dishwasher",
+"microwave".
 
 Param constraints:
-- w: width in meters, 0.3..3.0  (Persian "سانت"/"سانتی‌متر" means centimeters → divide by 100; «۸۰ سانت» = 0.8)
+- w: width in meters, 0.3..3.0  ("centimeters" means cm → divide by 100; "80 centimeters" = 0.8)
 - h: height in meters, 0.3..2.4 (hood: 0.1..0.5, tv: 0.3..1.2 for big screens)
 - d: depth in meters, 0.25..1.2 (bed: up to 2.3, tv: 0.04..0.3)
 - bodyColor / doorColor / countertopColor: hex colors like "#a1b2c3" (lowercase #rrggbb).
-  Common Persian colors: سفید=#f5f5f0, مشکی=#26262a, خاکستری=#8a8a8a, کرم=#e8dfc8, قهوه‌ای=#6b4f3a,
-  گردویی=#7d5f45, بلوط=#9a7c5c, سبز=#4f6b52, آبی نفتی=#3f4a5a, قرمز=#a03a2e, استیل=#b9bec6.
-  «مات» (matte) → just a normal solid color.
-- glass: boolean — true ONLY when the user explicitly asks for glass doors (درب شیشه‌ای / شیشه).
+  Common colors: white=#f5f5f0, black=#26262a, gray=#8a8a8a, cream=#e8dfc8, brown=#6b4f3a,
+  walnut=#7d5f45, oak=#9a7c5c, green=#4f6b52, navy blue=#3f4a5a, red=#a03a2e, stainless steel=#b9bec6.
+  "Matte" → just a normal solid color.
+- glass: boolean — true ONLY when the user explicitly asks for glass doors.
   When glass=true choose doorColor a light neutral like #cfd8dc — glass NEVER renders dark/black.
   Otherwise omit the glass key entirely.
 - doors: integer 0..2, drawers: integer 0..3
 - handles: "bar" | "knob" | "none"
 - mountY: ONLY include for wall (0.8..2.3) and hood (1.3..2.0) — height above the floor in meters.
 
-Persian number words: یک=1, دو=2, سه=3, چهار=4, پنج=5, شش=6, هفت=7, هشت=8, نه=9, ده=10.
+Number words: one=1, two=2, three=3, four=4, five=5, six=6, seven=7, eight=8, nine=9, ten=10.
 
 Examples:
-Input: «یک کابینت زمینی با درب‌های شیشه‌ای، عرض ۸۰ سانت، رنگ سفید مات»
-Output: {"type":"base","label":"کابینت زمینی شیشه‌ای","params":{"w":0.8,"h":0.85,"d":0.6,"bodyColor":"#f5f5f0","doorColor":"#cfd8dc","countertopColor":"#d8d3c8","doors":2,"drawers":0,"handles":"bar","glass":true}}
-Input: «یخچال استیل بزرگ دو متری»
-Output: {"type":"fridge","label":"یخچال استیل","params":{"w":0.9,"h":1.9,"d":0.7,"bodyColor":"#b9bec6","doorColor":"#cdd2d9","countertopColor":"#b9bec6","doors":1,"drawers":0,"handles":"bar"}}
-Input: «کابینت دیواری گردویی عرض یک متر»
-Output: {"type":"wall","label":"کابینت دیواری گردویی","params":{"w":1.0,"h":0.7,"d":0.35,"bodyColor":"#7d5f45","doorColor":"#9a7c5c","countertopColor":"#d8d3c8","doors":2,"drawers":0,"handles":"knob","mountY":1.5}}
-Input: «هود سفید نامرئی»
-Output: {"type":"hood","label":"هود سفید","params":{"w":0.6,"h":0.14,"d":0.5,"bodyColor":"#f2f2f2","doorColor":"#f2f2f2","countertopColor":"#f2f2f2","doors":0,"drawers":0,"handles":"none","mountY":1.62}}
-Input: «یک مبل سه‌نفره خاکستری»
-Output: {"type":"sofa","label":"مبل سه‌نفره","params":{"w":2.0,"h":0.85,"d":0.95,"bodyColor":"#8a8a8a","doorColor":"#7d7d7d","countertopColor":"#8a8a8a","doors":0,"drawers":0,"handles":"none"}}
+Input: "A floor cabinet with glass doors, 80 centimeters wide, matte white"
+Output: {"type":"base","label":"Glass floor cabinet","params":{"w":0.8,"h":0.85,"d":0.6,"bodyColor":"#f5f5f0","doorColor":"#cfd8dc","countertopColor":"#d8d3c8","doors":2,"drawers":0,"handles":"bar","glass":true}}
+Input: "Large two-meter stainless steel refrigerator"
+Output: {"type":"fridge","label":"Stainless steel fridge","params":{"w":0.9,"h":1.9,"d":0.7,"bodyColor":"#b9bec6","doorColor":"#cdd2d9","countertopColor":"#b9bec6","doors":1,"drawers":0,"handles":"bar"}}
+Input: "Walnut wall cabinet one meter wide"
+Output: {"type":"wall","label":"Walnut wall cabinet","params":{"w":1.0,"h":0.7,"d":0.35,"bodyColor":"#7d5f45","doorColor":"#9a7c5c","countertopColor":"#d8d3c8","doors":2,"drawers":0,"handles":"knob","mountY":1.5}}
+Input: "Invisible white range hood"
+Output: {"type":"hood","label":"White hood","params":{"w":0.6,"h":0.14,"d":0.5,"bodyColor":"#f2f2f2","doorColor":"#f2f2f2","countertopColor":"#f2f2f2","doors":0,"drawers":0,"handles":"none","mountY":1.62}}
+Input: "A gray three-seater sofa"
+Output: {"type":"sofa","label":"Three-seater sofa","params":{"w":2.0,"h":0.85,"d":0.95,"bodyColor":"#8a8a8a","doorColor":"#7d7d7d","countertopColor":"#8a8a8a","doors":0,"drawers":0,"handles":"none"}}
 
-Choose sensible defaults for anything not specified. The "label" must be a SHORT Persian phrase (max 40 chars).
+Choose sensible defaults for anything not specified. The "label" must be a SHORT English phrase (max 40 chars).
 Respond with ONLY a JSON object — no markdown fences, no commentary — shaped exactly like:
-{ "type": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "label": "فارسی کوتاه", "params": { "w": number, "h": number, "d": number, "bodyColor": "#hex", "doorColor": "#hex", "countertopColor": "#hex", "doors": number, "drawers": number, "handles": "bar"|"knob"|"none", "glass": boolean, "mountY": number } }`;
+{ "type": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "label": "short english label", "params": { "w": number, "h": number, "d": number, "bodyColor": "#hex", "doorColor": "#hex", "countertopColor": "#hex", "doors": number, "drawers": number, "handles": "bar"|"knob"|"none", "glass": boolean, "mountY": number } }
+All values you output (labels, names, descriptions) MUST be in English.`;
 
 const bodySchema = z.object({
   text: z.string().trim().min(1).max(500),
@@ -72,7 +73,7 @@ interface GeneratedItem {
   params: ReturnType<typeof normalizeFullParams>;
 }
 
-/** تولید آیتم با حداکثر ۲ تلاش؛ خروجی نرمال‌شده یا null */
+/** Generates an item with up to 2 attempts; normalized output or null */
 async function generateItem(zai: ZAI, text: string): Promise<GeneratedItem | null> {
   const messages: ChatMessage[] = [
     { role: 'system', content: CABINET_PROMPT },
@@ -88,10 +89,10 @@ async function generateItem(zai: ZAI, text: string): Promise<GeneratedItem | nul
       });
       const content = completion?.choices?.[0]?.message?.content;
       if (typeof content !== 'string' || !content.trim()) {
-        throw new Error('پاسخ خالی از مدل');
+        throw new Error('Empty response from model');
       }
       const data = extractJsonObject(content);
-      if (!isRecord(data)) throw new Error('خروجی مدل آبجکت JSON نبود');
+      if (!isRecord(data)) throw new Error('Model output was not a JSON object');
 
       const type = toFurnitureKind(data.type);
       const label =
@@ -111,20 +112,20 @@ async function generateItem(zai: ZAI, text: string): Promise<GeneratedItem | nul
 }
 
 export async function POST(req: NextRequest) {
-  // گارد مالک — فراخوانی AI گران است و فقط برای مدیر مجاز است
+  // Owner guard — AI calls are expensive and allowed for the admin only
   const denied = await requireOwner(req);
   if (denied) return denied;
 
   const body = await readJsonBody(req);
   if (!body.ok) {
-    return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
   }
 
   try {
     const parsed = bodySchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'توصیف را بین ۱ تا ۵۰۰ کاراکتر وارد کنید' },
+        { error: 'Enter a description between 1 and 500 characters' },
         { status: 400 },
       );
     }
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
     const item = await generateItem(zai, parsed.data.text);
     if (!item) {
       return NextResponse.json(
-        { error: 'تولید مدل با هوش مصنوعی ناموفق بود' },
+        { error: 'AI model generation failed' },
         { status: 502 },
       );
     }
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('POST /api/ai/cabinet failed:', err);
     return NextResponse.json(
-      { error: 'تولید مدل با هوش مصنوعی ناموفق بود' },
+      { error: 'AI model generation failed' },
       { status: 502 },
     );
   }

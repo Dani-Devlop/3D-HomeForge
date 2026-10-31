@@ -27,13 +27,13 @@ import {
 } from '@/app/api/_lib/normalize';
 
 // ============================================================
-// /api/reconstruct — بازسازی سه‌بعدی «کل خانه» از چند عکس (+ نقشه اختیاری)
+// /api/reconstruct — 3D reconstruction of a WHOLE home from multiple photos (+ optional floor plan)
 // v3:
-//  - تحلیل «همه‌چیز»: تلویزیون، مبل، تخت، میز، صندلی، ماشین لباسشویی و...
-//  - تحلیل موازی تصاویر (Promise.allSettled) به‌جای ترتیبی
-//  - ورودی نقشه ساختمان اختیاری (ground truth برای ابعاد)
-//  - حالت استریم NDJSON با پیشرفت زنده (پیش‌فرض) — با Accept: application/json همان پاسخ JSON قبلی
-//  - درب‌های شیشه‌ای با glass:true و رنگ روشن (هرگز تیره/سیاه)
+//  - "Everything" analysis: TV, sofa, bed, tables, chairs, washing machine, ...
+//  - Parallel image analysis (Promise.allSettled) instead of sequential
+//  - Optional building floor-plan input (ground truth for dimensions)
+//  - NDJSON streaming mode with live progress (default) — with Accept: application/json the same JSON response as before
+//  - Glass doors with glass:true and a light color (never dark/black)
 // ============================================================
 
 const RECONSTRUCT_PROMPT = `You are an expert interior analyzer for a 3D WHOLE-HOME reconstruction pipeline (v3.2).
@@ -76,7 +76,7 @@ Guidelines:
      pick the wall it is closest and parallel to) — or "wallIndex" (outline edge) when it stands
      against a slanted/diagonal wall of a non-rectangular room — plus offsetX (horizontal distance of
      the item center from that wall's center, -7..7), widthM (0.3..3), heightM (0.3..2.4), depthM
-     (optional, meters), colorHex (dominant color, #rrggbb), description (short, English or Persian).
+     (optional, meters), colorHex (dominant color, #rrggbb), description (short, English).
    - mountY (optional, meters above floor): for anything NOT standing on the floor report the height
      of its BOTTOM — wall cabinets ≈ 1.4..1.6, range hood ≈ 1.5..1.7, TV ≈ 1.0..1.6,
      microwave on counter ≈ 0.9, microwave built into upper cabinet ≈ 1.4..1.7.
@@ -109,8 +109,8 @@ Respond with ONLY a JSON object — no markdown fences, no commentary — shaped
   "windows": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "sillY": number, "width": number, "height": number } ],
   "doorways": [ { "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "width": number, "height": number } ],
   "items": [ { "kind": "base"|"wall"|"tall"|"island"|"shelf"|"fridge"|"stove"|"hood"|"tv"|"sofa"|"bed"|"table"|"chair"|"washer"|"dishwasher"|"microwave", "wall": "back"|"left"|"right"|"front", "wallIndex": number | omitted, "offsetX": number, "widthM": number, "heightM": number, "depthM": number, "mountY": number | omitted, "glassDoors": boolean, "colorHex": "#hex", "description": "short" } ],
-  "description": "کوتاه به فارسی"
-}`;
+  "description": "short English text"
+All values you output (labels, names, descriptions) MUST be in English.`;
 
 const FLOORPLAN_PROMPT = `You are a floor-plan (blueprint) reader for a 3D home-design app.
 Analyze the attached architectural floor plan image and extract layout facts.
@@ -136,7 +136,7 @@ Respond with ONLY a JSON object — no markdown fences, no commentary — shaped
   "rooms": [ { "name": "...", "widthM": number, "depthM": number } ],
   "windows": [ { "wall": "back"|"left"|"right"|"front", "offsetX": number, "width": number, "height": number } ],
   "notes": ["..."]
-}`;
+All values you output (labels, names, descriptions) MUST be in English.`;
 
 const MERGE_PROMPT = `You merge several partial photo analyses of the SAME space into ONE final reconstruction spec.
 You receive a JSON payload; if a "floorPlan" key is present it is a summary extracted from the architectural
@@ -161,12 +161,13 @@ Produce the UNION/CONSENSUS:
   a microwave/hood/tv because a cabinet occupies a similar position — keep both, they are at different
   heights (use mountY). When the same appliance is reported in several parts from different angles,
   keep one instance at the most plausible wall/offset.
-- "roomType": the most frequent value; "description": keep the richest Persian description (or merge them into
+- "roomType": the most frequent value; "description": keep the richest description (or merge them into
   one short paragraph).
 Respond with ONLY a JSON object of exactly the same shape as the inputs (roomType, room, windows, doorways,
-items, description) — no markdown fences, no commentary.`;
+items, description) — no markdown fences, no commentary.
+All values you output (labels, names, descriptions) MUST be in English.`;
 
-const MAX_IMAGE_LENGTH = 7 * 1024 * 1024; // حداکثر ~7MB رشته base64
+const MAX_IMAGE_LENGTH = 7 * 1024 * 1024; // max ~7MB base64 string
 const MAX_IMAGES = 8;
 const MAX_OBJECTS = 40;
 const DATA_URL_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,/;
@@ -174,22 +175,22 @@ const RAW_BASE64_RE = /^[A-Za-z0-9+/=\r\n]+$/;
 
 const bodySchema = z.object({
   images: z.array(z.string().min(1)).min(1).max(MAX_IMAGES).optional(),
-  image: z.string().min(1).optional(), // سازگاری با نسخه ۱
-  floorPlan: z.string().min(1).optional(), // عکس نقشه ساختمان (اختیاری)
+  image: z.string().min(1).optional(), // v1 compatibility
+  floorPlan: z.string().min(1).optional(), // building floor-plan photo (optional)
 });
 
-// ---------------- انواع داخلی ----------------
+// ---------------- Internal types ----------------
 
 interface ReconstructItem {
   kind: FurnitureKind;
   wall: WallName;
-  /** اندیس لبه outline (دیوار کج) — اگر بود بر wall اولویت دارد */
+  /** Outline edge index (slanted wall) — takes priority over wall when present */
   wallIndex?: number;
   offsetX: number;
   widthM: number;
   heightM: number;
   depthM?: number;
-  /** ارتفاع نصب از کف (متر) — هود/مایکروویو/تلویزیون/کابینت دیواری */
+  /** Mount height above the floor (meters) — hood/microwave/TV/wall cabinet */
   mountY?: number;
   glassDoors: boolean;
   colorHex: string;
@@ -202,7 +203,7 @@ interface Analysis {
     widthM: number;
     depthM: number;
     heightM: number;
-    /** پلان چندضلعی اتاق (فقط برای فضاهای غیرمستطیلی) */
+    /** Room floor polygon (only for non-rectangular spaces) */
     outline?: OutlinePoint[];
     wallColor: string;
     floorColor: string;
@@ -225,12 +226,12 @@ interface Analysis {
   description: string;
 }
 
-/** خلاصه نرمال‌شده نقشه ساختمان — هرگز کل درخواست را نمی‌شکند */
+/** Normalized floor-plan summary — never breaks the whole request */
 interface FloorPlanSummary {
   summary: string;
   widthM?: number;
   depthM?: number;
-  /** پلان کلی فضای غیرمستطیلی از روی نقشه */
+  /** Overall footprint polygon of a non-rectangular space, read from the plan */
   outline?: OutlinePoint[];
   rooms: { name: string; widthM?: number; depthM?: number }[];
   windows: Record<string, unknown>[];
@@ -247,35 +248,35 @@ interface ProgressPayload {
 
 type SendFn = (obj: Record<string, unknown>) => void;
 
-/** خطای دارای پیام فارسی برای کاربر (در استریم هم همین متن می‌رود) */
+/** Error carrying a user-facing message (the same text is sent in the stream) */
 class ReconstructFailure extends Error {}
 
 const faDigits = (n: number): string =>
-  String(n).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
+  String(n).replace(/\d/g, (d) => '0123456789'[Number(d)]);
 
 const optFinite = (v: unknown, min: number, max: number): number | undefined => {
   const n = toFinite(v, Number.NaN);
   return Number.isFinite(n) ? clamp(n, min, max) : undefined;
 };
 
-/** عدد صحیح اختیاری در بازه — نامعتبر/غایب → undefined */
+/** Optional integer within a range — invalid/absent → undefined */
 function optInt(v: unknown, min: number, max: number): number | undefined {
   const n = typeof v === 'number' ? v : typeof v === 'string' ? Number.parseFloat(v) : Number.NaN;
   if (!Number.isFinite(n)) return undefined;
   return Math.round(clamp(n, min, max));
 }
 
-// ---------------- نرمال‌سازی خروجی هر تحلیل ----------------
+// ---------------- Normalizing each analysis output ----------------
 
-/** خروجی مدل را به تحلیل امن تبدیل می‌کند؛ ورودی غیرآبجکت → null */
+/** Converts the model output into a safe analysis; non-object input → null */
 function normalizeAnalysis(data: unknown): Analysis | null {
   if (!isRecord(data)) return null;
   const room = isRecord(data.room) ? data.room : {};
 
-  // پلان چندضلعی (دیوار کج) — نامعتبر → undefined (مستطیل)
+  // Floor polygon (slanted wall) — invalid → undefined (rectangle)
   const parsedOutline = normalizeOutline(room.outline);
 
-  // با outline معتبر، widthM/depthM باید دقیقاً bbox چندضلع باشند
+  // With a valid outline, widthM/depthM must be exactly the polygon's bounding box
   let widthM = clamp(toFinite(room.widthM, 4), 2, 15);
   let depthM = clamp(toFinite(room.depthM, 3.5), 2, 15);
   if (parsedOutline) {
@@ -357,7 +358,7 @@ function normalizeAnalysis(data: unknown): Analysis | null {
   };
 }
 
-/** نرمال‌سازی تدافعی خروجی نقشه — خطای نقشه هرگز کل درخواست را نمی‌شکند */
+/** Defensive normalization of the floor-plan output — a plan error never breaks the whole request */
 function normalizeFloorPlan(data: unknown): FloorPlanSummary | null {
   if (!isRecord(data)) return null;
   return {
@@ -385,9 +386,9 @@ function normalizeFloorPlan(data: unknown): FloorPlanSummary | null {
   };
 }
 
-// ---------------- فراخوانی مدل‌ها ----------------
+// ---------------- Model calls ----------------
 
-/** بدنه فراخوانی VLM (مسیر مستقیم createVision — /chat/completions تصویر را 400 می‌کند) */
+/** VLM call body (direct createVision path — /chat/completions returns 400 for images) */
 function visionBody(prompt: string, image: string): CreateChatCompletionVisionBody {
   const message: VisionMessage = {
     role: 'user',
@@ -396,7 +397,7 @@ function visionBody(prompt: string, image: string): CreateChatCompletionVisionBo
       { type: 'image_url', image_url: { url: image } },
     ],
   };
-  // بک‌اند در صورت عدم ارسال model، مدل پیش‌فرض را خودش انتخاب می‌کند
+  // The backend picks its own default model when no model is sent
   return {
     model: undefined as unknown as string,
     messages: [message],
@@ -404,7 +405,7 @@ function visionBody(prompt: string, image: string): CreateChatCompletionVisionBo
   };
 }
 
-/** تحلیل VLM یک تصویر با حداکثر ۲ تلاش */
+/** VLM analysis of one image with up to 2 attempts */
 async function analyzeImage(zai: ZAI, image: string, index: number): Promise<Analysis | null> {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -414,10 +415,10 @@ async function analyzeImage(zai: ZAI, image: string, index: number): Promise<Ana
       );
       const content = visionResult?.choices?.[0]?.message?.content;
       if (typeof content !== 'string' || !content.trim()) {
-        throw new Error('پاسخ خالی از مدل');
+        throw new Error('Empty response from model');
       }
       const analysis = normalizeAnalysis(extractJsonObject(content));
-      if (!analysis) throw new Error('خروجی مدل آبجکت JSON معتبر نبود');
+      if (!analysis) throw new Error('Model output was not a valid JSON object');
       return analysis;
     } catch (err) {
       lastError = err;
@@ -428,7 +429,7 @@ async function analyzeImage(zai: ZAI, image: string, index: number): Promise<Ana
   return null;
 }
 
-/** تحلیل نقشه ساختمان — یک تلاش، خطا نادیده گرفته می‌شود */
+/** Floor-plan analysis — single attempt, errors are ignored */
 async function analyzeFloorPlan(zai: ZAI, image: string): Promise<FloorPlanSummary | null> {
   try {
     const visionResult = await zai.chat.completions.createVision(
@@ -443,7 +444,7 @@ async function analyzeFloorPlan(zai: ZAI, image: string): Promise<FloorPlanSumma
   }
 }
 
-/** ادغام تحلیل‌های جزئی (+ نقشه) با یک فراخوانی متنی؛ در صورت خطا اولین تحلیل برگردانده می‌شود */
+/** Merges the partial analyses (+ floor plan) with a single text call; on error the first analysis is returned */
 async function mergeAnalyses(
   zai: ZAI,
   partials: Analysis[],
@@ -451,7 +452,7 @@ async function mergeAnalyses(
 ): Promise<Analysis> {
   if (partials.length === 1 && !floorPlan) return partials[0];
   try {
-    // نقشه به‌عنوان ground truth همراه پارتیال‌ها داده می‌شود
+    // The floor plan is passed as ground truth alongside the partials
     const userContent = floorPlan
       ? JSON.stringify({ floorPlan, parts: partials })
       : JSON.stringify(partials);
@@ -467,40 +468,40 @@ async function mergeAnalyses(
       const merged = normalizeAnalysis(extractJsonObject(content));
       if (merged) return merged;
     }
-    throw new Error('خروجی ادغام نامعتبر بود');
+    throw new Error('Merge output was invalid');
   } catch (err) {
     console.error('[reconstruct] merge failed, using first partial:', err);
     return partials[0];
   }
 }
 
-// ---------------- تبدیل آیتم‌ها به آبجکت صحنه ----------------
+// ---------------- Converting items to scene objects ----------------
 
 const RECONSTRUCT_LABELS: Record<FurnitureKind, string> = {
-  base: 'کابینت زمینی (بازسازی‌شده)',
-  wall: 'کابینت دیواری (بازسازی‌شده)',
-  tall: 'کابینت بلند (بازسازی‌شده)',
-  island: 'جزیره (بازسازی‌شده)',
-  shelf: 'قفسه (بازسازی‌شده)',
-  fridge: 'یخچال (بازسازی‌شده)',
-  stove: 'اجاق گاز (بازسازی‌شده)',
-  hood: 'هود (بازسازی‌شده)',
-  tv: 'تلویزیون (بازسازی‌شده)',
-  sofa: 'مبل (بازسازی‌شده)',
-  bed: 'تخت (بازسازی‌شده)',
-  table: 'میز (بازسازی‌شده)',
-  chair: 'صندلی (بازسازی‌شده)',
-  washer: 'ماشین لباسشویی (بازسازی‌شده)',
-  dishwasher: 'ماشین ظرفشویی (بازسازی‌شده)',
-  microwave: 'مایکروویو (بازسازی‌شده)',
+  base: 'Base cabinet (reconstructed)',
+  wall: 'Wall cabinet (reconstructed)',
+  tall: 'Tall cabinet (reconstructed)',
+  island: 'Island (reconstructed)',
+  shelf: 'Shelf (reconstructed)',
+  fridge: 'Refrigerator (reconstructed)',
+  stove: 'Stove (reconstructed)',
+  hood: 'Range hood (reconstructed)',
+  tv: 'TV (reconstructed)',
+  sofa: 'Sofa (reconstructed)',
+  bed: 'Bed (reconstructed)',
+  table: 'Table (reconstructed)',
+  chair: 'Chair (reconstructed)',
+  washer: 'Washing machine (reconstructed)',
+  dishwasher: 'Dishwasher (reconstructed)',
+  microwave: 'Microwave (reconstructed)',
 };
 
-/** انواعی که درب شیشه‌ای می‌پذیرند */
+/** Kinds that accept glass doors */
 const GLASS_KINDS: ReadonlySet<string> = new Set([
   'base', 'wall', 'tall', 'island', 'shelf', 'dishwasher',
 ]);
 
-/** روشنایی نسبی رنگ hex (۰ تا ۱) — برای جلوگیری از شیشه تیره */
+/** Relative luminance of a hex color (0..1) — prevents dark glass */
 function luminance(hex: string): number {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -508,11 +509,11 @@ function luminance(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-/** رنگ تیره را برای قاب شیشه به‌قدر کافی روشن می‌کند */
+/** Lightens a dark color enough for a glass frame */
 const lightenIfDark = (hex: string): string =>
   luminance(hex) < 0.35 ? shadeColor(hex, 0.65) : hex;
 
-/** آفست را طوری محدود می‌کند که آیتم داخل دیوار بماند */
+/** Clamps the offset so the item stays inside its wall */
 function clampOffsetOnWall(wall: WallName, offsetX: number, itemWidth: number, room: Analysis['room']) {
   const wallLength = wall === 'back' || wall === 'front' ? room.widthM : room.depthM;
   const maxAbs = wallLength / 2 - 0.05 - itemWidth / 2;
@@ -550,7 +551,7 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
       handles: 'bar', mountY: item.mountY ?? 1.5,
     };
   } else if (kind === 'tv') {
-    // تلویزیون نازک — نصب روی دیوار
+    // Thin TV — wall mounted
     rawParams = { w, h, d: 0.06, color: '#101318', bodyColor: '#1b1f26', mountY: item.mountY ?? 1.4 };
   } else if (kind === 'sofa') {
     rawParams = { w, h: clamp(h, 0.7, 1.0), d: clamp(d, 0.8, 1.2), color, bodyColor: shadeColor(color, -0.15) };
@@ -565,7 +566,7 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
   } else if (kind === 'dishwasher') {
     rawParams = { w: 0.6, h: 0.85, d: 0.6, color, bodyColor: color, doors: 1, handles: 'bar' };
   } else if (kind === 'microwave') {
-    // مایکروویو — روی کانتر (۰٫۹) یا توکار کابینت دیواری (mountY از مدل)
+    // Microwave — on the counter (0.9) or built into a wall cabinet (mountY from the model)
     rawParams = {
       w: clamp(w, 0.4, 0.7), h: 0.3, d: 0.38, color, bodyColor: color,
       mountY: item.mountY ?? 0.9,
@@ -578,7 +579,7 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
     };
   }
 
-  // درب شیشه‌ای — فقط انواع کابینتی؛ قاب شیشه هرگز تیره نمی‌ماند
+  // Glass doors — cabinet kinds only; the glass frame never stays dark
   if (GLASS_KINDS.has(kind)) {
     rawParams.glass = item.glassDoors === true;
     if (item.glassDoors) {
@@ -592,7 +593,7 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
     ? params.mountY ?? 0
     : 0;
 
-  // جانمایی: لبه کج outline (wallIndex) در اولویت، وگرنه دیوار نامی مستطیل
+  // Placement: slanted outline edge (wallIndex) takes priority, otherwise a named rectangle wall
   let position: [number, number, number];
   let rotationY: number;
   if (room.outline && room.outline.length >= 3 && item.wallIndex !== undefined) {
@@ -622,7 +623,7 @@ function buildObject(item: ReconstructItem, room: Analysis['room']): SceneObject
   };
 }
 
-// ---------------- خط لوله مشترک (JSON و استریم) ----------------
+// ---------------- Shared pipeline (JSON and stream) ----------------
 
 interface ReconstructResult {
   roomType: string;
@@ -632,8 +633,8 @@ interface ReconstructResult {
 }
 
 /**
- * خط لوله کامل: تحلیل موازی همه عکس‌ها + نقشه → ادغام → ساخت آبجکت‌ها.
- * send در حالت استریم رویدادهای progress را می‌نویسد؛ در حالت JSON undefined است.
+ * Full pipeline: parallel analysis of all photos + floor plan → merge → build objects.
+ * send writes progress events in stream mode; it is undefined in JSON mode.
  */
 async function runPipeline(
   zai: ZAI,
@@ -641,19 +642,19 @@ async function runPipeline(
   floorPlanImage: string | undefined,
   send?: SendFn,
 ): Promise<ReconstructResult> {
-  // نقشه در همان دسته موازی اجرا می‌شود؛ خطایش نادیده گرفته می‌شود
+  // The floor plan runs in the same parallel batch; its errors are ignored
   const floorPlanPromise: Promise<FloorPlanSummary | null> | null = floorPlanImage
     ? (async () => {
-        send?.({ type: 'progress', stage: 'floorplan', message: 'در حال بررسی نقشه ساختمان...' });
+        send?.({ type: 'progress', stage: 'floorplan', message: 'Analyzing the floor plan...' });
         const fp = await analyzeFloorPlan(zai, floorPlanImage);
         if (fp) {
-          send?.({ type: 'progress', stage: 'floorplan', message: 'نقشه ساختمان بررسی شد' });
+          send?.({ type: 'progress', stage: 'floorplan', message: 'Floor plan analyzed' });
         }
         return fp;
       })()
     : null;
 
-  // تحلیل موازی تصاویر — بعد از اتمام هر عکس یک رویداد progress می‌آید
+  // Parallel image analysis — a progress event arrives after each photo finishes
   const total = images.length;
   const imagePromises = images.map((img, i) =>
     analyzeImage(zai, img, i).then((analysis) => {
@@ -662,13 +663,13 @@ async function runPipeline(
         stage: 'analyze',
         index: i + 1,
         total,
-        message: `تحلیل عکس ${faDigits(i + 1)} از ${faDigits(total)} انجام شد`,
+        message: `Photo ${faDigits(i + 1)} of ${faDigits(total)} analyzed`,
       });
       return analysis;
     }),
   );
 
-  // همه در یک Promise.allSettled — نقشه اول صف است (اگر بوده باشد)
+  // Everything in one Promise.allSettled — the floor plan is first in the queue (if present)
   const tasks: Promise<unknown>[] = [
     ...(floorPlanPromise ? [floorPlanPromise] : []),
     ...imagePromises,
@@ -688,12 +689,12 @@ async function runPipeline(
     .filter((a): a is Analysis => !!a);
 
   if (partials.length === 0) {
-    throw new ReconstructFailure('تحلیل تصاویر با هوش مصنوعی ناموفق بود');
+    throw new ReconstructFailure('AI image analysis failed');
   }
 
-  // مرحله ادغام (با نقشه به‌عنوان ground truth)
+  // Merge stage (with the floor plan as ground truth)
   if (partials.length > 1) {
-    send?.({ type: 'progress', stage: 'merge', message: 'ادغام نتایج تحلیل‌ها...' });
+    send?.({ type: 'progress', stage: 'merge', message: 'Merging analysis results...' });
   }
   const merged = await mergeAnalyses(zai, partials, floorPlanSummary);
 
@@ -712,25 +713,25 @@ async function runPipeline(
   };
 }
 
-// ---------------- اعتبارسنجی تصاویر ----------------
+// ---------------- Image validation ----------------
 
 function validateImage(image: string): NextResponse | null {
   if (image.length > MAX_IMAGE_LENGTH) {
     return NextResponse.json(
-      { error: 'حجم یکی از تصاویر بیش از حد مجاز است (حداکثر ۷ مگابایت)' },
+      { error: 'One of the images is too large (max 7 MB)' },
       { status: 400 },
     );
   }
   if (!DATA_URL_RE.test(image) && !RAW_BASE64_RE.test(image)) {
     return NextResponse.json(
-      { error: 'فرمت یکی از ارسالی‌ها تصویر نیست' },
+      { error: 'One of the uploads is not an image' },
       { status: 400 },
     );
   }
   return null;
 }
 
-// ---------------- استریم NDJSON ----------------
+// ---------------- NDJSON stream ----------------
 
 function ndjsonResponse(run: (send: SendFn) => Promise<void>): NextResponse {
   const encoder = new TextEncoder();
@@ -742,7 +743,7 @@ function ndjsonResponse(run: (send: SendFn) => Promise<void>): NextResponse {
         try {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
         } catch {
-          // کلاینت قطع شده — بی‌خطر
+          // Client disconnected — safe to ignore
         }
       };
       try {
@@ -751,7 +752,7 @@ function ndjsonResponse(run: (send: SendFn) => Promise<void>): NextResponse {
         const message =
           err instanceof ReconstructFailure
             ? err.message
-            : 'بازسازی با هوش مصنوعی ناموفق بود';
+            : 'AI reconstruction failed';
         if (!(err instanceof ReconstructFailure)) {
           console.error('[reconstruct] stream failed:', err);
         }
@@ -761,7 +762,7 @@ function ndjsonResponse(run: (send: SendFn) => Promise<void>): NextResponse {
         try {
           controller.close();
         } catch {
-          // قبلاً بسته شده
+          // Already closed
         }
       }
     },
@@ -774,39 +775,39 @@ function ndjsonResponse(run: (send: SendFn) => Promise<void>): NextResponse {
   });
 }
 
-// ---------------- هندلر ----------------
+// ---------------- Handler ----------------
 
 export async function POST(req: NextRequest) {
-  // گارد مالک — قبل از هر چیز (AI گران است)
+  // Owner guard — before anything else (AI is expensive)
   const denied = await requireOwner(req);
   if (denied) return denied;
 
-  // حالت JSON (سازگار با نسخه ۲) در صورت Accept: application/json؛ پیش‌فرض استریم NDJSON
+  // JSON mode (compatible with v2) when Accept: application/json; the NDJSON stream is the default
   const wantsJson = (req.headers.get('accept') ?? '').includes('application/json');
 
   const body = await readJsonBody(req);
   if (!body.ok) {
-    return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
   }
 
   try {
     const parsed = bodySchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: `حداکثر ${MAX_IMAGES} تصویر و حداقل یک تصویر لازم است` },
+        { error: `At most ${MAX_IMAGES} images and at least one image are required` },
         { status: 400 },
       );
     }
 
-    // سازگاری با نسخه ۱: { image } → { images: [image] }
+    // v1 compatibility: { image } → { images: [image] }
     const images = (parsed.data.images ?? (parsed.data.image ? [parsed.data.image] : []))
       .map((s) => s.trim())
       .filter(Boolean);
     if (images.length === 0) {
-      return NextResponse.json({ error: 'تصویری ارسال نشده است' }, { status: 400 });
+      return NextResponse.json({ error: 'No image was sent' }, { status: 400 });
     }
 
-    // اعتبارسنجی همه تصاویر — هر تصویر نامعتبر کل درخواست را رد می‌کند
+    // Validate all images — any invalid image rejects the whole request
     for (const image of images) {
       const invalid = validateImage(image);
       if (invalid) return invalid;
@@ -831,7 +832,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // حالت استریم — رویدادهای progress و در پایان result یا error
+    // Stream mode — progress events and finally result or error
     return ndjsonResponse(async (send) => {
       const result = await runPipeline(zai, images, floorPlan, send);
       send({ type: 'result', ...result });
@@ -839,7 +840,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('POST /api/reconstruct failed:', err);
     return NextResponse.json(
-      { error: 'بازسازی با هوش مصنوعی ناموفق بود' },
+      { error: 'AI reconstruction failed' },
       { status: 502 },
     );
   }

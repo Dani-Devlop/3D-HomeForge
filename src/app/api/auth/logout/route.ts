@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { clearOwnerCookie } from '@/lib/auth';
 
 // ============================================================
-// POST /api/auth/logout — خروج مدیر (حذف کوکی)
+// POST /api/auth/logout — admin sign-out (clears the cookie)
 // ============================================================
 
 export async function POST() {

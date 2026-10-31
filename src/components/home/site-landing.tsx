@@ -24,6 +24,7 @@ import { api, type PortfolioItemDTO } from '@/lib/api';
 import { hasLiveScene } from '@/components/three/portfolio-scene';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -35,31 +36,31 @@ import {
 } from '@/components/ui/dialog';
 
 // ============================================================
-// صفحه اصلی عمومی (لندینگ مشتری) — معرفی پلتفرم + نمونه‌کارهای سه‌بعدی زنده
+// Public landing page (client-facing) — platform intro + live 3D portfolio
 // ============================================================
 
-// صحنه سه‌بعدی زنده — فقط سمت کلاینت (three.js)
+// Live 3D scene — client-side only (three.js)
 const PortfolioScene = dynamic(() => import('@/components/three/portfolio-scene'), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-muted animate-pulse" aria-hidden />,
 });
 
 export const CATEGORY_LABEL: Record<string, string> = {
-  kitchen: 'آشپزخانه',
-  bedroom: 'اتاق خواب',
-  living: 'نشیمن',
-  office: 'کمد و اداری',
-  other: 'سایر',
+  kitchen: 'Kitchen',
+  bedroom: 'Bedroom',
+  living: 'Living room',
+  office: 'Cabinets & office',
+  other: 'Other',
 };
 
-const BRAND = 'استودیو۳بعد';
-const BRAND_TAGLINE = 'از چند عکس تا فضای سه‌بعدی';
+const BRAND = '3D HomeForge';
+const BRAND_TAGLINE = 'From a few photos to a 3D space';
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ---------- ورود مدیر (دیاalog نوبار) ----------
+// ---------- Admin login (navbar dialog) ----------
 function LoginDialog({
   open,
   onOpenChange,
@@ -83,38 +84,38 @@ function LoginDialog({
     },
     onError: (e: Error) =>
       toast({
-        title: 'ورود ناموفق',
-        description: e.message || 'رمز مدیر اشتباه است',
+        title: 'Login failed',
+        description: e.message || 'Incorrect admin password',
         variant: 'destructive',
       }),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-sm">
+      <DialogContent dir="ltr" className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="h-4.5 w-4.5 text-primary" /> ورود مدیر
+            <Lock className="h-4.5 w-4.5 text-primary" /> Admin login
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            برای ورود به پنل مدیریت و پروژه‌ها، رمز مدیر را وارد کنید.
+            Enter the admin password to access the management panel and projects.
           </p>
           <Input
             type="password"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && pw && login.mutate()}
-            placeholder="رمز مدیر"
+            placeholder="Admin password"
             autoFocus
             className="h-11 text-center"
-            aria-label="رمز مدیر"
+            aria-label="Admin password"
           />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            انصراف
+            Cancel
           </Button>
           <Button onClick={() => login.mutate()} disabled={!pw || login.isPending} className="gap-1.5">
             {login.isPending ? (
@@ -122,7 +123,7 @@ function LoginDialog({
             ) : (
               <LogIn className="h-4 w-4" />
             )}
-            ورود
+            Log in
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -130,19 +131,19 @@ function LoginDialog({
   );
 }
 
-// ---------- نوبار ----------
+// ---------- Navbar ----------
 function SiteNavbar({ authed, onEnterDashboard }: { authed: boolean; onEnterDashboard: () => void }) {
   const [loginOpen, setLoginOpen] = useState(false);
 
   const links = [
-    { id: 'how', label: 'چطور کار می‌کند؟' },
-    { id: 'features', label: 'امکانات' },
-    { id: 'portfolio', label: 'نمونه‌کارها' },
+    { id: 'how', label: 'How it works' },
+    { id: 'features', label: 'Features' },
+    { id: 'portfolio', label: 'Portfolio' },
   ];
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-      <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3" aria-label="ناوبری اصلی">
+      <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3" aria-label="Main navigation">
         <a
           href="#top"
           onClick={(e) => {
@@ -150,7 +151,7 @@ function SiteNavbar({ authed, onEnterDashboard }: { authed: boolean; onEnterDash
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className="flex items-center gap-2 shrink-0"
-          aria-label={`${BRAND} — بازگشت به بالای صفحه`}
+          aria-label={`${BRAND} — back to top`}
         >
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-sm">
             <Box className="h-5 w-5 text-primary-foreground" />
@@ -175,9 +176,10 @@ function SiteNavbar({ authed, onEnterDashboard }: { authed: boolean; onEnterDash
         </div>
 
         <div className="ms-auto md:ms-0 flex items-center gap-2">
+          <ThemeToggle />
           {authed ? (
             <Button size="sm" className="gap-1.5" onClick={onEnterDashboard}>
-              <FolderOpen className="h-4 w-4" /> پنل مدیریت
+              <FolderOpen className="h-4 w-4" /> Admin panel
             </Button>
           ) : (
             <Button
@@ -185,9 +187,9 @@ function SiteNavbar({ authed, onEnterDashboard }: { authed: boolean; onEnterDash
               variant="outline"
               className="gap-1.5"
               onClick={() => setLoginOpen(true)}
-              aria-label="ورود مدیر"
+              aria-label="Admin login"
             >
-              <Lock className="h-3.5 w-3.5" /> ورود
+              <Lock className="h-3.5 w-3.5" /> Log in
             </Button>
           )}
         </div>
@@ -202,7 +204,7 @@ function SiteNavbar({ authed, onEnterDashboard }: { authed: boolean; onEnterDash
   );
 }
 
-// ---------- بخش عمومی با انیمیشن ورود ----------
+// ---------- Section with fade-in entrance ----------
 function FadeIn({
   children,
   delay = 0,
@@ -225,7 +227,7 @@ function FadeIn({
   );
 }
 
-// ---------- هیرو ----------
+// ---------- Hero ----------
 function Hero() {
   return (
     <section className="relative overflow-hidden">
@@ -237,30 +239,30 @@ function Hero() {
         <FadeIn className="space-y-5">
           <Badge variant="secondary" className="gap-1.5 h-7 px-3 text-xs">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            طراحی و بازسازی سه‌بعدی فضا با هوش مصنوعی
+            AI-powered 3D space design and reconstruction
           </Badge>
           <h2 className="text-3xl md:text-5xl font-black leading-[1.25]">
-            از چند <span className="text-primary">عکس ساده</span>
-            {' '}تا مدل سه‌بعدی کامل فضای شما
+            From a few <span className="text-primary">simple photos</span>
+            {' '}to a complete 3D model of your space
           </h2>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-            عکس‌های خانه، آشپزخانه یا مغازه‌تان را آپلود کنید؛ هوش مصنوعی همان فضا را با دیوارها،
-            پنجره‌ها و تجهیزاتش به یک مدل سه‌بعدی قابل ویرایش تبدیل می‌کند. طرح را با هم مرور می‌کنید،
-            تغییرش می‌دهید و نتیجه نهایی را قبل از حتی یک ساعت کار اجرایی می‌بینید.
+            Upload photos of your home, kitchen, or shop; AI turns the very same space — walls,
+            windows, and fixtures included — into an editable 3D model. Review the design together,
+            refine it, and see the final result before a single hour of on-site work begins.
           </p>
           <div className="flex flex-wrap gap-2.5 pt-1">
             <Button size="lg" className="gap-2" onClick={() => scrollTo('portfolio')}>
-              <Images className="h-4.5 w-4.5" /> مشاهده نمونه‌کارها
+              <Images className="h-4.5 w-4.5" /> View portfolio
             </Button>
             <Button size="lg" variant="outline" className="gap-2" onClick={() => scrollTo('how')}>
-              چطور کار می‌کند؟ <ArrowDown className="h-4 w-4" />
+              How it works <ArrowDown className="h-4 w-4" />
             </Button>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 pt-2 text-xs text-muted-foreground">
             {[
-              'بدون نیاز به نصب — کاملاً تحت وب',
-              'خروجی استاندارد GLB',
-              'بازدید مشتری فقط با لینک، بدون ثبت‌نام',
+              'No installation — fully web-based',
+              'Standard GLB export',
+              'Client viewing via link only, no sign-up',
             ].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
@@ -272,8 +274,8 @@ function Hero() {
         <FadeIn delay={0.12}>
           <div className="rounded-2xl overflow-hidden border shadow-xl animate-float">
             <img
-              src="/hero-kitchen.png"
-              alt="نمای سه‌بعدی آشپزخانه طراحی‌شده در استودیو۳بعد"
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/hero-kitchen.png`}
+              alt="3D kitchen view designed in 3D HomeForge"
               className="w-full h-auto object-cover"
             />
           </div>
@@ -283,27 +285,27 @@ function Hero() {
   );
 }
 
-// ---------- چطور کار می‌کند ----------
+// ---------- How it works ----------
 const STEPS = [
   {
     icon: Camera,
-    title: '۱. ارسال عکس یا ویدیو',
-    text: 'چند عکس از زوایای مختلف فضا (یا یک ویدیو کوتاه) کافی است. اگر پلان خانه را دارید، دقت ابعاد بیشتر می‌شود.',
+    title: '1. Send photos or a video',
+    text: 'A few photos from different angles (or a short video) are enough. If you have the floor plan, dimension accuracy improves.',
   },
   {
     icon: Sparkles,
-    title: '۲. بازسازی هوشمند',
-    text: 'AI دیوارها، پنجره‌ها، درب‌ها و تجهیزات موجود (کابینت، یخچال، اجاق، مبلمان و…) را تشخیص می‌دهد و مدل می‌سازد.',
+    title: '2. Smart reconstruction',
+    text: 'AI detects walls, windows, doors, and existing fixtures (cabinets, fridge, stove, furniture, etc.) and builds the model.',
   },
   {
     icon: MousePointerClick,
-    title: '۳. ویرایش و چیدمان',
-    text: 'کابینت و لوازم را جابه‌جا کنید، ابعاد و رنگ‌ها را عوض کنید یا با یک جمله فارسی مدل جدید بسازید.',
+    title: '3. Edit & arrange',
+    text: 'Move cabinets and items, change dimensions and colors, or create new models from a single sentence.',
   },
   {
     icon: Share2,
-    title: '۴. اشتراک‌گذاری با لینک',
-    text: 'لینک اختصاصی بگیرید؛ مشتری بدون ثبت‌نام سه‌بعدی را می‌گردد، درب‌ها را باز می‌کند و نظرش را می‌دهد.',
+    title: '4. Share with a link',
+    text: 'Get a dedicated link; your client explores the 3D view, opens doors, and leaves feedback — no sign-up required.',
   },
 ];
 
@@ -313,11 +315,11 @@ function HowItWorks() {
       <div className="max-w-6xl mx-auto px-4 space-y-8">
         <FadeIn className="text-center space-y-2.5 max-w-2xl mx-auto">
           <Badge variant="outline" className="gap-1.5 text-primary border-primary/30">
-            <Sparkles className="h-3.5 w-3.5" /> فرایند کار
+            <Sparkles className="h-3.5 w-3.5" /> The process
           </Badge>
-          <h2 className="text-2xl md:text-4xl font-black">چهار قدم تا دیدن فضای شما در سه‌بعد</h2>
+          <h2 className="text-2xl md:text-4xl font-black">Four steps to see your space in 3D</h2>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-            از لحظه گرفتن عکس با گوشی تا تایید نهایی طرح، همه‌چیز آنلاین و شفاف است.
+            From snapping photos with your phone to final design approval, everything is online and transparent.
           </p>
         </FadeIn>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -329,7 +331,7 @@ function HowItWorks() {
                     <s.icon className="h-5.5 w-5.5 text-primary" />
                   </div>
                   <span className="text-2xl font-black text-primary/15 tabular-nums" aria-hidden>
-                    {(i + 1).toLocaleString('fa-IR')}
+                    {(i + 1).toLocaleString('en-US')}
                   </span>
                 </div>
                 <h3 className="font-bold text-sm">{s.title}</h3>
@@ -343,37 +345,37 @@ function HowItWorks() {
   );
 }
 
-// ---------- امکانات ----------
+// ---------- Features ----------
 const FEATURES = [
   {
     icon: Camera,
-    title: 'بازسازی از عکس و ویدیو',
-    text: 'تبدیل چند عکس معمولی گوشی به مدل سه‌بعدی کامل با ابعاد واقعی فضا و تجهیزات موجود.',
+    title: 'Reconstruction from photos & video',
+    text: 'Turn a few ordinary phone photos into a complete 3D model with real dimensions and existing fixtures.',
   },
   {
     icon: Type,
-    title: 'ساخت و ویرایش با متن فارسی',
-    text: '«کابینت زمینی سفید ۸۰ سانتی با دو درب شیشه‌ای» — فقط بنویسید؛ مدل ساخته یا ویرایش می‌شود.',
+    title: 'Create & edit with plain text',
+    text: '“White 80 cm base cabinet with two glass doors” — just type it; the model is created or updated.',
   },
   {
     icon: MousePointerClick,
-    title: 'ویرایشگر سه‌بعدی حرفه‌ای',
-    text: 'جابه‌جایی با درگ، چرخش، تغییر ابعاد و رنگ، باز شدن درب‌ها و روشن/خاموش چراغ‌ها — با Undo/Redo.',
+    title: 'Professional 3D editor',
+    text: 'Drag to move, rotate, resize and recolor, openable doors, lights on/off — with Undo/Redo.',
   },
   {
     icon: Users,
-    title: 'اشتراک‌گذاری با نقش',
-    text: 'لینک فقط-نمایش یا ویرایش‌پذیر با تاریخ انقضا؛ بازدید مشتری بدون ثبت‌نام و ذخیره خودکار نظرات.',
+    title: 'Role-based sharing',
+    text: 'View-only or editable links with expiry dates; clients view without sign-up and feedback is saved automatically.',
   },
   {
     icon: Video,
-    title: 'مدل‌سازی همه لوازم خانه',
-    text: 'از کابینت و جزیره تا یخچال، اجاق، هود، تلویزیون، مبل، تخت و لباسشویی — همه در یک صحنه.',
+    title: 'Modeling for every household item',
+    text: 'From cabinets and islands to fridges, stoves, hoods, TVs, sofas, beds, and washing machines — all in one scene.',
   },
   {
     icon: Share2,
-    title: 'خروجی استاندارد GLB',
-    text: 'دانلود مدل نهایی در قالب glTF/GLB برای استفاده در سایر نرم‌افزارها و آرکایو.',
+    title: 'Standard GLB export',
+    text: 'Download the final model as glTF/GLB for use in other software and archives.',
   },
 ];
 
@@ -383,11 +385,11 @@ function Features() {
       <div className="max-w-6xl mx-auto px-4 space-y-8">
         <FadeIn className="text-center space-y-2.5 max-w-2xl mx-auto">
           <Badge variant="outline" className="gap-1.5 text-primary border-primary/30">
-            <Box className="h-3.5 w-3.5" /> امکانات پلتفرم
+            <Box className="h-3.5 w-3.5" /> Platform features
           </Badge>
-          <h2 className="text-2xl md:text-4xl font-black">هرچیزی که برای طراحی فضا لازم دارید</h2>
+          <h2 className="text-2xl md:text-4xl font-black">Everything you need to design a space</h2>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-            یک پلتفرم کامل برای کابینت‌سازها، معماران و طراحان داخلی — از بازسازی تا تحویل به مشتری.
+            A complete platform for cabinet makers, architects, and interior designers — from survey to client handover.
           </p>
         </FadeIn>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -408,7 +410,7 @@ function Features() {
   );
 }
 
-// ---------- نمونه‌کارها ----------
+// ---------- Portfolio ----------
 function PortfolioCard({ item, index }: { item: PortfolioItemDTO; index: number }) {
   const live = hasLiveScene(item.sceneState);
 
@@ -418,30 +420,30 @@ function PortfolioCard({ item, index }: { item: PortfolioItemDTO; index: number 
         <div className="aspect-[4/3] overflow-hidden bg-muted relative">
           {live ? (
             <>
-              {/* مدل سه‌بعدی زنده — چرخش با درگ + تعامل درب/چراغ */}
+              {/* Live 3D model — drag to rotate + door/light interaction */}
               <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-[1.02]">
                 <PortfolioScene roomSpec={item.roomSpec} sceneState={item.sceneState} />
               </div>
               <Badge className="absolute top-2.5 start-2.5 text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur pointer-events-none">
-                {CATEGORY_LABEL[item.category] ?? 'فضا'}
+                {CATEGORY_LABEL[item.category] ?? 'Space'}
               </Badge>
               <Badge className="absolute top-2.5 end-2.5 text-[10px] gap-1 bg-primary/90 text-primary-foreground border-0 backdrop-blur pointer-events-none">
-                <Rotate3d className="h-3 w-3" /> سه‌بعدی زنده
+                <Rotate3d className="h-3 w-3" /> Live 3D
               </Badge>
               <span className="absolute bottom-2.5 inset-x-2 text-center text-[10px] text-white/90 bg-black/45 rounded-full py-1 backdrop-blur pointer-events-none opacity-90 transition-opacity group-hover:opacity-100">
-                بچرخانید • درب‌ها و چراغ‌ها را لمس کنید
+                Drag to rotate • Tap doors and lights
               </span>
             </>
           ) : (
             <>
               <img
                 src={item.image}
-                alt={`نمونه‌کار: ${item.title}`}
+                alt={`Portfolio item: ${item.title}`}
                 loading="lazy"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <Badge className="absolute top-2.5 start-2.5 text-[10px] gap-1 bg-black/50 text-white border-0 backdrop-blur">
-                {CATEGORY_LABEL[item.category] ?? 'فضا'}
+                {CATEGORY_LABEL[item.category] ?? 'Space'}
               </Badge>
             </>
           )}
@@ -473,12 +475,12 @@ function PortfolioSection() {
       <div className="max-w-6xl mx-auto px-4 space-y-8">
         <FadeIn className="text-center space-y-2.5 max-w-2xl mx-auto">
           <Badge variant="outline" className="gap-1.5 text-primary border-primary/30">
-            <Rotate3d className="h-3.5 w-3.5" /> نمونه‌کارها
+            <Rotate3d className="h-3.5 w-3.5" /> Portfolio
           </Badge>
-          <h2 className="text-2xl md:text-4xl font-black">کارهای واقعی — به‌صورت مدل سه‌بعدی زنده</h2>
+          <h2 className="text-2xl md:text-4xl font-black">Real projects — as live 3D models</h2>
           <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-            هر نمونه‌کار یک مدل سه‌بعدی تعاملی است؛ بچرخانید، درب کابینت‌ها را باز کنید و چراغ‌ها را
-            روشن کنید — دقیقاً همان چیزی که مشتری شما با لینک می‌بیند.
+            Each portfolio item is an interactive 3D model; rotate it, open cabinet doors, and turn
+            on the lights — exactly what your client sees via the link.
           </p>
         </FadeIn>
 
@@ -503,15 +505,15 @@ function PortfolioSection() {
         ) : (
           <div className="rounded-2xl border border-dashed bg-card p-12 text-center space-y-2">
             <Images className="h-10 w-10 mx-auto text-muted-foreground/30" />
-            <p className="text-sm font-medium">به‌زودی نمونه‌کارهای جدید اضافه می‌شود</p>
+            <p className="text-sm font-medium">New portfolio items coming soon</p>
             <p className="text-xs text-muted-foreground">
-              برای دیدن قابلیت‌های پلتفرم، بخش «چطور کار می‌کند» را ببینید
+              See the “How it works” section to explore the platform’s capabilities
             </p>
           </div>
         )}
         {isError && (
           <p className="text-xs text-center text-destructive">
-            خطا در بارگذاری نمونه‌کارها — صفحه را دوباره بارگذاری کنید
+            Failed to load the portfolio — please reload the page
           </p>
         )}
       </div>
@@ -519,7 +521,7 @@ function PortfolioSection() {
   );
 }
 
-// ---------- CTA + فوتر ----------
+// ---------- CTA + footer ----------
 function CtaBand() {
   return (
     <section className="py-14">
@@ -528,15 +530,15 @@ function CtaBand() {
           <div className="rounded-3xl border bg-gradient-to-l from-primary/10 via-primary/5 to-transparent p-8 md:p-10 flex flex-col md:flex-row items-center gap-5 md:gap-8">
             <div className="flex-1 space-y-2 text-center md:text-start">
               <h2 className="text-xl md:text-2xl font-black">
-                آماده‌اید فضای خودتان را قبل از ساخت، سه‌بعدی ببینید؟
+                Ready to see your space in 3D before it’s built?
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                کافی است چند عکس از فضای فعلی بفرستید؛ مدل سه‌بعدی و طرح پیشنهادی را در همین صفحه
-                نمونه‌کارها می‌بینید.
+                Just send a few photos of the current space; the 3D model and proposed design appear
+                right here in the portfolio.
               </p>
             </div>
             <Button size="lg" className="gap-2 shrink-0" onClick={() => scrollTo('portfolio')}>
-              <Images className="h-4.5 w-4.5" /> دیدن نمونه‌کارها
+              <Images className="h-4.5 w-4.5" /> View portfolio
             </Button>
           </div>
         </FadeIn>
@@ -560,13 +562,13 @@ export function SiteFooter() {
         <p dir="ltr" className="font-mono">
           glTF / GLB • React Three Fiber
         </p>
-        <p>© {new Date().getFullYear().toLocaleString('fa-IR')} — همه حقوق محفوظ است</p>
+        <p>© {new Date().getFullYear().toLocaleString('en-US')} — All rights reserved</p>
       </div>
     </footer>
   );
 }
 
-// ---------- صفحه کامل ----------
+// ---------- Full page ----------
 export default function SiteLanding({
   authed,
   onEnterDashboard,

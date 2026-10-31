@@ -1,5 +1,6 @@
 import type { RoomSpec, SceneState, SceneObject, ObjectPatch, ShareRole } from './scene-types';
 import type { ProjectStage } from './crm';
+import { demoApi } from './demo/backend';
 
 // ---------------- DTOs ----------------
 
@@ -13,7 +14,7 @@ export interface ProjectDTO {
   isPublic: boolean;
   folderId: string | null;
   folderName: string | null;
-  // CRM — مشخصات مشتری، مرحله پیشرفت و مذاکره (ISO یا null)
+  // CRM — client details, progress stage and deal info (ISO or null)
   clientName?: string | null;
   clientPhone?: string | null;
   address?: string | null;
@@ -30,7 +31,7 @@ export interface ProjectDTO {
   shareCount?: number;
 }
 
-/** فیلدهای CRM قابل ارسال در ساخت/ویرایش پروژه (تاریخ‌ها ISO یا '' برای پاک‌کردن) */
+/** CRM fields sent when creating/updating a project (dates ISO or '' to clear) */
 export interface ProjectCrmFields {
   clientName?: string | null;
   clientPhone?: string | null;
@@ -83,11 +84,11 @@ export interface PresetDTO {
 export interface ReconstructResult {
   roomSpec: RoomSpec;
   roomType: string;
-  objects: SceneObject[]; // تجهیزات/کابینت‌های تشخیص داده‌شده از عکس
+  objects: SceneObject[]; // appliances/cabinets detected from the photo
   description: string;
 }
 
-/** رویداد پیشرفت بازسازی استریمی (NDJSON) */
+/** Progress event of a streaming reconstruction (NDJSON) */
 export interface ReconstructProgress {
   stage: string; // 'floorplan' | 'analyze' | 'merge'
   index?: number;
@@ -95,7 +96,7 @@ export interface ReconstructProgress {
   message: string;
 }
 
-/** آمار پنل مدیریت */
+/** Admin dashboard stats */
 export interface AdminStatsDTO {
   stats: {
     projects: number;
@@ -125,14 +126,14 @@ export interface AdminStatsDTO {
   }[];
 }
 
-/** خروجی تولید مدل با متن (text-to-3D) */
+/** Text-to-3D model generation result */
 export interface GeneratedItem {
   type: SceneObject['type'];
   label: string;
   params: SceneObject['params'];
 }
 
-/** خروجی طراحی کل فضا با توصیف متنی (text-to-room) */
+/** Full-space design result from a text description (text-to-room) */
 export interface GeneratedRoom {
   roomType: string;
   roomSpec: RoomSpec;
@@ -140,16 +141,16 @@ export interface GeneratedRoom {
   description: string;
 }
 
-/** نمونه‌کار صفحه عمومی (لندینگ) — تصویر یا مدل سه‌بعدی زنده */
+/** Public landing-page portfolio item — image or live 3D model */
 export interface PortfolioItemDTO {
   id: string;
   title: string;
   description: string;
   category: string;
   image: string;
-  /** مشخصات فضا — اگر معتبر باشد کارت به‌صورت مدل سه‌بعدی زنده نمایش داده می‌شود */
+  /** Room spec — if valid, the card is rendered as a live 3D model */
   roomSpec: Partial<RoomSpec> | Record<string, never>;
-  /** آبجکت‌های صحنه زنده */
+  /** Live scene objects */
   sceneState: { objects?: SceneObject[] } | Record<string, never>;
   visible: boolean;
   sortOrder: number;
@@ -162,7 +163,7 @@ export interface PortfolioItemInput {
   description?: string;
   category?: string;
   image?: string;
-  /** JSON ارسالی به سرور (اعتبارسنجی سمت سرور انجام می‌شود) */
+  /** JSON payload sent to the server (validated server-side) */
   roomSpec?: unknown;
   sceneState?: unknown;
   visible?: boolean;
@@ -179,19 +180,19 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
       headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
     });
   } catch {
-    throw new Error('خطا در ارتباط با سرور');
+    throw new Error('Could not reach the server');
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg =
       (body as { error?: string; ok?: boolean }).error ||
-      (res.status === 403 ? 'دسترسی نامعتبر است' : 'خطای ناشناخته');
+      (res.status === 403 ? 'Invalid access' : 'Unknown error');
     throw Object.assign(new Error(msg), { status: res.status, body });
   }
   return body as T;
 }
 
-/** خواندن پاسخ NDJSON بازسازی با رویدادهای پیشرفت زنده */
+/** Read the NDJSON reconstruction response with live progress events */
 async function streamReconstruct(
   images: string[],
   floorPlan: string | null | undefined,
@@ -205,17 +206,17 @@ async function streamReconstruct(
       body: JSON.stringify({ images, ...(floorPlan ? { floorPlan } : {}) }),
     });
   } catch {
-    throw new Error('خطا در ارتباط با سرور');
+    throw new Error('Could not reach the server');
   }
 
-  // خطای HTTP قبل از شروع استریم — پاسخ JSON است
+  // HTTP error before the stream starts — the response is JSON
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const msg = (body as { error?: string }).error || 'خطای ناشناخته';
+    const msg = (body as { error?: string }).error || 'Unknown error';
     throw Object.assign(new Error(msg), { status: res.status, body });
   }
   if (!res.body) {
-    throw new Error('مرورگر از پاسخ جریانی پشتیبانی نمی‌کند');
+    throw new Error('Browser does not support streaming responses');
   }
 
   const reader = res.body.getReader();
@@ -237,7 +238,7 @@ async function streamReconstruct(
       try {
         evt = JSON.parse(line);
       } catch {
-        continue; // خط ناقص/نامعتبر — نادیده
+        continue; // incomplete/invalid line — skip
       }
 
       if (evt.type === 'progress') {
@@ -251,23 +252,23 @@ async function streamReconstruct(
         try {
           await reader.cancel();
         } catch {
-          // استریم تمام شده است
+          // stream already ended
         }
         return evt as unknown as ReconstructResult;
       } else if (evt.type === 'error') {
         throw new Error(
-          typeof evt.error === 'string' ? evt.error : 'بازسازی با هوش مصنوعی ناموفق بود',
+          typeof evt.error === 'string' ? evt.error : 'AI reconstruction failed',
         );
       }
     }
   }
-  throw new Error('پاسخ ناقص از سرور دریافت شد');
+  throw new Error('Received an incomplete response from the server');
 }
 
 // ---------------- API ----------------
 
-export const api = {
-  // ---- احراز هویت مدیر ----
+const fetchApi = {
+  // ---- Admin authentication ----
   login: (password: string) =>
     request<{ ok: boolean }>('/api/auth/login', {
       method: 'POST',
@@ -284,14 +285,14 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
-  // ---- آمار پنل مدیریت ----
+  // ---- Admin dashboard stats ----
   adminStats: () => request<AdminStatsDTO>('/api/admin/stats'),
 
-  // ---- نمونه‌کارهای صفحه عمومی ----
+  // ---- Public landing-page portfolio ----
   listPortfolio: (all?: boolean) =>
     request<{ items: PortfolioItemDTO[] }>(`/api/portfolio${all ? '?all=1' : ''}`),
 
-  /** خواندن یک نمونه‌کار (برای ویرایش مدل سه‌بعدی در ویرایشگر) */
+  /** Read one portfolio item (to edit its 3D model in the editor) */
   getPortfolioItem: (id: string) =>
     request<{ item: PortfolioItemDTO }>(`/api/portfolio/${id}`),
 
@@ -310,8 +311,8 @@ export const api = {
   deletePortfolioItem: (id: string) =>
     request<{ ok: boolean }>(`/api/portfolio/${id}`, { method: 'DELETE' }),
 
-  // ---- بازسازی سه‌بعدی از چند عکس / فریم‌های ویدیو ----
-  // حالت JSON (سازگار با نسخه ۲) — بدون پیشرفت زنده
+  // ---- 3D reconstruction from multiple photos / video frames ----
+  // JSON mode (compatible with v2) — no live progress
   reconstruct: (images: string[]) =>
     request<ReconstructResult>('/api/reconstruct', {
       method: 'POST',
@@ -319,38 +320,38 @@ export const api = {
       body: JSON.stringify({ images }),
     }),
 
-  // حالت استریم NDJSON با رویدادهای پیشرفت (پیش‌فرض فرانت)
+  // Streaming NDJSON mode with progress events (frontend default)
   reconstructStream: (
     images: string[],
     floorPlan: string | null | undefined,
     onProgress?: (p: ReconstructProgress) => void,
   ) => streamReconstruct(images, floorPlan, onProgress),
 
-  // ---- تولید مدل سه‌بعدی از توصیف متنی (text-to-3D) ----
+  // ---- Generate a 3D model from a text description (text-to-3D) ----
   generateObject: (text: string) =>
     request<{ item: GeneratedItem }>('/api/ai/cabinet', {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
 
-  // ---- طراحی کامل فضا از توصیف متنی (text-to-room) ----
+  // ---- Design a full space from a text description (text-to-room) ----
   generateRoom: (text: string) =>
     request<GeneratedRoom>('/api/ai/room', {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
 
-  // ---- ویرایش متنی آبجکت انتخاب‌شده ----
+  // ---- Text-based editing of the selected object ----
   aiEditObject: (object: SceneObject, text: string) =>
     request<{ patch: ObjectPatch }>('/api/ai/edit', {
       method: 'POST',
       body: JSON.stringify({ object, text }),
     }),
 
-  // ---- پوشه‌های مشتری ----
+  // ---- Client folders ----
   listFolders: () => request<{ folders: FolderDTO[] }>('/api/folders'),
 
-  /** ساخت پوشه مشتری — اگر پوشه‌ای با همان نام موجود باشد همان برمی‌گردد (existed: true) */
+  /** Create a client folder — returns the existing one if a name matches (existed: true) */
   createFolder: (name: string, phone?: string) =>
     request<{ folder: FolderDTO; existed?: boolean }>('/api/folders', {
       method: 'POST',
@@ -414,7 +415,7 @@ export const api = {
   projectGuests: (id: string) =>
     request<{ guests: GuestDTO[] }>(`/api/projects/${id}/guests`),
 
-  // ---- ذخیره خودکار مهمان ویرایشگر ----
+  // ---- Editor guest autosave ----
   saveAsGuest: (p: { token: string; guestId: string; sceneState: SceneState }) =>
     request<{ ok: boolean; updatedAt: string }>('/api/share/save', {
       method: 'POST',
@@ -480,3 +481,11 @@ export const api = {
   deletePreset: (id: string) =>
     request<{ ok: boolean }>(`/api/presets?id=${id}`, { method: 'DELETE' }),
 };
+
+/**
+ * In static demo builds (NEXT_PUBLIC_DEMO_MODE=1, used for GitHub Pages)
+ * every call is served by a localStorage-backed backend instead of fetch.
+ */
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === '1';
+
+export const api: typeof fetchApi = DEMO_MODE ? demoApi : fetchApi;

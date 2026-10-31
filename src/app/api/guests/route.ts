@@ -6,7 +6,7 @@ import { checkShareToken } from '@/app/api/_lib/share-guard';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/guests — ثبت‌نام مهمان با لینک اشتراکی
+// /api/guests — guest sign-up with a share link
 // ============================================================
 
 const createSchema = z.object({
@@ -19,14 +19,14 @@ export async function POST(req: NextRequest) {
     const body = await readJsonBody(req);
     if (!body.ok) {
       return NextResponse.json(
-        { error: 'نام باید بین ۱ تا ۳۰ کاراکتر باشد' },
+        { error: 'Name must be between 1 and 30 characters' },
         { status: 400 },
       );
     }
     const parsed = createSchema.safeParse(body.data);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'نام باید بین ۱ تا ۳۰ کاراکتر باشد' },
+        { error: 'Name must be between 1 and 30 characters' },
         { status: 400 },
       );
     }
@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error('POST /api/guests failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

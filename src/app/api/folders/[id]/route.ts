@@ -6,8 +6,8 @@ import { requireOwner } from '@/lib/auth';
 import { readJsonBody } from '@/app/api/_lib/serialize';
 
 // ============================================================
-// /api/folders/[id] — ویرایش (نام مشتری/تلفن) و حذف یک پوشه مشتری
-// (حذف پوشه پروژه‌ها را حذف نمی‌کند؛ folderId آن‌ها با SetNull تهی می‌شود)
+// /api/folders/[id] — edit (client name/phone) and delete a client folder
+// (deleting a folder does not delete its projects; their folderId is nulled via SetNull)
 // ============================================================
 
 function serializeFolder(f: Folder & { _count?: { projects: number } }) {
@@ -36,19 +36,19 @@ export async function PATCH(
     const { id } = await params;
     const body = await readJsonBody(req);
     if (!body.ok) {
-      return NextResponse.json({ error: 'داده ارسالی نامعتبر است' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 });
     }
     const parsed = patchSchema.safeParse(body.data);
     if (!parsed.success || (!parsed.data.name && parsed.data.phone === undefined)) {
       return NextResponse.json(
-        { error: 'نام مشتری را بین ۱ تا ۶۰ کاراکتر وارد کنید' },
+        { error: 'Enter a client name between 1 and 60 characters' },
         { status: 400 },
       );
     }
 
     const existing = await db.folder.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
 
     const folder = await db.folder.update({
@@ -62,7 +62,7 @@ export async function PATCH(
     return NextResponse.json({ folder: serializeFolder(folder) });
   } catch (err) {
     console.error('PATCH /api/folders/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }
 
@@ -77,12 +77,12 @@ export async function DELETE(
     const { id } = await params;
     const existing = await db.folder.findUnique({ where: { id }, select: { id: true } });
     if (!existing) {
-      return NextResponse.json({ error: 'پوشه یافت نشد' }, { status: 404 });
+      return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
     }
     await db.folder.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/folders/[id] failed:', err);
-    return NextResponse.json({ error: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

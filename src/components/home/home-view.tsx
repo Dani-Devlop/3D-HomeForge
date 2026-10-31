@@ -52,6 +52,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Collapsible,
@@ -103,7 +104,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShareDialog } from '@/components/editor/share-dialog';
 
 // ============================================================
-// پیش‌نمایش تصویر (عکس قرارداد/فاکتور پروژه)
+// Image preview (project contract/invoice photo)
 // ============================================================
 function ImagePreviewDialog({
   url,
@@ -116,7 +117,7 @@ function ImagePreviewDialog({
 }) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent dir="rtl" className="max-w-2xl">
+      <DialogContent dir="ltr" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -131,19 +132,19 @@ function ImagePreviewDialog({
 }
 
 // ============================================================
-// پنل مدیریت
+// Admin panel
 // ============================================================
 const ROOM_TYPE_LABEL: Record<string, string> = {
-  kitchen: 'آشپزخانه',
-  bedroom: 'اتاق خواب',
-  living: 'نشیمن',
-  dining: 'ناهارخوری',
-  bathroom: 'سرویس',
-  office: 'اتاق کار',
-  other: 'سایر',
+  kitchen: 'Kitchen',
+  bedroom: 'Bedroom',
+  living: 'Living room',
+  dining: 'Dining room',
+  bathroom: 'Bathroom',
+  office: 'Office',
+  other: 'Other',
 };
 
-const ROLE_FA: Record<string, string> = { viewer: 'نمایشگر', modifier: 'ویرایشگر' };
+const ROLE_FA: Record<string, string> = { viewer: 'Viewer', modifier: 'Editor' };
 
 function StatCard({ icon: Icon, label, value }: { icon: typeof FolderIcon; label: string; value: number }) {
   return (
@@ -153,7 +154,7 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof FolderIcon; label
           <Icon className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0">
-          <p className="text-xl font-black tabular-nums leading-none">{value.toLocaleString('fa-IR')}</p>
+          <p className="text-xl font-black tabular-nums leading-none">{value.toLocaleString('en-US')}</p>
           <p className="text-[11px] text-muted-foreground mt-1 truncate">{label}</p>
         </div>
       </CardContent>
@@ -172,20 +173,20 @@ function AdminPanel() {
   const changePw = useMutation({
     mutationFn: () => api.changePassword(cur, nw),
     onSuccess: () => {
-      toast({ title: 'رمز تغییر کرد' });
+      toast({ title: 'Password changed' });
       setCur('');
       setNw('');
       setRep('');
     },
     onError: (e: Error) =>
-      toast({ title: 'تغییر رمز ناموفق بود', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Password change failed', description: e.message, variant: 'destructive' }),
   });
 
   const pwError =
     nw.length > 0 && nw.length < 4
-      ? 'رمز جدید حداقل ۴ کاراکتر باشد'
+      ? 'New password must be at least 4 characters'
       : rep.length > 0 && nw !== rep
-        ? 'تکرار رمز با رمز جدید مطابقت ندارد'
+        ? 'Password confirmation does not match'
         : '';
 
   if (statsQ.isLoading) {
@@ -199,8 +200,8 @@ function AdminPanel() {
   if (statsQ.isError || !statsQ.data) {
     return (
       <div className="py-16 text-center space-y-2">
-        <p className="text-sm text-destructive">{(statsQ.error as Error)?.message ?? 'دریافت آمار ناموفق بود'}</p>
-        <Button variant="outline" size="sm" onClick={() => statsQ.refetch()}>تلاش دوباره</Button>
+        <p className="text-sm text-destructive">{(statsQ.error as Error)?.message ?? 'Failed to load stats'}</p>
+        <Button variant="outline" size="sm" onClick={() => statsQ.refetch()}>Retry</Button>
       </div>
     );
   }
@@ -209,25 +210,25 @@ function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      {/* کارت‌های آمار */}
+      {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatCard icon={FolderIcon} label="پروژه‌ها" value={stats.projects} />
-        <StatCard icon={Boxes} label="پوشه‌ها" value={stats.folders} />
-        <StatCard icon={Users} label="مهمان‌ها" value={stats.guests} />
-        <StatCard icon={Send} label="لینک‌های فعال" value={stats.activeShareLinks} />
-        <StatCard icon={Globe} label="نمونه‌کارهای عمومی" value={stats.publicProjects} />
+        <StatCard icon={FolderIcon} label="Projects" value={stats.projects} />
+        <StatCard icon={Boxes} label="Folders" value={stats.folders} />
+        <StatCard icon={Users} label="Guests" value={stats.guests} />
+        <StatCard icon={Send} label="Active links" value={stats.activeShareLinks} />
+        <StatCard icon={Globe} label="Public portfolio" value={stats.publicProjects} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 items-start">
-        {/* زمان‌بندی پیش‌رو */}
+        {/* Upcoming schedule */}
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold flex items-center gap-2 text-sm">
-              <CalendarClock className="h-4.5 w-4.5 text-primary" /> زمان‌بندی پیش‌رو
+              <CalendarClock className="h-4.5 w-4.5 text-primary" /> Upcoming schedule
             </h3>
             {upcoming.length === 0 ? (
               <p className="text-xs text-muted-foreground py-6 text-center">
-                بازدید، اجرا یا اتمامی در ۴۵ روز آینده ثبت نشده است
+                No visit, install, or due date scheduled in the next 45 days
               </p>
             ) : (
               <ul className="divide-y">
@@ -249,17 +250,17 @@ function AdminPanel() {
                     <div className="flex flex-wrap gap-1.5 text-[10px]">
                       {u.visitAt && (
                         <Badge className="bg-amber-100 text-amber-900 border-amber-200 h-5 px-2">
-                          بازدید: {formatFaDate(u.visitAt)}
+                          Visit: {formatFaDate(u.visitAt)}
                         </Badge>
                       )}
                       {u.installAt && (
                         <Badge className="bg-emerald-100 text-emerald-900 border-emerald-200 h-5 px-2">
-                          اجرا: {formatFaDate(u.installAt)}
+                          Install: {formatFaDate(u.installAt)}
                         </Badge>
                       )}
                       {u.dueAt && (
-                        <Badge className="bg-stone-200 text-stone-800 border-stone-300 h-5 px-2">
-                          اتمام: {formatFaDate(u.dueAt)}
+                        <Badge className="bg-muted text-muted-foreground border-border h-5 px-2">
+                          Due: {formatFaDate(u.dueAt)}
                         </Badge>
                       )}
                     </div>
@@ -270,14 +271,14 @@ function AdminPanel() {
           </CardContent>
         </Card>
 
-        {/* مهمان‌های اخیر */}
+        {/* Recent guests */}
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold flex items-center gap-2 text-sm">
-              <Users className="h-4.5 w-4.5 text-primary" /> مهمان‌های اخیر
+              <Users className="h-4.5 w-4.5 text-primary" /> Recent guests
             </h3>
             {recentGuests.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">هنوز بازدیدکننده‌ای نداشته‌اید</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">No visitors yet</p>
             ) : (
               <ul className="divide-y">
                 {recentGuests.map((g) => (
@@ -306,23 +307,23 @@ function AdminPanel() {
           </CardContent>
         </Card>
 
-        {/* تغییر رمز مدیر */}
+        {/* Change admin password */}
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold flex items-center gap-2 text-sm">
-              <KeyRound className="h-4.5 w-4.5 text-primary" /> تغییر رمز مدیر
+              <KeyRound className="h-4.5 w-4.5 text-primary" /> Change admin password
             </h3>
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">رمز فعلی</Label>
+                <Label className="text-xs">Current password</Label>
                 <Input type="password" value={cur} onChange={(e) => setCur(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">رمز جدید</Label>
+                <Label className="text-xs">New password</Label>
                 <Input type="password" value={nw} onChange={(e) => setNw(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">تکرار رمز جدید</Label>
+                <Label className="text-xs">Confirm new password</Label>
                 <Input type="password" value={rep} onChange={(e) => setRep(e.target.value)} className="h-9" />
               </div>
             </div>
@@ -334,25 +335,25 @@ function AdminPanel() {
               onClick={() => changePw.mutate()}
             >
               {changePw.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              ذخیره رمز جدید
+              Save new password
             </Button>
           </CardContent>
         </Card>
 
-        {/* انواع فضا */}
+        {/* Room types */}
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold flex items-center gap-2 text-sm">
-              <Box className="h-4.5 w-4.5 text-primary" /> انواع فضاها
+              <Box className="h-4.5 w-4.5 text-primary" /> Room types
             </h3>
             {Object.keys(roomTypes).length === 0 ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">هنوز پروژه‌ای ثبت نشده است</p>
+              <p className="text-xs text-muted-foreground py-6 text-center">No projects yet</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {Object.entries(roomTypes).map(([t, n]) => (
                   <Badge key={t} variant="outline" className="gap-1.5 h-7 px-3 text-xs">
                     {ROOM_TYPE_LABEL[t] ?? t}
-                    <span className="tabular-nums text-primary font-bold">{n.toLocaleString('fa-IR')}</span>
+                    <span className="tabular-nums text-primary font-bold">{n.toLocaleString('en-US')}</span>
                   </Badge>
                 ))}
               </div>
@@ -365,7 +366,7 @@ function AdminPanel() {
 }
 
 // ============================================================
-// پوشش پیشرفت بازسازی (استریم زنده)
+// Reconstruction progress overlay (live stream)
 // ============================================================
 function ReconstructOverlay({
   steps,
@@ -385,8 +386,8 @@ function ReconstructOverlay({
           <div className="flex items-center gap-3">
             <Sparkles className="h-8 w-8 text-primary animate-pulse" />
             <div>
-              <p className="font-semibold">بازسازی سه‌بعدی در جریان است</p>
-              <p className="text-xs text-muted-foreground">فضای واقعی شما با تجهیزاتش بازسازی می‌شود</p>
+              <p className="font-semibold">3D reconstruction in progress</p>
+              <p className="text-xs text-muted-foreground">Your real space is being rebuilt with its fixtures</p>
             </div>
           </div>
           <div className="space-y-2.5">
@@ -416,7 +417,7 @@ function ReconstructOverlay({
               />
             </div>
             <p className="text-[10px] text-muted-foreground text-center tabular-nums">
-              {Math.round(percent).toLocaleString('fa-IR')}٪
+              {Math.round(percent).toLocaleString('en-US')}%
             </p>
           </div>
         </CardContent>
@@ -426,7 +427,7 @@ function ReconstructOverlay({
 }
 
 // ============================================================
-// کارت آپلود (چند عکس + ویدیو + پلان اختیاری) با پیشرفت زنده
+// Upload card (multiple photos + video + optional floor plan) with live progress
 // ============================================================
 interface Shot {
   key: string;
@@ -453,7 +454,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
   const [progress, setProgress] = useState<{ step: number; percent: number; message: string } | null>(null);
   const stepsRef = useRef<string[]>([]);
 
-  /** پوشه مشتری را بر اساس نام پیدا/می‌سازد؛ بدون نام مشتری از پوشه انتخاب‌شده استفاده می‌شود */
+  /** Finds or creates the customer folder by name; falls back to the selected folder when no client name is given */
   const resolveCustomer = async (): Promise<{
     folderId: string | null;
     folder: { name: string; created: boolean } | null;
@@ -464,8 +465,8 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       if (!r.id) return { folderId, folder: null };
       return { folderId: r.id, folder: { name: clientName.trim(), created: !r.existed } };
     } catch {
-      // خطای پوشه‌بندی نباید ساخت پروژه را متوقف کند
-      toast({ title: 'پوشه‌بندی مشتری ناموفق بود', variant: 'destructive' });
+      // Folder errors must not block project creation
+      toast({ title: 'Could not resolve the customer folder', variant: 'destructive' });
       return { folderId, folder: null };
     }
   };
@@ -473,18 +474,18 @@ function UploadCard({ folderId }: { folderId: string | null }) {
   const folderToast = (folder: { name: string; created: boolean } | null) => {
     if (!folder) return;
     if (folder.created) {
-      toast({ title: 'پوشه جدید مشتری ساخته شد', description: `پوشه «${folder.name}»` });
+      toast({ title: 'New customer folder created', description: `Folder “${folder.name}”` });
     } else {
-      toast({ title: `پروژه در پوشه مشتری «${folder.name}» ثبت شد` });
+      toast({ title: `Project saved in customer folder “${folder.name}”` });
     }
   };
 
   const buildSteps = (hasPlan: boolean) => {
-    const steps = ['ارسال تصاویر به موتور هوش مصنوعی...'];
-    if (hasPlan) steps.push('خواندن پلان خانه برای ابعاد دقیق...');
-    steps.push('تحلیل عکس‌ها و تشخیص فضا و تجهیزات...');
-    steps.push('ادغام نتایج چند زاویه...');
-    steps.push('ساخت مش سه‌بعدی ویرایش‌پذیر...');
+    const steps = ['Sending images to the AI engine...'];
+    if (hasPlan) steps.push('Reading the floor plan for accurate dimensions...');
+    steps.push('Analyzing photos and detecting the space and fixtures...');
+    steps.push('Merging multi-angle results...');
+    steps.push('Building the editable 3D mesh...');
     return steps;
   };
 
@@ -492,13 +493,13 @@ function UploadCard({ folderId }: { folderId: string | null }) {
     if (!files?.length) return;
     const imgs = Array.from(files).filter((f) => f.type.startsWith('image/'));
     if (!imgs.length) {
-      toast({ title: 'فقط تصویر مجاز است', variant: 'destructive' });
+      toast({ title: 'Only images are allowed', variant: 'destructive' });
       return;
     }
     try {
       const remaining = MAX_SHOTS - shots.length;
       if (remaining <= 0) {
-        toast({ title: `حداکثر ${MAX_SHOTS.toLocaleString('fa-IR')} عکس مجاز است`, variant: 'destructive' });
+        toast({ title: `A maximum of ${MAX_SHOTS.toLocaleString('en-US')} photos is allowed`, variant: 'destructive' });
         return;
       }
       const urls = await Promise.all(imgs.slice(0, remaining).map((f) => fileToResizedDataUrl(f)));
@@ -510,18 +511,18 @@ function UploadCard({ folderId }: { folderId: string | null }) {
         return merged.slice(0, MAX_SHOTS);
       });
     } catch {
-      toast({ title: 'خواندن تصویر ناموفق بود', variant: 'destructive' });
+      toast({ title: 'Failed to read the image', variant: 'destructive' });
     }
   };
 
   const addVideo = async (f: File | null | undefined) => {
     if (!f) return;
     if (!f.type.startsWith('video/')) {
-      toast({ title: 'فایل ویدیویی معتبر نیست', variant: 'destructive' });
+      toast({ title: 'Not a valid video file', variant: 'destructive' });
       return;
     }
     try {
-      toast({ title: 'در حال استخراج فریم‌های ویدیو...' });
+      toast({ title: 'Extracting video frames...' });
       const frames = await videoToFrames(f, 3);
       const vk = `vid-${Date.now()}`;
       setVideoKey(vk);
@@ -530,7 +531,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       );
     } catch (e) {
       toast({
-        title: 'استخراج فریم ناموفق بود',
+        title: 'Frame extraction failed',
         description: e instanceof Error ? e.message : undefined,
         variant: 'destructive',
       });
@@ -540,19 +541,19 @@ function UploadCard({ folderId }: { folderId: string | null }) {
   const addFloorPlan = async (f: File | null | undefined) => {
     if (!f) return;
     if (!f.type.startsWith('image/')) {
-      toast({ title: 'پلان باید تصویر باشد', variant: 'destructive' });
+      toast({ title: 'The floor plan must be an image', variant: 'destructive' });
       return;
     }
     try {
       setFloorPlan(await fileToResizedDataUrl(f, 1600));
     } catch {
-      toast({ title: 'خواندن پلان ناموفق بود', variant: 'destructive' });
+      toast({ title: 'Failed to read the floor plan', variant: 'destructive' });
     }
   };
 
   const reconstruct = useMutation({
     mutationFn: async () => {
-      if (!shots.length) throw new Error('حداقل یک عکس یا ویدیو انتخاب کنید');
+      if (!shots.length) throw new Error('Select at least one photo or video');
       const hasPlan = !!floorPlan;
       const steps = buildSteps(hasPlan);
       stepsRef.current = steps;
@@ -585,11 +586,11 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       );
     },
     onSuccess: async (res) => {
-      // گام آخر فقط بعد از موفقیت کامل می‌شود — هرگز قبل از آن گیر نمی‌کند
+      // The last step completes only on full success — it never gets stuck before that
       setProgress({ step: stepsRef.current.length - 1, percent: 100, message: '' });
       const { folderId: resolvedFolderId, folder } = await resolveCustomer();
       const created = await api.createProject({
-        name: name.trim() || 'پروژه بازسازی‌شده',
+        name: name.trim() || 'Reconstructed project',
         roomType: res.roomType,
         roomSpec: res.roomSpec,
         sceneState: { objects: res.objects },
@@ -601,9 +602,9 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['folders'] });
       toast({
-        title: 'مدل سه‌بعدی ساخته شد ✓',
+        title: '3D model created ✓',
         description: res.objects.length
-          ? `${res.objects.length.toLocaleString('fa-IR')} قطعه تجهیزات/کابینت موجود شناسایی شد`
+          ? `${res.objects.length.toLocaleString('en-US')} existing fixtures/cabinets detected`
           : res.description || undefined,
       });
       folderToast(folder);
@@ -613,8 +614,8 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       setProgress(null);
       setRecSteps([]);
       toast({
-        title: 'بازسازی ناموفق بود',
-        description: `${e.message} — می‌توانید با فضای نمونه شروع کنید`,
+        title: 'Reconstruction failed',
+        description: `${e.message} — you can start with the sample space`,
         variant: 'destructive',
       });
     },
@@ -624,7 +625,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
     mutationFn: async () => {
       const { folderId: resolvedFolderId, folder } = await resolveCustomer();
       const res = await api.createProject({
-        name: name.trim() || 'آشپزخانه نمونه',
+        name: name.trim() || 'Sample kitchen',
         roomType: 'kitchen',
         roomSpec: SAMPLE_ROOM_SPEC,
         sceneState: SAMPLE_SCENE,
@@ -642,7 +643,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       window.location.hash = `/editor/${res.project.id}`;
     },
     onError: (e: Error) =>
-      toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   return (
@@ -650,7 +651,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Camera className="h-5 w-5 text-primary" />
-          <h2 className="font-bold">بازسازی دقیق فضا از عکس یا ویدیو</h2>
+          <h2 className="font-bold">Accurate space reconstruction from photos or video</h2>
         </div>
 
         <input
@@ -704,21 +705,21 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             addImages(e.dataTransfer.files);
           }}
           className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary/60 bg-muted/30 transition-colors p-6 flex flex-col items-center gap-2 cursor-pointer group min-h-[120px] justify-center outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          aria-label="انتخاب عکس‌های فضا"
+          aria-label="Select space photos"
         >
           {shots.length === 0 ? (
             <>
               <UploadCloud className="h-9 w-9 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-              <p className="text-sm font-medium">چند عکس از زوایای مختلف بکشید یا انتخاب کنید</p>
+              <p className="text-sm font-medium">Drop or select a few photos from different angles</p>
               <p className="text-xs text-muted-foreground">
-                روبه‌رو، چپ و راست — پوشش کامل ۳۶۰ درجه لازم نیست
+                Front, left, and right — full 360° coverage is not required
               </p>
             </>
           ) : (
             <div className="grid grid-cols-4 gap-2 w-full">
               {shots.map((s) => (
                 <div key={s.key} className="relative group/th rounded-lg overflow-hidden border">
-                  <img src={s.src} alt="نمای آپلودشده فضا" className="w-full h-16 object-cover" />
+                  <img src={s.src} alt="Uploaded space view" className="w-full h-16 object-cover" />
                   <button
                     type="button"
                     onClick={(e) => {
@@ -726,7 +727,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
                       setShots((prev) => prev.filter((x) => x.key !== s.key));
                     }}
                     className="absolute top-1 end-1 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover/th:opacity-100 transition-opacity"
-                    aria-label="حذف تصویر"
+                    aria-label="Remove image"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -735,7 +736,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
               {shots.length < MAX_SHOTS && (
                 <div className="h-16 rounded-lg border border-dashed flex flex-col items-center justify-center text-[10px] text-muted-foreground gap-0.5">
                   <ImageIcon className="h-4 w-4" />
-                  افزودن (تا {(MAX_SHOTS - shots.length).toLocaleString('fa-IR')})
+                  Add (up to {(MAX_SHOTS - shots.length).toLocaleString('en-US')})
                 </div>
               )}
             </div>
@@ -751,7 +752,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             onClick={() => imgRef.current?.click()}
             disabled={shots.length >= MAX_SHOTS}
           >
-            <ImageIcon className="h-3.5 w-3.5" /> عکس‌های بیشتر
+            <ImageIcon className="h-3.5 w-3.5" /> More photos
           </Button>
           <Button
             type="button"
@@ -761,26 +762,26 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             onClick={() => vidRef.current?.click()}
             disabled={shots.length >= MAX_SHOTS - 1}
           >
-            <Video className="h-3.5 w-3.5" /> آپلود ویدیو
+            <Video className="h-3.5 w-3.5" /> Upload video
           </Button>
         </div>
 
-        {/* پلان خانه — اختیاری */}
+        {/* Floor plan — optional */}
         {floorPlan ? (
           <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-2">
-            <img src={floorPlan} alt="پلان خانه" className="h-14 w-20 object-cover rounded-lg border shrink-0" />
+            <img src={floorPlan} alt="Floor plan" className="h-14 w-20 object-cover rounded-lg border shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium flex items-center gap-1.5">
-                <Ruler className="h-3.5 w-3.5 text-primary" /> پلان خانه افزوده شد
+                <Ruler className="h-3.5 w-3.5 text-primary" /> Floor plan added
               </p>
-              <p className="text-[10px] text-muted-foreground">ابعاد از روی پلان خوانده می‌شود</p>
+              <p className="text-[10px] text-muted-foreground">Dimensions will be read from the plan</p>
             </div>
             <Button
               size="icon"
               variant="ghost"
               className="h-8 w-8 shrink-0"
               onClick={() => setFloorPlan(null)}
-              aria-label="حذف پلان"
+              aria-label="Remove floor plan"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -802,13 +803,13 @@ function UploadCard({ folderId }: { folderId: string | null }) {
               addFloorPlan(e.dataTransfer.files?.[0]);
             }}
             className="w-full rounded-xl border-2 border-dashed border-primary/25 hover:border-primary/60 bg-primary/5 transition-colors p-3 flex items-center gap-3 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-            aria-label="افزودن پلان خانه (اختیاری)"
+            aria-label="Add floor plan (optional)"
           >
             <Ruler className="h-6 w-6 text-primary/60 shrink-0" />
             <div className="min-w-0">
-              <p className="text-xs font-medium">پلان خانه (اختیاری — برای دقت بیشتر)</p>
+              <p className="text-xs font-medium">Floor plan (optional — for better accuracy)</p>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                لازم نیست همیشه پلان بدهید — فقط وقتی عکس پلان دارید اضافه کنید تا ابعاد دقیق‌تر شود
+                Not always needed — add it only when you have a plan photo, to get more accurate dimensions
               </p>
             </div>
           </div>
@@ -817,11 +818,11 @@ function UploadCard({ folderId }: { folderId: string | null }) {
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="نام پروژه (اختیاری)"
+          placeholder="Project name (optional)"
           maxLength={80}
         />
 
-        {/* مشتری و مرحله — اختیاری؛ برای پوشه‌بندی خودکار مشتری */}
+        {/* Client & stage — optional; for automatic customer folders */}
         <Collapsible
           open={crmOpen}
           onOpenChange={setCrmOpen}
@@ -829,7 +830,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
         >
           <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-medium rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
             <Contact className="h-4 w-4 text-primary" />
-            اطلاعات مشتری و مرحله (اختیاری)
+            Client info & stage (optional)
             <ChevronDown
               className={`h-4 w-4 ms-auto text-muted-foreground transition-transform ${crmOpen ? 'rotate-180' : ''}`}
             />
@@ -838,17 +839,17 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             <div className="space-y-3 px-3 pb-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">نام مشتری (برای پوشه)</Label>
+                  <Label className="text-xs">Client name (for folder)</Label>
                   <Input
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    placeholder="مثلاً: آقای محمدی"
+                    placeholder="e.g. Mr. Mohammadi"
                     maxLength={80}
                     className="h-9 text-xs"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">شماره تماس</Label>
+                  <Label className="text-xs">Phone number</Label>
                   <Input
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
@@ -860,9 +861,9 @@ function UploadCard({ folderId }: { folderId: string | null }) {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">مرحله پیشرفت</Label>
-                <Select value={stage} onValueChange={(v) => setStage(v as ProjectStage)} dir="rtl">
-                  <SelectTrigger className="w-full h-9 text-xs" aria-label="مرحله پیشرفت پروژه">
+                <Label className="text-xs">Progress stage</Label>
+                <Select value={stage} onValueChange={(v) => setStage(v as ProjectStage)} dir="ltr">
+                  <SelectTrigger className="w-full h-9 text-xs" aria-label="Project progress stage">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -875,7 +876,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
                 </Select>
               </div>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                اگر پوشه‌ای با نام این مشتری باشد پروژه به همان پوشه اضافه می‌شود؛ وگرنه پوشه جدید ساخته می‌شود.
+                If a folder with this client name exists, the project is added to it; otherwise a new folder is created.
               </p>
             </div>
           </CollapsibleContent>
@@ -888,7 +889,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             disabled={!shots.length || reconstruct.isPending}
           >
             <Sparkles className="h-4 w-4" />
-            {reconstruct.isPending ? 'در حال بازسازی...' : 'بازسازی سه‌بعدی با AI'}
+            {reconstruct.isPending ? 'Reconstructing...' : 'Reconstruct 3D with AI'}
           </Button>
           <Button
             variant="outline"
@@ -897,12 +898,12 @@ function UploadCard({ folderId }: { folderId: string | null }) {
             disabled={startSample.isPending}
           >
             <Boxes className="h-4 w-4" />
-            فضای نمونه
+            Sample space
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          AI دیوارها، بازشوها و تجهیزات موجود (کابینت، یخچال، اجاق، هود، مبلمان) را تشخیص می‌دهد و مدل
-          سه‌بعدی تقریبی اما قابل ویرایش می‌سازد.
+          AI detects walls, openings, and existing fixtures (cabinets, fridge, stove, hood, furniture)
+          and builds an approximate but fully editable 3D model.
         </p>
       </CardContent>
 
@@ -919,7 +920,7 @@ function UploadCard({ folderId }: { folderId: string | null }) {
 }
 
 // ============================================================
-// دیالوگ پوشه
+// Folder dialog
 // ============================================================
 function FolderDialog({
   open,
@@ -939,17 +940,17 @@ function FolderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-sm">
+      <DialogContent dir="ltr" className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{initial?.id ? 'تغییر نام پوشه' : 'پوشه جدید'}</DialogTitle>
+          <DialogTitle>{initial?.id ? 'Rename folder' : 'New folder'}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label className="text-xs">نام پوشه (مشتری)</Label>
+            <Label className="text-xs">Folder name (customer)</Label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="مثلاً: خانه آقای رضایی"
+              placeholder="e.g. Mr. Rezaei house"
               maxLength={60}
               autoFocus
               onKeyDown={(e) => {
@@ -958,7 +959,7 @@ function FolderDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">شماره تماس مشتری (اختیاری)</Label>
+            <Label className="text-xs">Customer phone (optional)</Label>
             <Input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -970,12 +971,12 @@ function FolderDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>انصراف</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             onClick={() => name.trim() && onSave(name.trim(), phone.trim())}
             disabled={!name.trim() || saving}
           >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} ذخیره
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -984,7 +985,7 @@ function FolderDialog({
 }
 
 // ============================================================
-// نوار پوشه‌ها
+// Folder bar
 // ============================================================
 function FolderBar({
   folders,
@@ -1010,9 +1011,9 @@ function FolderBar({
       qc.invalidateQueries({ queryKey: ['folders'] });
       setDlgOpen(false);
       onSelect({ kind: 'folder', id: res.folder.id });
-      toast({ title: `پوشه «${res.folder.name}» ساخته شد` });
+      toast({ title: `Folder “${res.folder.name}” created` });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const renameFolder = useMutation({
@@ -1021,9 +1022,9 @@ function FolderBar({
       qc.invalidateQueries({ queryKey: ['folders'] });
       qc.invalidateQueries({ queryKey: ['projects'] });
       setDlgOpen(false);
-      toast({ title: 'نام پوشه تغییر کرد' });
+      toast({ title: 'Folder renamed' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const deleteFolder = useMutation({
@@ -1032,9 +1033,9 @@ function FolderBar({
       qc.invalidateQueries({ queryKey: ['folders'] });
       qc.invalidateQueries({ queryKey: ['projects'] });
       onSelect({ kind: 'all' });
-      toast({ title: 'پوشه حذف شد', description: 'پروژه‌های آن بدون پوشه شدند' });
+      toast({ title: 'Folder deleted', description: 'Its projects are now folderless' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const chip = (active: boolean) =>
@@ -1046,8 +1047,8 @@ function FolderBar({
 
   const newProject = useMutation({
     mutationFn: async (crm: ProjectFormSave) => {
-      // تطبیق خودکار پوشه مشتری — اگر پوشه‌ای با نام مشتری باشد همان استفاده می‌شود،
-      // وگرنه سرور پوشه جدید می‌سازد (createFolder پوشه هم‌نام را برمی‌گرداند)
+      // Auto-match the customer folder — reuse an existing folder with the same name,
+      // otherwise the server creates one (createFolder returns the same-named folder)
       let folderId = currentFolderId;
       let folder: { name: string; created: boolean } | null = null;
       const customerName = crm.clientName?.trim() ?? '';
@@ -1059,16 +1060,16 @@ function FolderBar({
             folder = { name: customerName, created: !r.existed };
           }
         } catch {
-          // خطای پوشه‌بندی نباید ساخت پروژه را متوقف کند
+          // Folder errors must not block project creation
           toast({
-            title: 'پوشه‌بندی مشتری ناموفق بود',
-            description: 'پروژه در پوشه فعلی ثبت می‌شود',
+            title: 'Could not resolve the customer folder',
+            description: 'The project will be saved in the current folder',
             variant: 'destructive',
           });
         }
       }
       const res = await api.createProject({
-        name: crm.name?.trim() || 'پروژه جدید',
+        name: crm.name?.trim() || 'New project',
         roomSpec: {
           widthM: 4, depthM: 3.4, heightM: 2.8,
           wallColor: '#ece7dd', floorColor: '#a97c50', ceilingColor: '#fafafa',
@@ -1095,25 +1096,25 @@ function FolderBar({
       if (folder) {
         if (folder.created) {
           toast({
-            title: 'پوشه جدید مشتری ساخته شد',
-            description: `پروژه در پوشه «${folder.name}» ثبت شد`,
+            title: 'New customer folder created',
+            description: `Project saved in folder “${folder.name}”`,
           });
         } else {
-          toast({ title: `پروژه در پوشه مشتری «${folder.name}» ثبت شد` });
+          toast({ title: `Project saved in customer folder “${folder.name}”` });
         }
       }
       window.location.hash = `/editor/${project.id}`;
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" className={chip(selected.kind === 'all')} onClick={() => onSelect({ kind: 'all' })}>
-        <Boxes className="h-3.5 w-3.5" /> همه
+        <Boxes className="h-3.5 w-3.5" /> All
       </button>
       <button type="button" className={chip(selected.kind === 'none')} onClick={() => onSelect({ kind: 'none' })}>
-        <FolderIcon className="h-3.5 w-3.5 opacity-50" /> بدون پوشه
+        <FolderIcon className="h-3.5 w-3.5 opacity-50" /> No folder
       </button>
       {folders.map((f) => (
         <div key={f.id} className="flex items-center">
@@ -1126,7 +1127,7 @@ function FolderBar({
             <FolderIcon className="h-3.5 w-3.5" />
             {f.name}
             {typeof f.projectCount === 'number' && (
-              <span className="opacity-70">({f.projectCount.toLocaleString('fa-IR')})</span>
+              <span className="opacity-70">({f.projectCount.toLocaleString('en-US')})</span>
             )}
           </button>
           <DropdownMenu>
@@ -1134,7 +1135,7 @@ function FolderBar({
               <button
                 type="button"
                 className={`${chip(false)} rounded-e-full !px-1.5 !-ms-px`}
-                aria-label={`گزینه‌های پوشه ${f.name}`}
+                aria-label={`Folder options for ${f.name}`}
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
@@ -1146,13 +1147,13 @@ function FolderBar({
                   setDlgOpen(true);
                 }}
               >
-                <Pencil className="h-3.5 w-3.5" /> تغییر نام
+                <Pencil className="h-3.5 w-3.5" /> Rename
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
                 onClick={() => deleteFolder.mutate(f.id)}
               >
-                <Trash2 className="h-3.5 w-3.5" /> حذف پوشه
+                <Trash2 className="h-3.5 w-3.5" /> Delete folder
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1164,7 +1165,7 @@ function FolderBar({
         className="h-9 rounded-full gap-1.5 text-xs"
         onClick={() => { setEditing(undefined); setDlgOpen(true); }}
       >
-        <FolderPlus className="h-3.5 w-3.5" /> پوشه جدید
+        <FolderPlus className="h-3.5 w-3.5" /> New folder
       </Button>
       <Button
         variant="outline"
@@ -1173,7 +1174,7 @@ function FolderBar({
         onClick={() => setNewOpen(true)}
         disabled={newProject.isPending}
       >
-        <FilePlus2 className="h-3.5 w-3.5" /> پروژه جدید
+        <FilePlus2 className="h-3.5 w-3.5" /> New project
       </Button>
 
       {dlgOpen && (
@@ -1192,7 +1193,7 @@ function FolderBar({
 
       {newOpen && (
         <ProjectFormDialog
-          title="پروژه جدید"
+          title="New project"
           initial={{}}
           withName
           saving={newProject.isPending}
@@ -1207,7 +1208,7 @@ function FolderBar({
 type FolderFilter = { kind: 'all' } | { kind: 'none' } | { kind: 'folder'; id: string };
 
 // ============================================================
-// کارت پروژه — با بج‌های CRM و دیالوگ مشتری/زمان‌بندی
+// Project card — with CRM badges and client/scheduling dialog
 // ============================================================
 function ProjectCard({
   project,
@@ -1223,7 +1224,7 @@ function ProjectCard({
   const [crmOpen, setCrmOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{ url: string; title: string } | null>(null);
 
-  // فیلدهای قرارداد/مالی — کپی محلی برای نمایش بج‌ها
+  // Contract/finance fields — local copy for badge display
   const contractAmount = project.contractAmount ?? null;
   const dealAt = project.dealAt ?? null;
   const contractPhoto = project.contractPhoto ?? '';
@@ -1239,27 +1240,27 @@ function ProjectCard({
     mutationFn: () => api.deleteProject(project.id),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'پروژه حذف شد' });
+      toast({ title: 'Project deleted' });
     },
-    onError: (e: Error) => toast({ title: 'خطا در حذف', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Delete failed', description: e.message, variant: 'destructive' }),
   });
 
   const togglePublic = useMutation({
     mutationFn: () => api.patchProject(project.id, { isPublic: !project.isPublic }),
     onSuccess: () => {
       invalidate();
-      toast({ title: project.isPublic ? 'پروژه خصوصی شد' : 'پروژه عمومی شد (نمونه‌کار)' });
+      toast({ title: project.isPublic ? 'Project is now private' : 'Project is now public (portfolio)' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const moveToFolder = useMutation({
     mutationFn: (folderId: string | null) => api.patchProject(project.id, { folderId }),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'پروژه منتقل شد' });
+      toast({ title: 'Project moved' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   const saveCrm = useMutation({
@@ -1280,18 +1281,18 @@ function ProjectCard({
     onSuccess: () => {
       invalidate();
       setCrmOpen(false);
-      toast({ title: 'اطلاعات پروژه ذخیره شد ✓' });
+      toast({ title: 'Project details saved ✓' });
     },
-    onError: (e: Error) => toast({ title: 'خطا در ذخیره', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Save failed', description: e.message, variant: 'destructive' }),
   });
 
   const patchStage = useMutation({
     mutationFn: (stage: ProjectStage) => api.patchProject(project.id, { stage }),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'مرحله پیشرفت به‌روزرسانی شد' });
+      toast({ title: 'Progress stage updated' });
     },
-    onError: (e: Error) => toast({ title: 'خطا', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
   });
 
   return (
@@ -1300,13 +1301,13 @@ function ProjectCard({
         type="button"
         className="block w-full text-start"
         onClick={() => (window.location.hash = `/editor/${project.id}`)}
-        aria-label={`باز کردن ${project.name}`}
+        aria-label={`Open ${project.name}`}
       >
         <div className="h-36 bg-muted relative overflow-hidden">
           {project.thumbnail ? (
             <img
               src={project.thumbnail}
-              alt={`تصویر پروژه ${project.name}`}
+              alt={`Project image ${project.name}`}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
@@ -1316,15 +1317,15 @@ function ProjectCard({
           )}
           <div className="absolute top-2 start-2 flex gap-1">
             <Badge className="text-[10px]">
-              {project.roomType === 'kitchen' ? 'آشپزخانه' : project.roomType === 'bedroom' ? 'اتاق خواب' : 'فضا'}
+              {project.roomType === 'kitchen' ? 'Kitchen' : project.roomType === 'bedroom' ? 'Bedroom' : 'Space'}
             </Badge>
             {project.isPublic ? (
               <Badge variant="secondary" className="text-[10px] gap-1 bg-emerald-600/90 text-white border-0">
-                <Globe className="h-2.5 w-2.5" /> عمومی
+                <Globe className="h-2.5 w-2.5" /> Public
               </Badge>
             ) : (
               <Badge variant="secondary" className="text-[10px] gap-1 bg-black/45 text-white border-0 backdrop-blur">
-                <Lock className="h-2.5 w-2.5" /> خصوصی
+                <Lock className="h-2.5 w-2.5" /> Private
               </Badge>
             )}
           </div>
@@ -1340,8 +1341,8 @@ function ProjectCard({
                   <FolderIcon className="h-3 w-3" /> {project.folderName} •
                 </>
               )}
-              {new Date(project.updatedAt).toLocaleDateString('fa-IR')}
-              {typeof project.shareCount === 'number' && project.shareCount > 0 && ` • ${project.shareCount.toLocaleString('fa-IR')} لینک`}
+              {new Date(project.updatedAt).toLocaleDateString('en-US')}
+              {typeof project.shareCount === 'number' && project.shareCount > 0 && ` • ${project.shareCount.toLocaleString('en-US')} links`}
             </p>
           </div>
           <DropdownMenu>
@@ -1350,18 +1351,18 @@ function ProjectCard({
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7 shrink-0"
-                aria-label={`گزینه‌های ${project.name}`}
+                aria-label={`Options for ${project.name}`}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onClick={() => setCrmOpen(true)}>
-                <Contact className="h-3.5 w-3.5" /> مشخصات پروژه…
+                <Contact className="h-3.5 w-3.5" /> Project details…
               </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="gap-2">
-                  <CalendarClock className="h-3.5 w-3.5" /> مرحله پیشرفت
+                  <CalendarClock className="h-3.5 w-3.5" /> Progress stage
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
                   {PROJECT_STAGES.map((s) => (
@@ -1385,21 +1386,21 @@ function ProjectCard({
               <DropdownMenuItem onClick={() => togglePublic.mutate()}>
                 {project.isPublic ? (
                   <>
-                    <Lock className="h-3.5 w-3.5" /> خصوصی کردن
+                    <Lock className="h-3.5 w-3.5" /> Make private
                   </>
                 ) : (
                   <>
-                    <Globe className="h-3.5 w-3.5" /> عمومی کردن (نمونه‌کار)
+                    <Globe className="h-3.5 w-3.5" /> Make public (portfolio)
                   </>
                 )}
               </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger className="gap-2">
-                  <FolderInput className="h-3.5 w-3.5" /> انتقال به پوشه
+                  <FolderInput className="h-3.5 w-3.5" /> Move to folder
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
                   <DropdownMenuItem onClick={() => moveToFolder.mutate(null)}>
-                    <FolderIcon className="h-3.5 w-3.5 opacity-50" /> بدون پوشه
+                    <FolderIcon className="h-3.5 w-3.5 opacity-50" /> No folder
                   </DropdownMenuItem>
                   {folders.map((f) => (
                     <DropdownMenuItem
@@ -1417,13 +1418,13 @@ function ProjectCard({
                 className="text-destructive focus:text-destructive"
                 onClick={() => setDeleteOpen(true)}
               >
-                <Trash2 className="h-3.5 w-3.5" /> حذف پروژه
+                <Trash2 className="h-3.5 w-3.5" /> Delete project
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        {/* بج‌های CRM — مرحله + مشتری */}
+        {/* CRM badges — stage + client */}
         <div className="flex flex-wrap gap-1">
           <Badge
             asChild
@@ -1432,8 +1433,8 @@ function ProjectCard({
             <button
               type="button"
               onClick={() => setCrmOpen(true)}
-              aria-label={`ویرایش مشخصات و مرحله ${project.name}`}
-              title="ویرایش مشخصات پروژه"
+              aria-label={`Edit details and stage of ${project.name}`}
+              title="Edit project details"
             >
               <span
                 className="h-1.5 w-1.5 rounded-full"
@@ -1461,17 +1462,17 @@ function ProjectCard({
           )}
         </div>
 
-        {/* قرارداد و مالی */}
+        {/* Contract & finance */}
         {(contractAmount !== null || dealAt || contractPhoto || invoicePhoto) && (
           <div className="flex flex-wrap gap-1">
             {contractAmount !== null && (
               <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal tabular-nums">
-                مبلغ: {formatToman(contractAmount)}
+                Amount: {formatToman(contractAmount)}
               </Badge>
             )}
             {dealAt && (
               <Badge variant="outline" className="text-[10px] h-5 px-1.5 gap-1 font-normal">
-                قرارداد: {formatFaDate(dealAt)}
+                Contract: {formatFaDate(dealAt)}
               </Badge>
             )}
             {contractPhoto && (
@@ -1483,11 +1484,11 @@ function ProjectCard({
                 <button
                   type="button"
                   onClick={() =>
-                    setPhotoPreview({ url: contractPhoto, title: `عکس قرارداد — ${project.name}` })
+                    setPhotoPreview({ url: contractPhoto, title: `Contract photo — ${project.name}` })
                   }
-                  aria-label="نمایش عکس قرارداد"
+                  aria-label="View contract photo"
                 >
-                  <Paperclip className="h-2.5 w-2.5" /> قرارداد 📎
+                  <Paperclip className="h-2.5 w-2.5" /> Contract 📎
                 </button>
               </Badge>
             )}
@@ -1500,33 +1501,33 @@ function ProjectCard({
                 <button
                   type="button"
                   onClick={() =>
-                    setPhotoPreview({ url: invoicePhoto, title: `فاکتور — ${project.name}` })
+                    setPhotoPreview({ url: invoicePhoto, title: `Invoice — ${project.name}` })
                   }
-                  aria-label="نمایش فاکتور"
+                  aria-label="View invoice"
                 >
-                  <FileText className="h-2.5 w-2.5" /> فاکتور
+                  <FileText className="h-2.5 w-2.5" /> Invoice
                 </button>
               </Badge>
             )}
           </div>
         )}
 
-        {/* زمان‌بندی */}
+        {/* Schedule */}
         {(project.visitAt || project.installAt || project.dueAt) && (
           <div className="flex flex-wrap gap-1">
             {project.visitAt && (
               <Badge className="bg-amber-100 text-amber-900 border-amber-200 text-[10px] h-5 px-1.5 font-normal">
-                بازدید: {formatFaDate(project.visitAt)}
+                Visit: {formatFaDate(project.visitAt)}
               </Badge>
             )}
             {project.installAt && (
               <Badge className="bg-emerald-100 text-emerald-900 border-emerald-200 text-[10px] h-5 px-1.5 font-normal">
-                اجرا: {formatFaDate(project.installAt)}
+                Install: {formatFaDate(project.installAt)}
               </Badge>
             )}
             {project.dueAt && (
-              <Badge className="bg-stone-200 text-stone-800 border-stone-300 text-[10px] h-5 px-1.5 font-normal">
-                اتمام: {formatFaDate(project.dueAt)}
+              <Badge className="bg-muted text-muted-foreground border-border text-[10px] h-5 px-1.5 font-normal">
+                Due: {formatFaDate(project.dueAt)}
               </Badge>
             )}
           </div>
@@ -1539,10 +1540,10 @@ function ProjectCard({
             className="h-8 gap-1 text-xs flex-1"
             onClick={() => (window.location.hash = `/editor/${project.id}`)}
           >
-            <SquarePen className="h-3.5 w-3.5" /> ویرایش
+            <SquarePen className="h-3.5 w-3.5" /> Edit
           </Button>
           <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => setShareOpen(true)}>
-            <Share2 className="h-3.5 w-3.5" /> اشتراک
+            <Share2 className="h-3.5 w-3.5" /> Share
           </Button>
         </div>
       </CardContent>
@@ -1551,7 +1552,7 @@ function ProjectCard({
 
       {crmOpen && (
         <ProjectFormDialog
-          title={`مشخصات پروژه — ${project.name}`}
+          title={`Project details — ${project.name}`}
           initial={project}
           saving={saveCrm.isPending}
           onSave={(crm) => saveCrm.mutate(crm)}
@@ -1568,20 +1569,20 @@ function ProjectCard({
       )}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir="ltr">
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف پروژه؟</AlertDialogTitle>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
             <AlertDialogDescription>
-              «{project.name}» و همه لینک‌های اشتراکی آن برای همیشه حذف می‌شود. این عمل قابل بازگشت نیست.
+              “{project.name}” and all of its share links will be permanently deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>انصراف</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-white hover:bg-destructive/90"
               onClick={() => del.mutate()}
             >
-              حذف کن
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1591,7 +1592,7 @@ function ProjectCard({
 }
 
 // ============================================================
-// نمای خانه — لندینگ عمومی (پیش‌فرض) + داشبورد مدیر با تب‌ها
+// Home view — public landing (default) + admin dashboard with tabs
 // ============================================================
 export default function HomeView() {
   const qc = useQueryClient();
@@ -1599,7 +1600,7 @@ export default function HomeView() {
 
   const sessionQ = useQuery({ queryKey: ['session'], queryFn: api.session, staleTime: 60_000 });
 
-  // نما: site (لندینگ عمومی) | dashboard (پنل مدیر) — در نشست مرورگر حفظ می‌شود
+  // View: site (public landing) | dashboard (admin panel) — persisted in sessionStorage
   const [view, setView] = useState<'site' | 'dashboard'>(() => {
     if (typeof window !== 'undefined' && sessionStorage.getItem('c3d_view') === 'dashboard') {
       return 'dashboard';
@@ -1615,7 +1616,7 @@ export default function HomeView() {
   const [q, setQ] = useState('');
   const [tab, setTab] = useState('projects');
 
-  // جست‌وجو با تاخیر ۳۵۰ms
+  // Debounced search (350ms)
   useEffect(() => {
     const t = setTimeout(() => setQ(searchInput.trim()), 350);
     return () => clearTimeout(t);
@@ -1644,13 +1645,13 @@ export default function HomeView() {
       qc.invalidateQueries({ queryKey: ['session'] });
     },
     onError: (e: Error) =>
-      toast({ title: 'خروج ناموفق بود', description: e.message, variant: 'destructive' }),
+      toast({ title: 'Sign out failed', description: e.message, variant: 'destructive' }),
   });
 
-  // --- لندینگ عمومی: حالت پیش‌فرض صفحه اصلی؛ داشبورد فقط برای مدیر واردشده ---
+  // --- Public landing: default home state; dashboard only for a signed-in admin ---
   if (sessionQ.isLoading && view === 'dashboard') {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -1661,7 +1662,7 @@ export default function HomeView() {
       <SiteLanding
         authed={authed}
         onEnterDashboard={() => {
-          // بعد از ورود (یا کلیک «پنل مدیریت») مستقیم به بخش مدیریت می‌رود
+          // After login (or clicking "Admin panel"), go straight to the admin tab
           setTab('admin');
           setView('dashboard');
           window.scrollTo({ top: 0 });
@@ -1677,36 +1678,37 @@ export default function HomeView() {
   const searching = q.length > 0;
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50">
-      {/* هدر */}
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header */}
       <header className="border-b bg-card/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-3">
           <button
             type="button"
             className="flex items-center gap-2"
             onClick={() => setView('site')}
-            aria-label="بازگشت به صفحه اصلی سایت"
+            aria-label="Back to site home"
           >
             <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
               <Box className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-black leading-tight">استودیو۳بعد</h1>
-              <p className="text-[10px] text-muted-foreground">از عکس تا فضای سه‌بعدی</p>
+              <h1 className="font-black leading-tight">3D HomeForge</h1>
+              <p className="text-[10px] text-muted-foreground">From photos to 3D spaces</p>
             </div>
           </button>
           <Badge variant="secondary" className="mr-auto text-[10px] gap-1 hidden sm:flex">
-            <ShieldCheck className="h-3 w-3" /> پنل مدیریت
+            <ShieldCheck className="h-3 w-3" /> Admin panel
           </Badge>
           <div className="ml-auto sm:ml-3 flex items-center gap-1.5">
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"
               className="gap-1.5"
               onClick={() => setView('site')}
-              aria-label="نمایش صفحه اصلی سایت"
+              aria-label="View site home"
             >
-              <Globe className="h-4 w-4" /> نمایش سایت
+              <Globe className="h-4 w-4" /> View site
             </Button>
             <Button
               variant="ghost"
@@ -1714,51 +1716,51 @@ export default function HomeView() {
               className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={() => logout.mutate()}
               disabled={logout.isPending}
-              aria-label="خروج از حساب مدیر"
+              aria-label="Sign out of admin account"
             >
               {logout.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              خروج
+              Sign out
             </Button>
           </div>
         </div>
       </header>
 
-      <Tabs value={tab} onValueChange={setTab} dir="rtl" className="flex-1 flex flex-col">
-        {/* تب‌ها */}
+      <Tabs value={tab} onValueChange={setTab} dir="ltr" className="flex-1 flex flex-col">
+        {/* Tabs */}
         <div className="max-w-6xl mx-auto px-4 w-full pt-4">
           <TabsList className="grid grid-cols-3 w-full max-w-md">
             <TabsTrigger value="projects" className="gap-1.5">
-              <Boxes className="h-4 w-4" /> پروژه‌ها
+              <Boxes className="h-4 w-4" /> Projects
             </TabsTrigger>
             <TabsTrigger value="portfolio" className="gap-1.5">
-              <Images className="h-4 w-4" /> نمونه‌کارها
+              <Images className="h-4 w-4" /> Portfolio
             </TabsTrigger>
             <TabsTrigger value="admin" className="gap-1.5">
-              <ShieldCheck className="h-4 w-4" /> مدیریت
+              <ShieldCheck className="h-4 w-4" /> Admin
             </TabsTrigger>
           </TabsList>
         </div>
 
-        {/* ---------- تب پروژه‌ها ---------- */}
+        {/* ---------- Projects tab ---------- */}
         <TabsContent value="projects" className="flex-1 mt-0">
           <main className="flex-1">
-            {/* جست‌وجو + پوشه‌ها */}
+            {/* Search + folders */}
             <section className="max-w-6xl mx-auto px-4 pb-2 space-y-2">
               <div className="relative">
                 <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-muted-foreground/60 pointer-events-none" />
                 <Input
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="جستجو: نام مشتری، شماره، آدرس یا تاریخ..."
+                  placeholder="Search: client name, phone, address, or date..."
                   className="ps-9 h-10 bg-card"
-                  aria-label="جستجو در پروژه‌ها"
+                  aria-label="Search projects"
                 />
                 {searchInput && (
                   <button
                     type="button"
                     onClick={() => setSearchInput('')}
                     className="absolute top-1/2 -translate-y-1/2 end-2 h-6 w-6 rounded-full bg-muted flex items-center justify-center hover:bg-accent transition-colors"
-                    aria-label="پاک کردن جستجو"
+                    aria-label="Clear search"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -1772,7 +1774,7 @@ export default function HomeView() {
               />
             </section>
 
-            {/* آپلود + پروژه‌ها */}
+            {/* Upload + projects */}
             <section className="max-w-6xl mx-auto px-4 py-6 grid lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-1 lg:sticky lg:top-24">
                 <UploadCard folderId={currentFolderId} />
@@ -1782,15 +1784,15 @@ export default function HomeView() {
                 <h3 className="font-bold flex items-center gap-2 flex-wrap">
                   <Boxes className="h-5 w-5 text-primary" />
                   {searching
-                    ? 'نتایج جستجو'
+                    ? 'Search results'
                     : folderFilter.kind === 'folder'
-                      ? `پروژه‌های پوشه «${folders.find((f) => f.id === folderFilter.id)?.name ?? ''}»`
+                      ? `Projects in folder “${folders.find((f) => f.id === folderFilter.id)?.name ?? ''}”`
                       : folderFilter.kind === 'none'
-                        ? 'پروژه‌های بدون پوشه'
-                        : 'پروژه‌های شما'}
+                        ? 'Projects without a folder'
+                        : 'Your projects'}
                   {!projectsQ.isLoading && (
                     <Badge variant="secondary" className="text-[10px] tabular-nums">
-                      {projects.length.toLocaleString('fa-IR')} پروژه
+                      {projects.length.toLocaleString('en-US')} projects
                     </Badge>
                   )}
                 </h3>
@@ -1817,26 +1819,26 @@ export default function HomeView() {
                     <Boxes className="h-10 w-10 mx-auto text-muted-foreground/30" />
                     <p className="text-sm font-medium">
                       {searching
-                        ? 'نتیجه‌ای برای این جستجو پیدا نشد'
+                        ? 'No results for this search'
                         : folderFilter.kind === 'all'
-                          ? 'هنوز پروژه‌ای ندارید'
-                          : 'این پوشه خالی است'}
+                          ? 'No projects yet'
+                          : 'This folder is empty'}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {searching
-                        ? 'نام مشتری، شماره تماس، آدرس یا تاریخ (مثل 2025-01-12) را امتحان کنید'
-                        : 'از کارت کنار، عکس فضا را آپلود کنید یا با فضای نمونه شروع کنید'}
+                        ? 'Try a client name, phone, address, or date (e.g. 2025-01-12)'
+                        : 'Upload space photos from the card beside, or start with the sample space'}
                     </p>
                   </div>
                 )}
               </div>
             </section>
 
-            {/* نمونه‌کارهای عمومی */}
+            {/* Public portfolio */}
             {publicProjects.length > 0 && (
               <section className="max-w-6xl mx-auto px-4 pb-8 space-y-3">
                 <h3 className="font-bold flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-primary" /> نمونه‌کارهای عمومی
+                  <Globe className="h-5 w-5 text-primary" /> Public portfolio
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {publicProjects.map((p) => (
@@ -1845,13 +1847,13 @@ export default function HomeView() {
                       type="button"
                       onClick={() => (window.location.hash = `/editor/${p.id}`)}
                       className="rounded-xl border bg-card overflow-hidden text-start hover:shadow-md transition-shadow group"
-                      aria-label={`نمونه‌کار ${p.name}`}
+                      aria-label={`Portfolio item ${p.name}`}
                     >
                       <div className="h-24 bg-muted relative">
                         {p.thumbnail ? (
                           <img
                             src={p.thumbnail}
-                            alt={`نمونه‌کار ${p.name}`}
+                            alt={`Portfolio item ${p.name}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         ) : (
@@ -1869,14 +1871,14 @@ export default function HomeView() {
           </main>
         </TabsContent>
 
-        {/* ---------- تب نمونه‌کارها ---------- */}
+        {/* ---------- Portfolio tab ---------- */}
         <TabsContent value="portfolio" className="flex-1 mt-0">
           <main className="max-w-6xl mx-auto px-4 py-6">
             <PortfolioManager />
           </main>
         </TabsContent>
 
-        {/* ---------- تب مدیریت ---------- */}
+        {/* ---------- Admin tab ---------- */}
         <TabsContent value="admin" className="flex-1 mt-0">
           <main className="max-w-6xl mx-auto px-4 py-6">
             <AdminPanel />
@@ -1884,7 +1886,7 @@ export default function HomeView() {
         </TabsContent>
       </Tabs>
 
-      {/* فوتر چسبان مشترک با سایت */}
+      {/* Footer shared with the public site */}
       <SiteFooter />
     </div>
   );

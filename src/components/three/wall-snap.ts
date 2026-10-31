@@ -1,20 +1,20 @@
 // ============================================================
-// چسبیدن آبجکت‌های دیواری به دیوار (Wall Snap) — ریاضی محض
-// ⚠️ این ماژول هیچ وابستگی به three ندارد تا در استور (zustand)
-//    هم قابل ایمپورت باشد.
+// Wall snapping for wall-mounted objects (Wall Snap) — pure math
+// ⚠️ This module has no three dependency so it can also be
+//    imported in the store (zustand).
 //
-// قرارداد: آبجکت‌های دیواری (کابینت/لوازم/تلویزیون) حین درگ
-// روی «دیوار سُر می‌خورند» — نه اینکه شناور روی بقیه صحنه بروند:
-//  • در شروع درگ نزدیک‌ترین لبه outline قفل می‌شود (beginWallDrag)
-//  • در هر رویداد تغییر، موقعیت خام گیزموت روی خط همان لبه
-//    پروجکت می‌شود (applyWallDrag) و چرخش رو به داخل تنظیم می‌شود
-//  • ارتفاع (y) حین سُرخوردن قفل می‌ماند
+// Contract: wall objects (cabinets/appliances/TV) "slide along the
+// wall" while dragging — instead of floating over the rest of the scene:
+//  • On drag start, the nearest outline edge is locked (beginWallDrag)
+//  • On every change event, the raw gizmo position is projected onto
+//    that edge's line (applyWallDrag) and the inward-facing rotation is set
+//  • The height (y) stays locked while sliding
 // ============================================================
 
 import { edgeFrame, getRoomOutline, type Pt } from '@/lib/polygon';
 import type { ObjectType, RoomSpec, SceneObject } from '@/lib/scene-types';
 
-/** انواعی که هنگام درگ به دیوار می‌چسبند (کابینت‌ها، لوازم، تلویزیون) */
+/** Types that snap to the wall while dragging (cabinets, appliances, TV) */
 export const WALL_SNAP_TYPES: readonly ObjectType[] = [
   'base', 'wall', 'tall', 'shelf',
   'fridge', 'stove', 'washer', 'dishwasher', 'microwave', 'hood', 'tv',
@@ -22,19 +22,19 @@ export const WALL_SNAP_TYPES: readonly ObjectType[] = [
 
 export const isWallSnapType = (t: ObjectType): boolean => WALL_SNAP_TYPES.includes(t);
 
-/** وضعیت درگ روی دیوار — در شروع درگ ساخته می‌شود */
+/** Wall drag state — created at drag start */
 export interface WallDragState {
-  /** اندیس لبه‌ای که آبجکت به آن چسبیده (لبه i = نقطه i تا i+1) */
+  /** Index of the edge the object is snapped to (edge i = point i to i+1) */
   edgeIndex: number;
-  /** فاصله مرکز آبجکت از دیوار (depth/2 + 0.02) */
+  /** Distance of the object center from the wall (depth/2 + 0.02) */
   inset: number;
-  /** ارتفاع قفل‌شده حین سُرخوردن */
+  /** Height locked while sliding */
   y: number;
-  /** نصف عرض آبجکت برای محدودسازی طول لبه */
+  /** Half of the object width to limit movement along the edge */
   halfW: number;
 }
 
-/** فاصله² نقطه تا پاره‌خط — پروجکشن clamp به انتهای نزدیک‌تر */
+/** Point-to-segment distance² — projection clamped to the nearest end */
 function pointSegmentDist2(
   px: number, pz: number,
   ax: number, az: number,
@@ -52,7 +52,7 @@ function pointSegmentDist2(
   return dx * dx + dz * dz;
 }
 
-/** نزدیک‌ترین لبه outline به یک نقطه (فاصله تا پاره‌خط هر لبه) */
+/** Nearest outline edge to a point (distance to each edge segment) */
 export function nearestEdgeIndex(outline: Pt[], x: number, z: number): number {
   let best = 0;
   let bestD = Infinity;
@@ -69,8 +69,8 @@ export function nearestEdgeIndex(outline: Pt[], x: number, z: number): number {
 }
 
 /**
- * شروع درگ روی دیوار — نزدیک‌ترین لبه به موقعیت فعلی آبجکت قفل می‌شود.
- * inset از عمق آبجکت و halfW از عرض آن محاسبه می‌شود.
+ * Begin a wall drag — the edge nearest the object's current position is locked.
+ * inset is derived from the object depth and halfW from its width.
  */
 export function beginWallDrag(spec: RoomSpec, obj: SceneObject): WallDragState {
   const outline = getRoomOutline(spec);
@@ -83,9 +83,9 @@ export function beginWallDrag(spec: RoomSpec, obj: SceneObject): WallDragState {
 }
 
 /**
- * اعمال درگ: موقعیت خام گیزموت (rawX, rawZ) روی خطِ لبه قفل‌شده پروجکت و
- * محدود می‌شود؛ خروجی موقعیت چسبیده به دیوار + چرخش رو به داخل اتاق است.
- * y خروجی = y قفل‌شده در beginWallDrag (سُرخوردن در ارتفاع ثابت).
+ * Apply the drag: the raw gizmo position (rawX, rawZ) is projected onto the
+ * locked edge's line and clamped; the output is a wall-snapped position +
+ * inward-facing rotation. Output y = the y locked in beginWallDrag (slides at a constant height).
  */
 export function applyWallDrag(
   spec: RoomSpec,
@@ -94,7 +94,7 @@ export function applyWallDrag(
   rawZ: number,
 ): { position: [number, number, number]; rotationY: number } {
   const edge = edgeFrame(getRoomOutline(spec), st.edgeIndex);
-  // پروجکشن نقطه خام روی خط لبه → محدود به داخل طول لبه با حاشیه نصف‌عرض
+  // Project the raw point onto the edge line → clamp within the edge length with a half-width margin
   const rawT = (rawX - edge.cx) * edge.dirX + (rawZ - edge.cz) * edge.dirZ;
   const maxT = Math.max(0, edge.len / 2 - st.halfW - 0.05);
   const t = Math.min(maxT, Math.max(-maxT, rawT));
@@ -104,14 +104,14 @@ export function applyWallDrag(
       st.y,
       edge.cz + edge.dirZ * t + edge.inZ * st.inset,
     ],
-    // زاویه‌ای که +z آبجکت را رو به داخل اتاق می‌کند (مطابق EdgeGroup در room.tsx)
+    // Angle that makes the object's +z face into the room (matches EdgeGroup in room.tsx)
     rotationY: edge.angleY,
   };
 }
 
 /**
- * جانمایی یک آبجکت جدید (دراپ/افزودن) روی نزدیک‌ترین لبه به (x, z) —
- * inset پیش‌فرض = (d 0.6)/2 + 0.02 = 0.32 (وقتی پارامترها هنوز ساخته نشده‌اند)
+ * Place a new object (drop/add) on the nearest edge to (x, z) —
+ * default inset = (d 0.6)/2 + 0.02 = 0.32 (when params are not built yet)
  */
 export function snapNewObject(
   spec: RoomSpec,
@@ -122,7 +122,7 @@ export function snapNewObject(
 ): { x: number; z: number; rotationY: number } {
   const outline = getRoomOutline(spec);
   const edgeIndex = nearestEdgeIndex(outline, x, z);
-  // تلویزیون بسیار نازک است — پیش‌فرض عمقی معقول تا از دیوار جدا نیفتد
+  // TVs are very thin — a sensible default depth so they don't detach from the wall
   const d = params?.d ?? (type === 'tv' ? 0.08 : 0.6);
   const w = params?.w ?? (type === 'tv' ? 1.2 : 0.8);
   const st: WallDragState = {

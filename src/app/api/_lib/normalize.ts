@@ -1,8 +1,8 @@
 import type { HandleType, ObjectParams, WallName } from '@/lib/scene-types';
 
 // ============================================================
-// هلپرهای مشترک نرمال‌سازی خروجی مدل‌های زبانی
-// (مشترک بین /api/reconstruct و /api/ai/*)
+// Shared helpers for normalizing LLM output
+// (shared between /api/reconstruct and /api/ai/*)
 // ============================================================
 
 export const WALLS: readonly WallName[] = ['back', 'left', 'right', 'front'];
@@ -45,7 +45,7 @@ export const toFurnitureKind = (v: unknown, fallback: FurnitureKind = 'base'): F
     ? (v as FurnitureKind)
     : fallback;
 
-/** حذف فنس‌های markdown و استخراج اولین آبجکت JSON از متن پاسخ مدل */
+/** Strips markdown fences and extracts the first JSON object from the model response text */
 export function extractJsonObject(text: string): unknown {
   const stripped = text.replace(/```[a-zA-Z]*/g, '').trim();
   const first = stripped.indexOf('{');
@@ -54,13 +54,13 @@ export function extractJsonObject(text: string): unknown {
     try {
       return JSON.parse(stripped.slice(first, last + 1));
     } catch {
-      // تلاش برای parse مستقیم در ادامه
+      // Fall through to a direct parse attempt
     }
   }
   return JSON.parse(stripped);
 }
 
-/** ترکیب رنگ hex با سفید (amount مثبت) یا سیاه (amount منفی) — hex اعتبارسنجی‌شده ورودی */
+/** Mixes a hex color with white (positive amount) or black (negative amount) — input hex must be validated */
 export function shadeColor(hex: string, amount: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -73,28 +73,28 @@ export function shadeColor(hex: string, amount: number): string {
     .join('')}`;
 }
 
-// ---------------- برچسب‌های فارسی انواع مبلمان ----------------
+// ---------------- Furniture kind labels ----------------
 
 export const KIND_LABELS: Record<FurnitureKind, string> = {
-  base: 'کابینت زمینی',
-  wall: 'کابینت دیواری',
-  tall: 'کابینت بلند',
-  island: 'جزیره',
-  shelf: 'قفسه باز',
-  fridge: 'یخچال',
-  stove: 'اجاق گاز',
-  hood: 'هود',
-  tv: 'تلویزیون',
-  sofa: 'مبل',
-  bed: 'تخت',
-  table: 'میز',
-  chair: 'صندلی',
-  washer: 'ماشین لباسشویی',
-  dishwasher: 'ماشین ظرفشویی',
-  microwave: 'مایکروویو',
+  base: 'Base cabinet',
+  wall: 'Wall cabinet',
+  tall: 'Tall cabinet',
+  island: 'Island',
+  shelf: 'Open shelf',
+  fridge: 'Refrigerator',
+  stove: 'Stove',
+  hood: 'Range hood',
+  tv: 'TV',
+  sofa: 'Sofa',
+  bed: 'Bed',
+  table: 'Table',
+  chair: 'Chair',
+  washer: 'Washing machine',
+  dishwasher: 'Dishwasher',
+  microwave: 'Microwave',
 };
 
-/** ابعاد پیش‌فرض هر نوع (متر) — برای مقادیر غایب در خروجی مدل */
+/** Default dimensions per kind (meters) — for values missing from the model output */
 export const KIND_DEFAULT_H: Record<FurnitureKind, number> = {
   base: 0.85, wall: 0.7, tall: 2.1, island: 0.9,
   shelf: 1.8, fridge: 1.8, stove: 0.9, hood: 0.14,
@@ -109,7 +109,7 @@ export const KIND_DEFAULT_D: Record<FurnitureKind, number> = {
   chair: 0.5, washer: 0.6, dishwasher: 0.6, microwave: 0.38,
 };
 
-// ---------------- پارامترهای کامل آیتم (خروجی /api/ai/cabinet) ----------------
+// ---------------- Full item params (output of /api/ai/cabinet) ----------------
 
 export interface FullItemParams {
   w: number;
@@ -125,16 +125,16 @@ export interface FullItemParams {
   glass?: boolean;
 }
 
-/** کلیدهای mountY فقط برای wall و hood و tv و microwave مجاز است (بازه‌های متفاوت) */
+/** mountY is allowed only for wall, hood, tv and microwave (different ranges) */
 function mountYRange(kind: string): [number, number, number] | null {
-  if (kind === 'wall') return [1.5, 0.8, 2.3]; // [پیش‌فرض, حداقل, حداکثر]
+  if (kind === 'wall') return [1.5, 0.8, 2.3]; // [default, min, max]
   if (kind === 'hood') return [1.62, 1.3, 2.0];
-  if (kind === 'tv') return [1.4, 0.4, 2.2]; // نصب روی دیوار
-  if (kind === 'microwave') return [0.9, 0.3, 1.6]; // روی کانتر
+  if (kind === 'tv') return [1.4, 0.4, 2.2]; // wall mounted
+  if (kind === 'microwave') return [0.9, 0.3, 1.6]; // on the counter
   return null;
 }
 
-/** بازه‌های h/d خاص هر نوع (تلویزیون نازک، تخت بلندتر) */
+/** Per-kind h/d ranges (thin TV, taller bed) */
 function kindRanges(kind: string): { h: [number, number]; d: [number, number] } {
   switch (kind) {
     case 'hood':
@@ -148,7 +148,7 @@ function kindRanges(kind: string): { h: [number, number]; d: [number, number] } 
   }
 }
 
-/** نرمال‌سازی کامل پارامترها با fallback برای همه کلیدها (تولید text-to-3D) */
+/** Full params normalization with fallbacks for every key (text-to-3D generation) */
 export function normalizeFullParams(raw: unknown, kind: FurnitureKind): FullItemParams {
   const p = isRecord(raw) ? raw : {};
   const hr = kindRanges(kind).h;
@@ -164,18 +164,18 @@ export function normalizeFullParams(raw: unknown, kind: FurnitureKind): FullItem
     drawers: Math.round(clamp(toFinite(p.drawers, 0), 0, 3)),
     handles: toHandle(p.handles),
   };
-  // شیشه فقط وقتی صریحاً true است خروجی می‌رود (شیشه هرگز سیاه نیست)
+  // Glass is only emitted when explicitly true (glass is never black)
   if (p.glass === true) out.glass = true;
   const my = mountYRange(kind);
   if (my) out.mountY = clamp(toFinite(p.mountY, my[0]), my[1], my[2]);
   return out;
 }
 
-// ---------------- پارامترهای جزئی (پچ /api/ai/edit و ساخت آبجکت بازسازی) ----------------
+// ---------------- Partial params (/api/ai/edit patch and reconstruct object building) ----------------
 
 /**
- * نرمال‌سازی سخت‌گیرانه پارامترهای جزئی: فقط کلیدهای شناخته‌شده با مقدار معتبر
- * نگه داشته می‌شوند؛ بقیه حذف می‌شوند. kind برای بازه‌های h/mountY استفاده می‌شود.
+ * Strict normalization of partial params: only known keys with valid values
+ * are kept; everything else is dropped. kind is used for the h/mountY ranges.
  */
 export function normalizePartialParams(raw: unknown, kind: string): ObjectParams {
   const p = isRecord(raw) ? raw : {};
@@ -204,7 +204,7 @@ export function normalizePartialParams(raw: unknown, kind: string): ObjectParams
   const my = mountYRange(kind);
   if (my && p.mountY !== undefined) out.mountY = clamp(toFinite(p.mountY, my[0]), my[1], my[2]);
 
-  // درب شیشه‌ای — عبور کنترل‌شده (شیشه هرگز رنگ تیره نمی‌گیرد)
+  // Glass doors — controlled passthrough (glass never gets a dark color)
   if (p.glass !== undefined) out.glass = p.glass === true;
 
   if (p.scale !== undefined) out.scale = clamp(toFinite(p.scale, 1), 0.2, 5);

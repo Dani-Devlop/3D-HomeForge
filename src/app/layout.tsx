@@ -1,13 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/theme-provider";
+
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 export const metadata: Metadata = {
-  title: "استودیو۳بعد | از عکس تا فضای سه‌بعدی — طراحی و اشتراک‌گذاری",
+  title: "3D HomeForge — From photos to shareable 3D interiors",
   description:
-    "چند عکس از فضا بفرستید؛ هوش مصنوعی همان فضا را به مدل سه‌بعدی قابل ویرایش تبدیل می‌کند. طراحی آشپزخانه، اتاق خواب و هر فضای داخلی با ویرایشگر حرفه‌ای و اشتراک‌گذاری با لینک — خروجی GLB.",
+    "Send a few photos of a real space and AI turns it into an editable 3D model. Design kitchens, bedrooms and any interior in a professional web editor, share live links with clients, and export glTF/GLB.",
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: `${BASE_PATH}/logo.svg`,
   },
 };
 
@@ -23,16 +26,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fa" dir="rtl" suppressHydrationWarning>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
-        />
-      </head>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground font-sans">
-        {children}
-        <Toaster />
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
