@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes 3D HomeForge to GitHub Pages infrastructure.
-# Usage:  GH_TOKEN=github_pat_xxx bash scripts/publish.sh
+# Usage:  GH_TOKEN=<your-token> bash scripts/publish.sh
 # The token is read from the GH_TOKEN environment variable only —
 # it is never written to disk, never hardcoded, never committed.
 set -euo pipefail
@@ -9,7 +9,7 @@ REPO_OWNER="Dani-Devlop"
 REPO_NAME="3D-HomeForge"
 BRANCH="main"
 AUTHOR_NAME="Dani-Devlop"
-AUTHOR_EMAIL="Dani-Devlop@users.noreply.github.com"
+AUTHOR_EMAIL="daniel841384@gmail.com"
 
 if [ -z "${GH_TOKEN:-}" ]; then
   echo "ERROR: GH_TOKEN is not set. Run:  GH_TOKEN=<your-token> bash scripts/publish.sh"
@@ -24,22 +24,11 @@ ACCEPT="Accept: application/vnd.github+json"
 git config user.name  "$AUTHOR_NAME"
 git config user.email "$AUTHOR_EMAIL"
 
-# 2. Resolve the account's numeric ID and prefer the numeric noreply email
-USER_ID="$(curl -s -H "$AUTH" "$API/users/${REPO_OWNER}" | sed -n 's/.*"id": \([0-9]*\).*/\1/p' | head -1)"
-if [ -n "$USER_ID" ]; then
-  git config user.email "${USER_ID}+${REPO_OWNER}@users.noreply.github.com"
-  echo "→ Using numeric noreply email: ${USER_ID}+${REPO_OWNER}@users.noreply.github.com"
-  # Re-apply to any commits made earlier with the plain form
-  if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git status --porcelain)" ]; then
-    git commit -q --amend --no-edit --reset-author || true
-  fi
-fi
-
-# 3. Push to the canonical repo
+# 2. Push to the canonical repo
 echo "→ Pushing ${BRANCH} to ${REPO_OWNER}/${REPO_NAME} ..."
 git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git" "${BRANCH}"
 
-# 4. Repo metadata: About description, homepage, topics
+# 3. Repo metadata: About description, homepage, topics
 echo "→ Setting repo About/topics ..."
 curl -s -o /dev/null -X PATCH -H "$AUTH" -H "$ACCEPT" \
   "$API/repos/${REPO_OWNER}/${REPO_NAME}" \
@@ -54,11 +43,19 @@ curl -s -o /dev/null -X PUT -H "$AUTH" -H "$ACCEPT" \
   "$API/repos/${REPO_OWNER}/${REPO_NAME}/topics" \
   -d '{"names":["3d","threejs","home-design","interior-design","webgl","github-pages","dark-mode","english-ui"]}'
 
-# 5. Verify commit author resolves to the Dani-Devlop profile
+# 4. Verify commit author resolves to the Dani-Devlop profile
+#    GitHub links an author email to an account ONLY if that email is verified on it,
+#    so successful linkage here also proves the email is verified.
 echo "→ Verifying commit authorship ..."
 sleep 3
-LOGIN="$(curl -s -H "$AUTH" "$API/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=1" \
-  | sed -n 's/.*"login": "\([^"]*\)".*/\1/p' | head -1)"
+LOGIN=""
+for i in 1 2 3 4; do
+  LOGIN="$(curl -s -H "$AUTH" "$API/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=1" \
+    | sed -n 's/.*"login": "\([^"]*\)".*/\1/p' | head -1)"
+  [ -n "$LOGIN" ] && break
+  echo "   retry $i (API hiccup) ..."
+  sleep 3
+done
 echo "   latest commit author.login = ${LOGIN:-<unknown>}"
 if [ "$LOGIN" = "$REPO_OWNER" ]; then
   echo "✓ Commit author verified as ${REPO_OWNER}"
